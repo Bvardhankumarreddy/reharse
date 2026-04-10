@@ -20,7 +20,8 @@ export function useVoiceRecorder(
   const [recording, setRecording] = useState(false);
   const [micError,  setMicError]  = useState<string | null>(null);
 
-  const recognitionRef  = useRef<SpeechRecognition | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef  = useRef<any>(null);
   const shouldRunRef    = useRef(false);   // true while the user wants recording on
   const onInterimRef    = useRef(onInterim);
   const onFinalRef      = useRef(onFinal);
@@ -75,10 +76,9 @@ export function useVoiceRecorder(
 
   // ── Create + start a fresh recognition instance ──────────────────────────────
   const spawnRecognition = useCallback(() => {
-    const SpeechRecognitionCtor =
-      typeof window !== "undefined"
-        ? (window.SpeechRecognition ?? (window as unknown as Record<string, typeof SpeechRecognition>).webkitSpeechRecognition)
-        : null;
+    const w = typeof window !== "undefined" ? (window as unknown as Record<string, unknown>) : null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRecognitionCtor: any = w ? (w.SpeechRecognition ?? w.webkitSpeechRecognition) : null;
 
     if (!SpeechRecognitionCtor) {
       setMicError("Speech recognition is not supported in this browser. Try Chrome or Edge.");
@@ -94,7 +94,7 @@ export function useVoiceRecorder(
     r.lang                 = "en-US";
     recognitionRef.current = r;
 
-    r.onresult = (e: SpeechRecognitionEvent) => {
+    r.onresult = (e: unknown & { resultIndex: number; results: { isFinal: boolean; [0]: { transcript: string } }[] }) => {
       let interim    = "";
       let finalChunk = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -106,7 +106,7 @@ export function useVoiceRecorder(
       if (finalChunk) onFinalRef.current(finalChunk.trim());
     };
 
-    r.onerror = (e: SpeechRecognitionErrorEvent) => {
+    r.onerror = (e: unknown & { error: string }) => {
       if (e.error === "not-allowed") {
         setMicError("Microphone permission denied.");
         shouldRunRef.current = false;
