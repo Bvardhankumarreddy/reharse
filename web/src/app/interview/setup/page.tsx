@@ -3,7 +3,7 @@
 // Spec § Screen 2: Interview Setup
 // "Multi-step wizard. Feels like Calendly, not configuring a database."
 
-import { useState, useEffect, useRef } from "react";
+import { useState, Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { clsx } from "clsx";
 import type { InterviewType } from "@/types";
@@ -26,7 +26,7 @@ const INTERVIEW_TYPES: Array<{
   { type: "case-study",    label: "Case Study",    description: "Business problems, estimation, product thinking",     color: "text-[#EC4899]", bgColor: "bg-pink-50",   icon: "lightbulb"   },
 ];
 
-export default function InterviewSetupPage() {
+function InterviewSetupPageInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const { api, ready } = useApiClient();
@@ -527,5 +527,13 @@ export default function InterviewSetupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function InterviewSetupPage() {
+  return (
+    <Suspense>
+      <InterviewSetupPageInner />
+    </Suspense>
   );
 }

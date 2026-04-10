@@ -4,7 +4,7 @@
 // WebSocket-driven: connects to NestJS Socket.io gateway, receives questions,
 // submits answers, listens for feedback_ready → redirects to /sessions/:id
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, Suspense, useCallback, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useApiClient } from "@/lib/hooks/useApiClient";
 import { useAuth } from "@clerk/nextjs";
@@ -130,7 +130,7 @@ const INTERVIEWER: Record<string, { name: string; title: string; initials: strin
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function InterviewSessionPage() {
+function InterviewSessionPageInner() {
   const params     = useSearchParams();
   const router     = useRouter();
   const { getToken } = useAuth();
@@ -746,5 +746,13 @@ export default function InterviewSessionPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function InterviewSessionPage() {
+  return (
+    <Suspense>
+      <InterviewSessionPageInner />
+    </Suspense>
   );
 }

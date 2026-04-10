@@ -3,7 +3,7 @@
 // Spec § Screen 4: Live Interview — Coding Mode
 // "VS Code meets Google interview. Dark editor right, clean white left."
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, Suspense, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
@@ -120,7 +120,7 @@ function ErrorScreen({ message, onBack }: { message: string; onBack: () => void 
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function CodingInterviewPage() {
+function CodingInterviewPageInner() {
   const params     = useSearchParams();
   const router     = useRouter();
   const { getToken } = useAuth();
@@ -505,5 +505,13 @@ export default function CodingInterviewPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CodingInterviewPage() {
+  return (
+    <Suspense>
+      <CodingInterviewPageInner />
+    </Suspense>
   );
 }
