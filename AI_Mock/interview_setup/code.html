@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Digital Stoic - Interview Setup</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "surface-dim": "#d2d9f4",
+                "inverse-primary": "#adc6ff",
+                "surface": "#faf8ff",
+                "error": "#ba1a1a",
+                "primary-fixed-dim": "#adc6ff",
+                "secondary-container": "#8a4cfc",
+                "outline-variant": "#c2c6d6",
+                "on-secondary-fixed-variant": "#5a00c6",
+                "outline": "#727785",
+                "on-tertiary-fixed-variant": "#004c6e",
+                "on-primary": "#ffffff",
+                "secondary-fixed-dim": "#d2bbff",
+                "error-container": "#ffdad6",
+                "on-primary-container": "#fefcff",
+                "on-secondary": "#ffffff",
+                "on-error-container": "#93000a",
+                "on-secondary-container": "#fffbff",
+                "background": "#faf8ff",
+                "tertiary": "#00628d",
+                "on-tertiary-fixed": "#001e2f",
+                "on-surface": "#131b2e",
+                "surface-container-high": "#e2e7ff",
+                "surface-container-lowest": "#ffffff",
+                "surface-container-low": "#f2f3ff",
+                "on-surface-variant": "#424754",
+                "on-primary-fixed-variant": "#004395",
+                "primary-container": "#2170e4",
+                "tertiary-fixed-dim": "#89ceff",
+                "secondary": "#712ae2",
+                "primary-fixed": "#d8e2ff",
+                "inverse-on-surface": "#eef0ff",
+                "tertiary-container": "#007cb1",
+                "surface-variant": "#dae2fd",
+                "surface-tint": "#005ac2",
+                "inverse-surface": "#283044",
+                "primary": "#0058be",
+                "surface-container": "#eaedff",
+                "on-tertiary-container": "#fcfcff",
+                "on-error": "#ffffff",
+                "tertiary-fixed": "#c9e6ff",
+                "surface-container-highest": "#dae2fd",
+                "secondary-fixed": "#eaddff",
+                "on-background": "#131b2e",
+                "surface-bright": "#faf8ff",
+                "on-primary-fixed": "#001a42",
+                "on-tertiary": "#ffffff",
+                "on-secondary-fixed": "#25005a"
+              },
+              fontFamily: {
+                "headline": ["Inter"],
+                "body": ["Inter"],
+                "label": ["Inter"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-step-line {
+            background: linear-gradient(90deg, #0058be 0%, #2170e4 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface min-h-screen flex flex-col">
+<!-- Top Navigation Bar (Shared Component Strategy) -->
+<header class="w-full top-0 sticky z-50 bg-[#faf8ff] dark:bg-slate-950 flex items-center justify-between px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">arrow_back</span>
+<span class="text-xl font-bold tracking-tighter text-blue-800 dark:text-blue-400">Digital Stoic</span>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Close-up portrait of a professional man in a minimalist grey studio background with soft directional lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9-YDVH4eZ5S5nCvyoiAQXN4-14LMoTMJhz8OoefZQyyDdQaY3MiWGJ8yofmv9pCVAhJSegRKwD5yZJaYu7vBtLq828v-Ys31CnPbDiNWX0FYRIKARQPuj5nzs713pRyROgEhLQJRd07gaemey2qZ-0Tn0Ou1_c4vBA5iYWkp3C5R9vhF_0clbACBRj05WIzezKuQiG-ZdaVXrwZ-HQ9APuYnovHmzMHsLtJE84B_D7vF8J-Bmre6rBeVYKfcUrfyIOt4dPz2GjCzW"/>
+</div>
+</header>
+<main class="flex-1 flex flex-col px-6 pt-4 pb-32 max-w-lg mx-auto w-full bg-surface-container-low">
+<!-- Stepper Component -->
+<nav class="flex items-center justify-between mb-10 w-full px-2">
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center text-xs font-bold ring-4 ring-primary/10">1</div>
+<span class="text-[10px] font-bold uppercase tracking-wider text-primary">Intent</span>
+</div>
+<div class="flex-1 h-[2px] mx-2 bg-surface-container-highest self-center -translate-y-3"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center text-xs font-bold">2</div>
+<span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Role</span>
+</div>
+<div class="flex-1 h-[2px] mx-2 bg-surface-container-highest self-center -translate-y-3"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center text-xs font-bold">3</div>
+<span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Level</span>
+</div>
+<div class="flex-1 h-[2px] mx-2 bg-surface-container-highest self-center -translate-y-3"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center text-xs font-bold">4</div>
+<span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Review</span>
+</div>
+</nav>
+<!-- Title Section -->
+<section class="mb-8">
+<h1 class="text-3xl font-extrabold tracking-tight text-on-surface mb-2">What kind of interview?</h1>
+<p class="text-on-surface-variant text-sm leading-relaxed">Choose your focus area. Our AI will tailor the simulation to your specific career track.</p>
+</section>
+<!-- Vertical Selection List (Bento-style Minimalist Cards) -->
+<div class="space-y-4">
+<!-- Behavioral - Selected State -->
+<button class="w-full text-left group transition-all duration-200 active:scale-[0.98]">
+<div class="bg-surface-container-lowest p-5 rounded-xl border-2 border-primary shadow-lg shadow-primary/5 flex items-center gap-5">
+<div class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">psychology</span>
+</div>
+<div class="flex-1">
+<div class="flex items-center justify-between">
+<h3 class="font-bold text-on-surface text-lg">Behavioral</h3>
+<span class="material-symbols-outlined text-primary text-xl">check_circle</span>
+</div>
+<p class="text-on-surface-variant text-xs mt-1">Soft skills, leadership, and STAR method.</p>
+</div>
+</div>
+</button>
+<!-- Coding -->
+<button class="w-full text-left group transition-all duration-200 active:scale-[0.98]">
+<div class="bg-surface-container-lowest p-5 rounded-xl hover:bg-surface-bright transition-colors flex items-center gap-5">
+<div class="w-12 h-12 rounded-full bg-tertiary-container/10 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">code</span>
+</div>
+<div class="flex-1">
+<h3 class="font-bold text-on-surface text-lg">Coding</h3>
+<p class="text-on-surface-variant text-xs mt-1">Algorithms, data structures, and optimization.</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+</button>
+<!-- System Design -->
+<button class="w-full text-left group transition-all duration-200 active:scale-[0.98]">
+<div class="bg-surface-container-lowest p-5 rounded-xl hover:bg-surface-bright transition-colors flex items-center gap-5">
+<div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-700">
+<span class="material-symbols-outlined">account_tree</span>
+</div>
+<div class="flex-1">
+<h3 class="font-bold text-on-surface text-lg">System Design</h3>
+<p class="text-on-surface-variant text-xs mt-1">Architecture, scalability, and distributed systems.</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+</button>
+<!-- HR -->
+<button class="w-full text-left group transition-all duration-200 active:scale-[0.98]">
+<div class="bg-surface-container-lowest p-5 rounded-xl hover:bg-surface-bright transition-colors flex items-center gap-5">
+<div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+<span class="material-symbols-outlined">groups</span>
+</div>
+<div class="flex-1">
+<h3 class="font-bold text-on-surface text-lg">HR</h3>
+<p class="text-on-surface-variant text-xs mt-1">Culture fit, compensation, and logistics.</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+</button>
+<!-- Case Study -->
+<button class="w-full text-left group transition-all duration-200 active:scale-[0.98]">
+<div class="bg-surface-container-lowest p-5 rounded-xl hover:bg-surface-bright transition-colors flex items-center gap-5">
+<div class="w-12 h-12 rounded-full bg-pink-100 flex items-center justify-center text-pink-700">
+<span class="material-symbols-outlined">assignment</span>
+</div>
+<div class="flex-1">
+<h3 class="font-bold text-on-surface text-lg">Case Study</h3>
+<p class="text-on-surface-variant text-xs mt-1">Business logic, estimation, and problem solving.</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+</button>
+</div>
+</main>
+<!-- Bottom Action Bar (Contextual FAB / Button Container) -->
+<footer class="fixed bottom-0 left-0 w-full p-6 bg-surface/80 backdrop-blur-xl border-t border-outline-variant/10">
+<div class="max-w-lg mx-auto">
+<button class="w-full py-5 px-6 rounded-xl bg-gradient-to-br from-primary to-primary-container text-on-primary font-bold text-lg flex items-center justify-center gap-3 active:scale-[0.97] transition-transform duration-150 shadow-xl shadow-primary/20">
+<span>Next: Configure Role</span>
+<span class="material-symbols-outlined">trending_flat</span>
+</button>
+</div>
+</footer>
+</body></html>

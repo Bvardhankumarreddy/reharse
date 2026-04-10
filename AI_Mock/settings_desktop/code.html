@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings - Interview Intelligence</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-fixed": "#c9e6ff",
+              "primary-container": "#2170e4",
+              "outline": "#727785",
+              "on-secondary": "#ffffff",
+              "on-primary-fixed-variant": "#004395",
+              "on-tertiary-container": "#fcfcff",
+              "on-secondary-fixed-variant": "#5a00c6",
+              "on-tertiary-fixed-variant": "#004c6e",
+              "surface": "#faf8ff",
+              "surface-container": "#eaedff",
+              "surface-container-lowest": "#ffffff",
+              "secondary-fixed": "#eaddff",
+              "surface-dim": "#d2d9f4",
+              "surface-container-highest": "#dae2fd",
+              "primary": "#0058be",
+              "on-secondary-fixed": "#25005a",
+              "error-container": "#ffdad6",
+              "secondary-container": "#8a4cfc",
+              "primary-fixed-dim": "#adc6ff",
+              "on-primary-fixed": "#001a42",
+              "on-error-container": "#93000a",
+              "on-error": "#ffffff",
+              "inverse-on-surface": "#eef0ff",
+              "tertiary-fixed-dim": "#89ceff",
+              "on-tertiary-fixed": "#001e2f",
+              "on-surface-variant": "#424754",
+              "secondary-fixed-dim": "#d2bbff",
+              "inverse-primary": "#adc6ff",
+              "inverse-surface": "#283044",
+              "outline-variant": "#c2c6d6",
+              "on-primary-container": "#fefcff",
+              "surface-variant": "#dae2fd",
+              "surface-tint": "#005ac2",
+              "on-primary": "#ffffff",
+              "surface-bright": "#faf8ff",
+              "error": "#ba1a1a",
+              "on-surface": "#131b2e",
+              "tertiary-container": "#007cb1",
+              "surface-container-high": "#e2e7ff",
+              "secondary": "#712ae2",
+              "on-tertiary": "#ffffff",
+              "on-background": "#131b2e",
+              "surface-container-low": "#f2f3ff",
+              "primary-fixed": "#d8e2ff",
+              "on-secondary-container": "#fffbff",
+              "tertiary": "#00628d",
+              "background": "#faf8ff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"],
+              "mono": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .mono-text { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="bg-background text-on-surface">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-full flex flex-col pt-8 pb-4 px-6 bg-slate-50 dark:bg-slate-950 h-screen w-64 border-r-0 z-50">
+<div class="mb-10 px-2">
+<h1 class="text-xl font-bold tracking-tighter text-slate-900 dark:text-slate-100 Inter">Digital Stoic</h1>
+<p class="text-xs text-slate-500 font-medium tracking-wide Inter">AI Interview Prep</p>
+</div>
+<div class="space-y-1 flex-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 group" href="#">
+<span class="material-symbols-outlined text-[20px]">home</span>
+<span class="font-sans text-sm font-medium tracking-wide">Home</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 group" href="#">
+<span class="material-symbols-outlined text-[20px]">exercise</span>
+<span class="font-sans text-sm font-medium tracking-wide">Practice</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 group" href="#">
+<span class="material-symbols-outlined text-[20px]">history</span>
+<span class="font-sans text-sm font-medium tracking-wide">Sessions</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 group" href="#">
+<span class="material-symbols-outlined text-[20px]">leaderboard</span>
+<span class="font-sans text-sm font-medium tracking-wide">Progress</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 group" href="#">
+<span class="material-symbols-outlined text-[20px]">database</span>
+<span class="font-sans text-sm font-medium tracking-wide">Question Bank</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-blue-700 dark:text-blue-400 font-bold border-r-2 border-blue-700 dark:border-blue-400 bg-slate-200/50 dark:bg-slate-800/50 group" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="font-sans text-sm font-medium tracking-wide">Settings</span>
+</a>
+</div>
+<button class="mt-auto bg-primary text-on-primary px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+            Start Interview
+        </button>
+</nav>
+<!-- TopAppBar -->
+<header class="sticky top-0 z-40 flex items-center justify-between px-8 ml-64 w-full h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+<div class="flex items-center gap-8">
+<span class="text-lg font-black text-slate-900 dark:text-slate-50 Inter tracking-tight">Interview Intelligence</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-300 transition-all" href="#">Dashboard</a>
+<a class="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-300 transition-all" href="#">Analytics</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+<input class="pl-10 pr-4 py-1.5 bg-slate-100 dark:bg-slate-800 border-none rounded-full text-sm focus:ring-2 focus:ring-primary/20 w-64" placeholder="Search settings..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-all p-2">notifications</button>
+<button class="material-symbols-outlined text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-all p-2">help_outline</button>
+<div class="h-8 w-8 rounded-full bg-surface-container overflow-hidden">
+<img alt="User avatar" class="h-full w-full object-cover" data-alt="close-up portrait of a professional woman in a modern office environment with soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCrntMf7PAdec7nVkc5tHdDnhrnCizg8NW5VReT2xG1i47_GY4kyk0EO4jD4QR4MeRHT9TbxmM_xEt1LlerqsI_qJfd5gBWGsyL9cPdf95CbQDgvoVmIIMZ5QETSwoyz3pcIzSGqq_dH536Cy4hOfgztLxxVCsO8wimlw7WI19W7bSLcgXDH0PGiqxhQK0izv_yjwRt-nOGE8wWMdnq0TK8JDVyJjmz16NsGxRnD1gP4DibyUKU6oW9asf_IsV4dTjkYoXbTwTAtoOR"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 p-10 max-w-7xl">
+<div class="flex flex-col md:flex-row gap-12">
+<!-- Left: Settings Navigation -->
+<aside class="w-full md:w-64 shrink-0">
+<h2 class="text-2xl font-black mb-8 tracking-tight">Settings</h2>
+<nav class="space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:bg-surface-container-low group" href="#">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">person</span>
+<span class="text-[15px] font-medium">Profile</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:bg-surface-container-low group" href="#">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">notifications</span>
+<span class="text-[15px] font-medium">Notifications</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-container-low text-primary font-bold shadow-sm group" href="#">
+<span class="material-symbols-outlined text-primary" data-weight="fill">tune</span>
+<span class="text-[15px]">Preferences</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:bg-surface-container-low group" href="#">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">description</span>
+<span class="text-[15px] font-medium">Resume</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:bg-surface-container-low group" href="#">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">domain</span>
+<span class="text-[15px] font-medium">Target Companies</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:bg-surface-container-low group" href="#">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">calendar_today</span>
+<span class="text-[15px] font-medium">Calendar</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:bg-surface-container-low group" href="#">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">share</span>
+<span class="text-[15px] font-medium">LinkedIn</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:bg-surface-container-low group" href="#">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">credit_card</span>
+<span class="text-[15px] font-medium">Billing</span>
+</a>
+</nav>
+</aside>
+<!-- Right: Interview Preferences Panel -->
+<section class="flex-1 max-w-4xl space-y-8">
+<!-- Panel Header -->
+<div>
+<h3 class="text-xl font-bold tracking-tight text-on-surface">Interview Preferences</h3>
+<p class="text-slate-500 text-sm mt-1">Configure how the AI agent conducts your practice sessions.</p>
+</div>
+<!-- Dropdowns Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="p-6 rounded-xl bg-surface-container-lowest border border-outline-variant/15">
+<label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Default Type</label>
+<div class="relative">
+<select class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm appearance-none focus:ring-2 focus:ring-primary/10">
+<option>Behavioral &amp; Leadership</option>
+<option>Technical &amp; System Design</option>
+<option>Product Management Case</option>
+<option>Culture Fit &amp; Values</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="p-6 rounded-xl bg-surface-container-lowest border border-outline-variant/15">
+<label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Target Role</label>
+<div class="relative">
+<select class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm appearance-none focus:ring-2 focus:ring-primary/10">
+<option>Senior Product Designer</option>
+<option>Software Engineer (L5)</option>
+<option>Marketing Director</option>
+<option>Data Scientist</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="p-6 rounded-xl bg-surface-container-lowest border border-outline-variant/15">
+<label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Experience Level</label>
+<div class="relative">
+<select class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm appearance-none focus:ring-2 focus:ring-primary/10">
+<option>Mid-Senior (5-8 Years)</option>
+<option>Entry Level (0-2 Years)</option>
+<option>Mid-Level (3-5 Years)</option>
+<option>Executive (10+ Years)</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="p-6 rounded-xl bg-surface-container-lowest border border-outline-variant/15">
+<label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Interview Language</label>
+<div class="relative">
+<select class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm appearance-none focus:ring-2 focus:ring-primary/10">
+<option>English (US)</option>
+<option>English (UK)</option>
+<option>Spanish (ES)</option>
+<option>Mandarin (CN)</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Toggles Section -->
+<div class="bg-surface-container-low rounded-xl p-8 space-y-6">
+<div class="flex items-center justify-between">
+<div class="flex items-start gap-4">
+<div class="w-10 h-10 rounded-full bg-primary-fixed-dim flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary">auto_graph</span>
+</div>
+<div>
+<h4 class="font-bold text-[15px]">Difficulty Adaptation</h4>
+<p class="text-xs text-slate-500 max-w-md">AI will dynamically increase difficulty based on the quality of your previous responses.</p>
+</div>
+</div>
+<button class="w-12 h-6 bg-primary rounded-full relative transition-colors">
+<span class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></span>
+</button>
+</div>
+<div class="flex items-center justify-between border-t border-slate-200 pt-6">
+<div class="flex items-start gap-4">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-secondary">lightbulb</span>
+</div>
+<div>
+<h4 class="font-bold text-[15px]">STAR Method Hints</h4>
+<p class="text-xs text-slate-500 max-w-md">Real-time subtle visual cues to help you structure answers using Situation, Task, Action, and Result.</p>
+</div>
+</div>
+<button class="w-12 h-6 bg-slate-300 rounded-full relative transition-colors">
+<span class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full"></span>
+</button>
+</div>
+</div>
+<!-- Radio Cards Section -->
+<div>
+<label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Feedback Depth</label>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="relative p-5 rounded-xl border-2 border-primary bg-white cursor-pointer group">
+<div class="flex flex-col h-full">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-primary" data-weight="fill">psychology</span>
+<span class="material-symbols-outlined text-primary">check_circle</span>
+</div>
+<h5 class="font-bold text-sm mb-1">Deep Critique</h5>
+<p class="text-[11px] text-slate-500 leading-relaxed">Granular analysis of vocabulary, body language, and logical coherence.</p>
+</div>
+</div>
+<div class="relative p-5 rounded-xl border-2 border-transparent bg-surface-container-lowest hover:bg-white transition-all cursor-pointer group shadow-sm">
+<div class="flex flex-col h-full">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">list_alt</span>
+</div>
+<h5 class="font-bold text-sm mb-1">Standard</h5>
+<p class="text-[11px] text-slate-500 leading-relaxed">Highlights key successes and major areas for improvement per question.</p>
+</div>
+</div>
+<div class="relative p-5 rounded-xl border-2 border-transparent bg-surface-container-lowest hover:bg-white transition-all cursor-pointer group shadow-sm">
+<div class="flex flex-col h-full">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">speed</span>
+</div>
+<h5 class="font-bold text-sm mb-1">Brief Overview</h5>
+<p class="text-[11px] text-slate-500 leading-relaxed">High-level score and sentiment analysis. Recommended for rapid drills.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Actions -->
+<div class="pt-8 flex items-center justify-between border-t border-slate-100">
+<button class="text-sm font-bold text-slate-400 hover:text-error transition-colors">Reset to Default</button>
+<div class="flex gap-4">
+<button class="px-6 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all">Cancel</button>
+<button class="px-8 py-2.5 rounded-xl text-sm font-bold bg-primary text-on-primary transition-all hover:scale-[1.02] shadow-lg shadow-primary/10">Save Preferences</button>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Contextual "Pro" Toast (Bento Style) -->
+<div class="fixed bottom-10 right-10 w-80 p-6 rounded-2xl bg-inverse-surface text-inverse-on-surface shadow-2xl z-50">
+<div class="flex gap-4">
+<div class="h-10 w-10 shrink-0 bg-primary rounded-xl flex items-center justify-center">
+<span class="material-symbols-outlined text-white">bolt</span>
+</div>
+<div>
+<p class="text-sm font-bold mb-1">Stoic Pro Active</p>
+<p class="text-xs text-slate-400 leading-relaxed">Your premium features include unlimited AI feedback and advanced STAR method hints.</p>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+<span class="mono-text text-[10px] uppercase text-primary tracking-widest">Next Bill: Oct 24</span>
+<button class="text-[11px] font-black underline underline-offset-4 uppercase tracking-tighter">Manage</button>
+</div>
+</div>
+</body></html>

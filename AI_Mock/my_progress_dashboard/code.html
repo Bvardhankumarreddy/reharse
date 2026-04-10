@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>My Progress - InterviewAI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-error-container": "#93000a",
+              "on-secondary": "#ffffff",
+              "surface": "#faf8ff",
+              "on-tertiary": "#ffffff",
+              "on-background": "#131b2e",
+              "primary-fixed-dim": "#adc6ff",
+              "inverse-surface": "#283044",
+              "inverse-on-surface": "#eef0ff",
+              "surface-container-lowest": "#ffffff",
+              "on-tertiary-fixed": "#001e2f",
+              "tertiary-container": "#007cb1",
+              "primary": "#0058be",
+              "tertiary-fixed": "#c9e6ff",
+              "surface-variant": "#dae2fd",
+              "error-container": "#ffdad6",
+              "on-primary-container": "#fefcff",
+              "on-tertiary-container": "#fcfcff",
+              "secondary": "#712ae2",
+              "surface-container-high": "#e2e7ff",
+              "on-secondary-container": "#fffbff",
+              "inverse-primary": "#adc6ff",
+              "error": "#ba1a1a",
+              "on-surface-variant": "#424754",
+              "primary-container": "#2170e4",
+              "outline-variant": "#c2c6d6",
+              "on-primary-fixed-variant": "#004395",
+              "tertiary": "#00628d",
+              "tertiary-fixed-dim": "#89ceff",
+              "surface-dim": "#d2d9f4",
+              "on-secondary-fixed-variant": "#5a00c6",
+              "primary-fixed": "#d8e2ff",
+              "surface-container-highest": "#dae2fd",
+              "on-primary": "#ffffff",
+              "on-primary-fixed": "#001a42",
+              "surface-bright": "#faf8ff",
+              "secondary-fixed-dim": "#d2bbff",
+              "secondary-container": "#8a4cfc",
+              "surface-container": "#eaedff",
+              "on-tertiary-fixed-variant": "#004c6e",
+              "surface-container-low": "#f2f3ff",
+              "surface-tint": "#005ac2",
+              "outline": "#727785",
+              "on-error": "#ffffff",
+              "secondary-fixed": "#eaddff",
+              "on-surface": "#131b2e",
+              "on-secondary-fixed": "#25005a",
+              "background": "#faf8ff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-ai {
+            background: rgba(138, 76, 252, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(138, 76, 252, 0.1);
+        }
+        .chart-grid-line {
+            stroke: #e2e7ff;
+            stroke-dasharray: 4;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-background font-body min-h-screen pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky z-50 bg-slate-50 dark:bg-slate-950">
+<div class="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-highest">
+<img alt="User Profile" data-alt="Close-up professional portrait of a smiling man with glasses, soft studio lighting, clean background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBuLzkeFccSfZ1PifDZxU2ZJY0-m1rpXP1p0F73K4hJOkUXbE_okm5nBr_9uBnonfYgCcMGkeNvYuCwxr7O8vsxJETed7TwC79NAIGNoEcBmSXO9qC9QErNLVwVRSghq388w-9nbgZfj8AYMS5MNGhU11cH5zPaFCLeqOofMKKS0nqTb2djcfnuU9DQldQ-K8GekG7zx3LXfiiu-n-bEiM7iNcjgFtd7JF-ZRvTVNx6paT_tSbdR3KaAFc48nSvkizhsODt05H4tPJ6"/>
+</div>
+<span class="text-xl font-black tracking-tighter text-blue-700 dark:text-blue-500">InterviewAI</span>
+</div>
+<nav class="hidden md:flex gap-8 items-center">
+<a class="text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 transition-colors px-3 py-1 rounded-lg" href="#">Coach</a>
+<a class="text-blue-700 dark:text-blue-400 font-bold hover:bg-slate-200/50 transition-colors px-3 py-1 rounded-lg" href="#">Insights</a>
+<a class="text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 transition-colors px-3 py-1 rounded-lg" href="#">History</a>
+<a class="material-symbols-outlined text-slate-500 active:scale-95 transition-transform" href="#">settings</a>
+</nav>
+<div class="md:hidden">
+<span class="material-symbols-outlined text-blue-700">settings</span>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-6 py-8">
+<!-- Header Section -->
+<section class="mb-10">
+<h1 class="text-[28px] font-bold tracking-tight text-on-background leading-tight">My Progress</h1>
+<p class="text-on-surface-variant mt-1 font-medium">Last 30 days · 18 sessions · <span class="text-primary">+12 points overall</span></p>
+</section>
+<!-- AI Insight Banner -->
+<div class="mb-10 p-6 rounded-full glass-ai flex items-start gap-4 border-l-4 border-l-secondary">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<div>
+<p class="text-on-surface text-sm leading-relaxed">
+                    Based on your progress, focus on <span class="font-bold text-secondary">Dynamic Programming (38%)</span> and <span class="font-bold text-secondary">System Design (52%)</span> this week. You're on track for 80+ before your Google interview.
+                </p>
+</div>
+</div>
+<!-- Stats Grid -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-transparent hover:border-primary/10 transition-all">
+<p class="text-xs uppercase tracking-widest font-bold text-on-surface-variant mb-2">Overall Score</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-black text-primary">74</span>
+<span class="text-xs font-bold text-primary flex items-center">
+<span class="material-symbols-outlined text-[14px]">arrow_upward</span> 12
+                    </span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm">
+<p class="text-xs uppercase tracking-widest font-bold text-on-surface-variant mb-2">Sessions</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-black text-on-surface">18</span>
+<span class="text-xs text-on-surface-variant">this month</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm">
+<p class="text-xs uppercase tracking-widest font-bold text-on-surface-variant mb-2">Best Category</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-black text-on-surface">81</span>
+<span class="text-xs text-on-surface-variant">Behavioral</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl shadow-sm">
+<p class="text-xs uppercase tracking-widest font-bold text-on-surface-variant mb-2">Streak</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-black text-on-surface">12</span>
+<span class="text-lg">🔥</span>
+</div>
+</div>
+</div>
+<!-- Main Content Area: Asymmetric Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+<!-- Left Side: Trends & Heatmap -->
+<div class="lg:col-span-2 space-y-8">
+<!-- Score Trend Card -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm overflow-hidden relative">
+<div class="flex justify-between items-center mb-10">
+<h3 class="text-lg font-bold tracking-tight">Readiness Score — Last 30 Days</h3>
+<div class="flex gap-4 text-xs font-bold text-on-surface-variant">
+<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-primary"></span> Readiness</span>
+</div>
+</div>
+<div class="h-64 relative">
+<!-- Chart Mockup with SVG -->
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 800 200">
+<defs>
+<lineargradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#0058be" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#0058be" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<!-- Grid Lines -->
+<line class="chart-grid-line" x1="0" x2="800" y1="0" y2="0"></line>
+<line class="chart-grid-line" x1="0" x2="800" y1="50" y2="50"></line>
+<line class="chart-grid-line" x1="0" x2="800" y1="100" y2="100"></line>
+<line class="chart-grid-line" x1="0" x2="800" y1="150" y2="150"></line>
+<!-- Path Area -->
+<path d="M0,150 L100,140 L200,160 L300,130 L400,145 L500,80 L600,90 L700,40 L800,30 V200 H0 Z" fill="url(#chartGradient)"></path>
+<!-- Path Line -->
+<path d="M0,150 L100,140 L200,160 L300,130 L400,145 L500,80 L600,90 L700,40 L800,30" fill="none" stroke="#0058be" stroke-linecap="round" stroke-width="3"></path>
+<!-- Markers -->
+<circle cx="300" cy="130" fill="white" r="4" stroke="#0058be" stroke-width="2"></circle>
+<circle cx="500" cy="80" fill="white" r="4" stroke="#0058be" stroke-width="2"></circle>
+</svg>
+<!-- Annotations -->
+<div class="absolute top-[135px] left-[37%] -translate-x-1/2 group cursor-help">
+<div class="bg-on-background text-white text-[10px] px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap mb-2">System Design session (dip)</div>
+<div class="w-[1px] h-4 bg-primary mx-auto"></div>
+</div>
+<div class="absolute top-[35px] left-[62%] -translate-x-1/2 group cursor-help">
+<div class="bg-primary text-white text-[10px] px-2 py-1 rounded-lg opacity-100 transition-opacity whitespace-nowrap mb-2 font-bold shadow-lg">Coaching session (spike)</div>
+<div class="w-[1px] h-4 bg-primary mx-auto"></div>
+</div>
+</div>
+<div class="flex justify-between mt-4 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
+<span>Mar 1</span>
+<span>Mar 7</span>
+<span>Mar 14</span>
+<span>Mar 21</span>
+<span>Mar 28</span>
+</div>
+</div>
+<!-- Heatmap Card -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
+<h3 class="text-lg font-bold tracking-tight mb-6">Practice Consistency</h3>
+<div class="flex gap-3 overflow-x-auto pb-2">
+<!-- Day Labels -->
+<div class="flex flex-col justify-between py-1 text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter h-[115px]">
+<span>Sun</span>
+<span>Mon</span>
+<span>Tue</span>
+<span>Wed</span>
+<span>Thu</span>
+<span>Fri</span>
+<span>Sat</span>
+</div>
+<!-- Grid Container -->
+<div class="grid grid-rows-7 grid-flow-col gap-1">
+<!-- Row 1 (Sun) -->
+<div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div>
+<!-- Row 2 (Mon) -->
+<div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div>
+<!-- Row 3 (Tue) -->
+<div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div>
+<!-- Row 4 (Wed) -->
+<div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div>
+<!-- Row 5 (Thu) -->
+<div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div>
+<!-- Row 6 (Fri) -->
+<div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-slate-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div>
+<!-- Row 7 (Sat) -->
+<div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-100"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-600"></div><div class="w-3.5 h-3.5 rounded-sm bg-blue-300"></div>
+</div>
+</div>
+<div class="flex justify-end items-center mt-6">
+<div class="flex items-center gap-1">
+<span class="text-[10px] text-on-surface-variant font-bold">Less</span>
+<div class="w-3 h-3 rounded-sm bg-slate-100"></div>
+<div class="w-3 h-3 rounded-sm bg-blue-100"></div>
+<div class="w-3 h-3 rounded-sm bg-blue-300"></div>
+<div class="w-3 h-3 rounded-sm bg-blue-600"></div>
+<span class="text-[10px] text-on-surface-variant font-bold ml-1">More</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Side: Achievements -->
+<div class="space-y-8">
+<!-- Achievements Card -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
+<h3 class="text-lg font-bold tracking-tight mb-6">Achievements</h3>
+<div class="grid grid-cols-3 gap-6">
+<div class="flex flex-col items-center gap-2 group">
+<div class="w-14 h-14 rounded-2xl bg-primary-fixed flex items-center justify-center text-primary group-hover:scale-110 transition-transform cursor-default">
+<span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">calendar_month</span>
+</div>
+<span class="text-[10px] font-bold text-center leading-tight">7-Day Streak</span>
+</div>
+<div class="flex flex-col items-center gap-2 group">
+<div class="w-14 h-14 rounded-2xl bg-tertiary-fixed flex items-center justify-center text-tertiary group-hover:scale-110 transition-transform cursor-default">
+<span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">workspace_premium</span>
+</div>
+<span class="text-[10px] font-bold text-center leading-tight">Behavioral Ace</span>
+</div>
+<div class="flex flex-col items-center gap-2 group">
+<div class="w-14 h-14 rounded-2xl bg-secondary-fixed flex items-center justify-center text-secondary group-hover:scale-110 transition-transform cursor-default">
+<span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">code</span>
+</div>
+<span class="text-[10px] font-bold text-center leading-tight">Code Warrior</span>
+</div>
+<!-- Locked badges -->
+<div class="flex flex-col items-center gap-2 grayscale opacity-40">
+<div class="w-14 h-14 rounded-2xl bg-slate-200 flex items-center justify-center text-slate-500">
+<span class="material-symbols-outlined text-3xl">architecture</span>
+</div>
+<span class="text-[10px] font-bold text-center leading-tight">System Thinker</span>
+</div>
+<div class="flex flex-col items-center gap-2 grayscale opacity-40">
+<div class="w-14 h-14 rounded-2xl bg-slate-200 flex items-center justify-center text-slate-500">
+<span class="material-symbols-outlined text-3xl">verified</span>
+</div>
+<span class="text-[10px] font-bold text-center leading-tight">Interview Ready</span>
+</div>
+<div class="flex flex-col items-center gap-2 grayscale opacity-40">
+<div class="w-14 h-14 rounded-2xl bg-slate-200 flex items-center justify-center text-slate-500">
+<span class="material-symbols-outlined text-3xl">all_inclusive</span>
+</div>
+<span class="text-[10px] font-bold text-center leading-tight">Full Loop</span>
+</div>
+</div>
+</div>
+<!-- Ad/Focus Info -->
+<div class="p-6 rounded-xl bg-gradient-to-br from-primary to-primary-container text-white shadow-xl">
+<h4 class="font-bold text-lg mb-2">Google Interview Prep</h4>
+<p class="text-xs opacity-90 leading-relaxed mb-4">You have 12 days left until your scheduled mock loop. Focus on low-score technical topics.</p>
+<button class="w-full bg-white text-primary font-bold py-3 rounded-full text-xs uppercase tracking-widest active:scale-95 transition-transform">Resume Training</button>
+</div>
+</div>
+</div>
+<!-- Topic Mastery Grid -->
+<section class="mt-8 mb-16">
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
+<div class="flex justify-between items-center mb-8">
+<h3 class="text-lg font-bold tracking-tight">Topic Breakdown</h3>
+<button class="text-primary text-xs font-bold uppercase tracking-widest hover:underline">View All Topics</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Topic Card -->
+<div class="p-5 rounded-xl bg-surface-container-low hover:bg-white transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="text-[10px] font-black text-tertiary bg-tertiary-fixed px-2 py-0.5 rounded-full uppercase tracking-tighter">Behavioral</span>
+<h4 class="font-bold text-sm mt-1">STAR Behavioral</h4>
+</div>
+<span class="font-black text-primary text-lg">78%</span>
+</div>
+<div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[78%]"></div>
+</div>
+</div>
+<div class="p-5 rounded-xl bg-surface-container-low hover:bg-white transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="text-[10px] font-black text-tertiary bg-tertiary-fixed px-2 py-0.5 rounded-full uppercase tracking-tighter">Behavioral</span>
+<h4 class="font-bold text-sm mt-1">Leadership Principles</h4>
+</div>
+<span class="font-black text-primary text-lg">85%</span>
+</div>
+<div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[85%]"></div>
+</div>
+</div>
+<div class="p-5 rounded-xl bg-surface-container-low hover:bg-white transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="text-[10px] font-black text-secondary bg-secondary-fixed px-2 py-0.5 rounded-full uppercase tracking-tighter">Coding</span>
+<h4 class="font-bold text-sm mt-1">Arrays &amp; Strings</h4>
+</div>
+<span class="font-black text-primary text-lg">61%</span>
+</div>
+<div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[61%]"></div>
+</div>
+</div>
+<div class="p-5 rounded-xl bg-error-container/20 border border-error-container hover:bg-white transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="text-[10px] font-black text-error bg-error-container px-2 py-0.5 rounded-full uppercase tracking-tighter">Coding</span>
+<h4 class="font-bold text-sm mt-1">Dynamic Programming</h4>
+</div>
+<span class="font-black text-error text-lg">38%</span>
+</div>
+<div class="w-full h-1.5 bg-error-container rounded-full overflow-hidden">
+<div class="bg-error h-full w-[38%]"></div>
+</div>
+</div>
+<div class="p-5 rounded-xl bg-surface-container-low hover:bg-white transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="text-[10px] font-black text-on-surface-variant bg-surface-container-highest px-2 py-0.5 rounded-full uppercase tracking-tighter">Design</span>
+<h4 class="font-bold text-sm mt-1">System Design Basics</h4>
+</div>
+<span class="font-black text-primary text-lg">52%</span>
+</div>
+<div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[52%]"></div>
+</div>
+</div>
+<div class="p-5 rounded-xl bg-surface-container-low hover:bg-white transition-colors">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="text-[10px] font-black text-on-surface-variant bg-surface-container-highest px-2 py-0.5 rounded-full uppercase tracking-tighter">Design</span>
+<h4 class="font-bold text-sm mt-1">API Design</h4>
+</div>
+<span class="font-black text-primary text-lg">60%</span>
+</div>
+<div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[60%]"></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl z-50 border-t border-slate-100/10 shadow-[0_-4px_20px_0_rgba(0,0,0,0.03)]">
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+<span class="text-[11px] font-medium tracking-widest uppercase font-inter mt-1">Coach</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-xl px-3 py-1.5 active:scale-90 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="analytics" style="font-variation-settings: 'FILL' 1;">analytics</span>
+<span class="text-[11px] font-medium tracking-widest uppercase font-inter mt-1">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="text-[11px] font-medium tracking-widest uppercase font-inter mt-1">History</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="text-[11px] font-medium tracking-widest uppercase font-inter mt-1">Profile</span>
+</a>
+</nav>
+</body></html>

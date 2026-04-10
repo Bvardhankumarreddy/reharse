@@ -1,0 +1,85 @@
+# Development overrides — run with:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Changes vs production:
+#  • Source code mounted as volumes → hot-reload without rebuilding images
+#  • Dev commands used (nest start --watch, uvicorn --reload, next dev)
+#  • NODE_ENV=development, TypeORM synchronize=true
+#  • No resource limits
+#  • Expose Bull Board (queue dashboard) on port 4000
+
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL: same as prod, expose for local tooling ───────────────────────
+  postgres:
+    ports:
+      - "5432:5432"
+
+  # ── Redis: same as prod ───────────────────────────────────────────────────────
+  redis:
+    ports:
+      - "6379:6379"
+
+  # ── NestJS API (hot-reload) ───────────────────────────────────────────────────
+  api:
+    build:
+      context:    ./api
+      dockerfile: Dockerfile
+      target:     builder   # stop at builder stage (has devDeps + ts-node)
+    image: rehearse-api:dev
+    command: npm run start:dev
+    environment:
+      NODE_ENV:     development
+      DATABASE_URL: postgresql://rehearse:rehearse@postgres:5432/rehearse
+      REDIS_URL:    redis://redis:6379
+      AI_ENGINE_URL: http://ai-engine:8000
+      CORS_ORIGIN:  http://localhost:3000
+      PORT:         "3001"
+    volumes:
+      - ./api/src:/app/src:ro      # mount source — ts-node picks up changes
+      - /app/node_modules          # anonymous volume so container modules win
+    deploy: {}                     # clear resource limits from prod
+    healthcheck:
+      # Longer start period in dev (ts compilation takes longer)
+      start_period: 60s
+
+  # ── Python AI Engine (auto-reload) ───────────────────────────────────────────
+  ai-engine:
+    build:
+      context:    ./ai-engine
+      dockerfile: Dockerfile
+      target:     builder
+    image: rehearse-ai-engine:dev
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT:      "8000"
+    volumes:
+      - ./ai-engine/app:/app/app:ro
+    deploy: {}
+
+  # ── Next.js Web (dev server) ─────────────────────────────────────────────────
+  web:
+    build:
+      context:    ./web
+      dockerfile: Dockerfile
+      target:     deps          # only install deps — skip build for hot-reload
+    image: rehearse-web:dev
+    command: npm run dev
+    environment:
+      NODE_ENV:                          development
+      NEXT_PUBLIC_API_URL:               http://localhost:3001/api/v1
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      CLERK_SECRET_KEY:                  ${CLERK_SECRET_KEY}
+    volumes:
+      - ./web/src:/app/src:ro
+      - ./web/public:/app/public:ro
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api                    # wait for api container to start (not health check)
+    healthcheck:
+      start_period: 30s
+    deploy: {}

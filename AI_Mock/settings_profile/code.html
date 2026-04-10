@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings - Interview Prep</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-fixed-dim": "#adc6ff",
+              "secondary-fixed-dim": "#d2bbff",
+              "secondary-fixed": "#eaddff",
+              "error-container": "#ffdad6",
+              "surface-tint": "#005ac2",
+              "surface-container-low": "#f2f3ff",
+              "outline-variant": "#c2c6d6",
+              "on-primary": "#ffffff",
+              "on-error-container": "#93000a",
+              "surface": "#faf8ff",
+              "secondary": "#712ae2",
+              "on-surface": "#131b2e",
+              "error": "#ba1a1a",
+              "on-error": "#ffffff",
+              "surface-dim": "#d2d9f4",
+              "inverse-primary": "#adc6ff",
+              "inverse-on-surface": "#eef0ff",
+              "surface-bright": "#faf8ff",
+              "surface-container-highest": "#dae2fd",
+              "primary-fixed": "#d8e2ff",
+              "on-tertiary": "#ffffff",
+              "on-tertiary-container": "#fcfcff",
+              "outline": "#727785",
+              "secondary-container": "#8a4cfc",
+              "tertiary-fixed": "#c9e6ff",
+              "on-background": "#131b2e",
+              "primary-container": "#2170e4",
+              "on-tertiary-fixed": "#001e2f",
+              "on-surface-variant": "#424754",
+              "on-secondary-fixed-variant": "#5a00c6",
+              "on-primary-fixed": "#001a42",
+              "tertiary-fixed-dim": "#89ceff",
+              "tertiary-container": "#007cb1",
+              "surface-container-high": "#e2e7ff",
+              "on-primary-container": "#fefcff",
+              "background": "#faf8ff",
+              "surface-container": "#eaedff",
+              "on-primary-fixed-variant": "#004395",
+              "on-secondary-fixed": "#25005a",
+              "on-secondary": "#ffffff",
+              "on-secondary-container": "#fffbff",
+              "inverse-surface": "#283044",
+              "tertiary": "#00628d",
+              "surface-variant": "#dae2fd",
+              "primary": "#0058be",
+              "on-tertiary-fixed-variant": "#004c6e",
+              "surface-container-lowest": "#ffffff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky z-50 bg-[#faf8ff] dark:bg-slate-950">
+<div class="flex items-center justify-between px-6 h-16 w-full max-w-7xl mx-auto">
+<div class="flex items-center gap-4">
+<button class="p-2 -ml-2 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors duration-200 rounded-full scale-95 active:opacity-80 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="menu">menu</span>
+</button>
+<h1 class="text-xl font-bold text-slate-900 dark:text-slate-50 font-['Inter'] tracking-tight">Settings</h1>
+</div>
+<div class="flex items-center">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-highest flex items-center justify-center border-2 border-primary-container/10">
+<img alt="User Profile Avatar" class="w-full h-full object-cover" data-alt="Professional headshot of a young man with a slight smile, clean lighting, neutral background, sharp focus" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWYRZoed8AQ9fpFjrl-QAxf1uDNQMECdGwQ7rdkQu4Et_m5GznG50XTeId1PQCEwrTvFweAAiubiK6xxmdUhPG9ieqMl7ECa4oNDnprqUd9EphUy6z3nX9qYTRfHb2R6L4HvhApSgso8hG6vuNXiTI1VHJvJ-zOWg2AqUpXY_caivqSN_qLtaEk6ymYAzdy22sy8ySFNf-p3sk1W0dk8kEZGNWCim8lyIOjxgWyEUrueDUR9H52CZLr0uyKW0X_oXv2RiJU9lunddy"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="max-w-xl mx-auto px-6 pt-8">
+<!-- Section Header -->
+<div class="mb-10">
+<h2 class="text-[24px] font-extrabold tracking-tight text-on-surface mb-1">Interview Preferences</h2>
+<p class="text-on-surface-variant/80 text-sm">Customize how AI interviews you</p>
+</div>
+<div class="space-y-2">
+<!-- 1. Default Interview Type -->
+<div class="min-h-[64px] py-4 flex flex-col gap-3 group">
+<div class="flex justify-between items-start">
+<div class="flex-1">
+<label class="block font-semibold text-on-surface">Default Interview Type</label>
+<p class="text-xs text-on-surface-variant font-medium">What type of interview to start by default</p>
+</div>
+<div class="relative min-w-[140px]">
+<select class="w-full appearance-none bg-surface-container-low border-none rounded-xl text-sm font-semibold text-primary py-2.5 px-4 pr-10 focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option>Behavioral</option>
+<option>Technical</option>
+<option>Case Study</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-primary pointer-events-none text-lg" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div class="h-[1px] w-full bg-surface-container-highest/50"></div>
+</div>
+<!-- 2. Experience Level -->
+<div class="min-h-[64px] py-4 flex flex-col gap-3 group">
+<div class="flex justify-between items-start">
+<div class="flex-1">
+<label class="block font-semibold text-on-surface">Experience Level</label>
+<p class="text-xs text-on-surface-variant font-medium">Your current professional standing</p>
+</div>
+<div class="relative min-w-[140px]">
+<select class="w-full appearance-none bg-surface-container-low border-none rounded-xl text-sm font-semibold text-primary py-2.5 px-4 pr-10 focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option>Entry-level (0-2y)</option>
+<option selected="">Mid-level (3–5 years)</option>
+<option>Senior (6+ years)</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-primary pointer-events-none text-lg" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div class="h-[1px] w-full bg-surface-container-highest/50"></div>
+</div>
+<!-- 3. Primary Target Role -->
+<div class="min-h-[64px] py-4 flex flex-col gap-3 group">
+<div class="flex justify-between items-start">
+<div class="flex-1">
+<label class="block font-semibold text-on-surface">Primary Target Role</label>
+<p class="text-xs text-on-surface-variant font-medium">Focus the AI on specific job requirements</p>
+</div>
+<div class="relative min-w-[140px]">
+<select class="w-full appearance-none bg-surface-container-low border-none rounded-xl text-sm font-semibold text-primary py-2.5 px-4 pr-10 focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option selected="">Software Engineer</option>
+<option>Product Manager</option>
+<option>Data Scientist</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-primary pointer-events-none text-lg" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div class="h-[1px] w-full bg-surface-container-highest/50"></div>
+</div>
+<!-- 4. Interview Language -->
+<div class="min-h-[64px] py-4 flex flex-col gap-3 group">
+<div class="flex justify-between items-start">
+<div class="flex-1">
+<label class="block font-semibold text-on-surface">Interview Language</label>
+<p class="text-xs text-on-surface-variant font-medium">Select your preferred communication language</p>
+</div>
+<div class="relative min-w-[140px]">
+<select class="w-full appearance-none bg-surface-container-low border-none rounded-xl text-sm font-semibold text-primary py-2.5 px-4 pr-10 focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option selected="">English (US)</option>
+<option>Spanish</option>
+<option>Mandarin</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-primary pointer-events-none text-lg" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div class="h-[1px] w-full bg-surface-container-highest/50"></div>
+</div>
+<!-- 5. Answer Mode (Toggle) -->
+<div class="min-h-[64px] py-6 flex flex-col gap-4">
+<div class="flex flex-col gap-2">
+<label class="block font-semibold text-on-surface">Answer Mode</label>
+<div class="flex bg-surface-container-low p-1.5 rounded-2xl w-full">
+<button class="flex-1 py-2 text-sm font-medium text-on-surface-variant hover:text-primary transition-colors">Text</button>
+<button class="flex-1 py-2 text-sm font-bold bg-white text-primary rounded-xl shadow-sm ring-1 ring-black/5">Voice</button>
+<button class="flex-1 py-2 text-sm font-medium text-on-surface-variant hover:text-primary transition-colors">Mixed</button>
+</div>
+</div>
+<div class="h-[1px] w-full bg-surface-container-highest/50"></div>
+</div>
+<!-- 6. AI Difficulty Adaptation -->
+<div class="min-h-[64px] py-4 flex items-center justify-between group">
+<div class="flex-1 pr-4">
+<label class="block font-semibold text-on-surface">AI Difficulty Adaptation</label>
+<p class="text-xs text-on-surface-variant font-medium">AI adjusts question difficulty based on your answers</p>
+</div>
+<button class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-primary">
+<span class="translate-x-5 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+</button>
+</div>
+<div class="h-[1px] w-full bg-surface-container-highest/50"></div>
+<!-- 7. Show STAR Hints -->
+<div class="min-h-[64px] py-4 flex items-center justify-between group">
+<div class="flex-1 pr-4">
+<label class="block font-semibold text-on-surface">Show STAR Hints</label>
+<p class="text-xs text-on-surface-variant font-medium">Show STAR structure reminder during behavioral interviews</p>
+</div>
+<button class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-primary">
+<span class="translate-x-5 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+</button>
+</div>
+<div class="h-[1px] w-full bg-surface-container-highest/50"></div>
+<!-- 8. Post-Interview Feedback Depth -->
+<div class="py-8">
+<h3 class="font-bold text-on-surface mb-4 uppercase tracking-wider text-[11px]">Post-Interview Feedback Depth</h3>
+<div class="space-y-3">
+<!-- Quick Summary -->
+<div class="p-4 rounded-xl bg-surface-container-low flex items-center gap-4 transition-all hover:bg-surface-container-high cursor-pointer">
+<div class="w-5 h-5 rounded-full border-2 border-outline-variant flex items-center justify-center"></div>
+<div>
+<p class="font-bold text-sm text-on-surface">Quick Summary</p>
+</div>
+</div>
+<!-- Detailed Report -->
+<div class="p-4 rounded-xl bg-surface-container-lowest ring-2 ring-primary flex items-center gap-4 shadow-sm transition-all">
+<div class="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+<div class="w-2 h-2 rounded-full bg-white"></div>
+</div>
+<div class="flex-1">
+<div class="flex items-center gap-2">
+<p class="font-bold text-sm text-on-surface">Detailed Report</p>
+<span class="bg-primary/10 text-primary text-[10px] font-black px-2 py-0.5 rounded-full uppercase">Recommended</span>
+</div>
+</div>
+</div>
+<!-- Expert Analysis -->
+<div class="p-4 rounded-xl bg-surface-container-low flex items-center gap-4 transition-all hover:bg-surface-container-high cursor-pointer">
+<div class="w-5 h-5 rounded-full border-2 border-outline-variant flex items-center justify-center"></div>
+<div>
+<p class="font-bold text-sm text-on-surface">Expert Analysis</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Fixed Footer Action -->
+<div class="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent pointer-events-none">
+<div class="max-w-xl mx-auto pointer-events-auto">
+<button class="w-full py-4 rounded-2xl bg-gradient-to-br from-[#0058be] to-[#2170e4] text-white font-bold text-lg shadow-xl shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                Save Preferences
+            </button>
+</div>
+</div>
+<!-- Navigation Drawer (Off-screen / Theoretical for this mobile view) -->
+<nav class="hidden fixed left-0 top-0 h-screen flex flex-col p-6 z-40 bg-[#f2f3ff] dark:bg-slate-900 w-80 font-['Inter'] text-sm tracking-wide uppercase font-medium">
+<div class="mb-8 flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-white" data-icon="psychology">psychology</span>
+</div>
+<div>
+<h4 class="text-lg font-black text-blue-700 dark:text-blue-400 normal-case tracking-tight">Alex Rivera</h4>
+<p class="text-[10px] text-slate-500">Premium Candidate • ID: 88291</p>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex items-center gap-4 p-4 text-slate-600 hover:text-blue-500 rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span>Account</span>
+</div>
+<div class="flex items-center gap-4 p-4 bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 font-bold rounded-lg shadow-sm">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+<span>Interview</span>
+</div>
+<div class="flex items-center gap-4 p-4 text-slate-600 hover:text-blue-500 rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="extension">extension</span>
+<span>Integrations</span>
+</div>
+<div class="flex items-center gap-4 p-4 text-slate-600 hover:text-blue-500 rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span>Billing</span>
+</div>
+</div>
+</nav>
+</body></html>

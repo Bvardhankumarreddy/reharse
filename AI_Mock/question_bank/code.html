@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Question Bank | StoicPrep</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        /* Custom scrollbar for filter chips */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-dim": "#d2d9f4",
+                        "tertiary": "#00628d",
+                        "secondary": "#712ae2",
+                        "on-surface": "#131b2e",
+                        "primary-fixed": "#d8e2ff",
+                        "background": "#faf8ff",
+                        "on-secondary-container": "#fffbff",
+                        "surface-bright": "#faf8ff",
+                        "tertiary-fixed": "#c9e6ff",
+                        "primary": "#0058be",
+                        "on-tertiary-fixed": "#001e2f",
+                        "surface-tint": "#005ac2",
+                        "secondary-fixed": "#eaddff",
+                        "primary-fixed-dim": "#adc6ff",
+                        "on-tertiary-fixed-variant": "#004c6e",
+                        "on-primary-fixed": "#001a42",
+                        "primary-container": "#2170e4",
+                        "surface-container-highest": "#dae2fd",
+                        "surface-container": "#eaedff",
+                        "on-secondary-fixed": "#25005a",
+                        "on-primary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#89ceff",
+                        "surface-variant": "#dae2fd",
+                        "on-surface-variant": "#424754",
+                        "surface": "#faf8ff",
+                        "inverse-primary": "#adc6ff",
+                        "surface-container-high": "#e2e7ff",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#f2f3ff",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#004395",
+                        "outline": "#727785",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed-dim": "#d2bbff",
+                        "surface-container-lowest": "#ffffff",
+                        "outline-variant": "#c2c6d6",
+                        "on-tertiary-container": "#fcfcff",
+                        "on-primary-container": "#fefcff",
+                        "inverse-on-surface": "#eef0ff",
+                        "secondary-container": "#8a4cfc",
+                        "on-background": "#131b2e",
+                        "tertiary-container": "#007cb1",
+                        "on-error-container": "#93000a",
+                        "inverse-surface": "#283044",
+                        "on-secondary-fixed-variant": "#5a00c6"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body selection:bg-primary-fixed">
+<!-- Top Navigation Shell -->
+<header class="flex justify-between items-center w-full px-6 py-3 sticky top-0 z-50 bg-[#faf8ff] dark:bg-slate-950">
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-[#0058be] dark:text-[#2170e4] hover:bg-slate-200/50 p-2 rounded-full transition-colors" data-icon="menu">menu</button>
+<span class="text-lg font-bold tracking-tighter text-[#131b2e] dark:text-white">StoicPrep</span>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-[#0058be] dark:text-[#2170e4] font-bold border-b-2 border-[#0058be] font-inter antialiased tracking-tight text-sm uppercase tracking-[0.05em] py-1" href="#">Library</a>
+<a class="text-slate-500 dark:text-slate-400 font-inter antialiased tracking-tight text-sm font-medium uppercase tracking-[0.05em] hover:bg-slate-200/50 px-2 py-1 rounded transition-colors" href="#">Practice</a>
+<a class="text-slate-500 dark:text-slate-400 font-inter antialiased tracking-tight text-sm font-medium uppercase tracking-[0.05em] hover:bg-slate-200/50 px-2 py-1 rounded transition-colors" href="#">Analysis</a>
+</nav>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden border-2 border-primary-fixed">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Professional portrait of a young man with a slight smile in a modern office environment with soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwkK7Ci0JzdzrpTfuk8QNoJT-bIjF3nInLPWh1rC9yqvt8bfg7GBeBCm2Tj3IqQ9A7ZqW_4P54W_uSNAcmYrIE7AqV4IfolC1ZAS6VOtEQzJ9QGF9MkTV_npN8reBYwnZsf-eWZu6xjfYCv3k2krZj92SUS81Xuddx806LDmYu2wulM5GgluskdM_2YoRC2CU4TXHcMCqNGtHEtu1v-UXkbWA2A6P8WeIypZALpT32yco9pEsVSIwjtRIoa_-CY7VQKY_B68n5mUCn"/>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-6 pt-8 pb-32">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+<div class="flex-1 space-y-4">
+<h1 class="text-[28px] font-bold tracking-tight text-on-background">Question Bank</h1>
+<div class="relative group">
+<div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-outline">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</div>
+<input class="w-full h-[44px] pl-12 pr-4 bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary/20 focus:bg-surface-container-lowest transition-all placeholder:text-outline/60 text-on-surface" placeholder="Search questions, topics, or companies..." type="text"/>
+</div>
+</div>
+<button class="h-[44px] px-6 bg-gradient-to-br from-primary to-primary-container text-on-primary font-semibold rounded-xl active:scale-95 transition-transform flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="add_circle">add_circle</span>
+                Create Practice Set
+            </button>
+</div>
+<!-- Filter Row -->
+<div class="space-y-4 mb-8">
+<div class="flex flex-col gap-4 overflow-hidden">
+<div class="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
+<span class="text-[10px] font-bold tracking-widest uppercase text-outline mr-2 whitespace-nowrap">Type:</span>
+<button class="px-4 py-1.5 rounded-full bg-primary-fixed text-on-primary-fixed text-sm font-medium whitespace-nowrap">All</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-highest text-on-surface-variant text-sm font-medium whitespace-nowrap hover:bg-surface-container-high transition-colors">Behavioral</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-highest text-on-surface-variant text-sm font-medium whitespace-nowrap hover:bg-surface-container-high transition-colors">Coding</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-highest text-on-surface-variant text-sm font-medium whitespace-nowrap hover:bg-surface-container-high transition-colors">System Design</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-highest text-on-surface-variant text-sm font-medium whitespace-nowrap hover:bg-surface-container-high transition-colors">HR</button>
+<div class="w-px h-4 bg-outline-variant mx-2"></div>
+<span class="text-[10px] font-bold tracking-widest uppercase text-outline mr-2 whitespace-nowrap">Difficulty:</span>
+<button class="px-4 py-1.5 rounded-full bg-primary-fixed text-on-primary-fixed text-sm font-medium whitespace-nowrap">Any</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-highest text-on-surface-variant text-sm font-medium whitespace-nowrap">Easy</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-highest text-on-surface-variant text-sm font-medium whitespace-nowrap">Medium</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-highest text-on-surface-variant text-sm font-medium whitespace-nowrap">Hard</button>
+<div class="w-px h-4 bg-outline-variant mx-2"></div>
+<span class="text-[10px] font-bold tracking-widest uppercase text-outline mr-2 whitespace-nowrap">Company:</span>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-highest text-on-surface-variant text-sm font-medium whitespace-nowrap">Google</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-highest text-on-surface-variant text-sm font-medium whitespace-nowrap">Amazon</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-highest text-on-surface-variant text-sm font-medium whitespace-nowrap">Meta</button>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 items-center">
+<span class="text-xs font-semibold text-outline py-1">Active filters:</span>
+<div class="flex items-center gap-1.5 px-3 py-1 bg-primary-container/10 border border-primary/20 rounded-lg text-primary text-xs font-bold">
+<span>× Behavioral · Google · Medium</span>
+</div>
+</div>
+</div>
+<!-- Question List -->
+<div class="grid grid-cols-1 gap-3">
+<!-- Row 1 (Checked) -->
+<div class="group flex items-center bg-surface-container-lowest rounded-[12px] h-[76px] px-4 shadow-[0_4px_20px_0_rgba(19,27,46,0.02)] border border-transparent hover:border-primary/10 transition-all">
+<input checked="" class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary/20 mr-4" type="checkbox"/>
+<div class="w-3 h-[44px] rounded-full bg-secondary mr-6 opacity-80"></div>
+<div class="flex-1 min-w-0 pr-4">
+<h3 class="text-base font-semibold text-on-surface truncate mb-1">Tell me about a time you influenced without authority</h3>
+<div class="flex flex-wrap gap-3 items-center">
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Leadership</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Behavioral</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">L4–L6</span>
+<div class="flex items-center gap-1">
+<img alt="Google" class="w-3 h-3 grayscale opacity-60" data-alt="minimalist tech company logo icon in flat vector style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvMUhLZMyk0EkI4a39vktNqCQKJK3_ArFb-HOAlots9xCEInLIN0syr3cO4HdkL_czUYIxjl9HDr9nBrQDxexxIQzoIpeA2bF3oyu4c485teBvWgPlKPFk336P4K6pIJFpBHQz65hxVP9wBeAADRseI6yuBCxUW_eqgZPfO3vDqQA1uV0paasuwOK9_fzjlSYCbYjC5LPviMbF6rC0c2fZ_wtK_EB8dDXnYwNGjIG2PSMhJC38YtaDyDvgp11fx8oGx3Lp3Nr4dSTI"/>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Google</span>
+</div>
+<span class="px-1.5 py-0.5 rounded-md bg-surface-container-highest text-on-surface-variant text-[9px] font-black uppercase">Asked 2024</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<span class="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full">Medium</span>
+<button class="px-4 py-1.5 text-xs font-bold text-primary bg-primary-fixed/50 rounded-xl hover:bg-primary-fixed transition-colors active:scale-95">Practice</button>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="group flex items-center bg-surface-container-lowest rounded-[12px] h-[76px] px-4 shadow-[0_4px_20px_0_rgba(19,27,46,0.02)] border border-transparent hover:border-primary/10 transition-all">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary/20 mr-4" type="checkbox"/>
+<div class="w-3 h-[44px] rounded-full bg-emerald-500 mr-6 opacity-80"></div>
+<div class="flex-1 min-w-0 pr-4">
+<h3 class="text-base font-semibold text-on-surface truncate mb-1">Two Sum</h3>
+<div class="flex flex-wrap gap-3 items-center">
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Arrays</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Algorithms</span>
+<div class="flex items-center gap-1">
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Amazon</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Easy</span>
+<button class="px-4 py-1.5 text-xs font-bold text-primary bg-primary-fixed/50 rounded-xl hover:bg-primary-fixed transition-colors active:scale-95">Practice</button>
+</div>
+</div>
+<!-- Row 3 (Checked) -->
+<div class="group flex items-center bg-surface-container-lowest rounded-[12px] h-[76px] px-4 shadow-[0_4px_20px_0_rgba(19,27,46,0.02)] border border-transparent hover:border-primary/10 transition-all">
+<input checked="" class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary/20 mr-4" type="checkbox"/>
+<div class="w-3 h-[44px] rounded-full bg-amber-500 mr-6 opacity-80"></div>
+<div class="flex-1 min-w-0 pr-4">
+<h3 class="text-base font-semibold text-on-surface truncate mb-1">Design a URL shortening service</h3>
+<div class="flex flex-wrap gap-3 items-center">
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Scalability</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">System Design</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Meta</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<span class="text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-full">Hard</span>
+<button class="px-4 py-1.5 text-xs font-bold text-primary bg-primary-fixed/50 rounded-xl hover:bg-primary-fixed transition-colors active:scale-95">Practice</button>
+</div>
+</div>
+<!-- Row 4 -->
+<div class="group flex items-center bg-surface-container-lowest rounded-[12px] h-[76px] px-4 shadow-[0_4px_20px_0_rgba(19,27,46,0.02)] border border-transparent hover:border-primary/10 transition-all">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary/20 mr-4" type="checkbox"/>
+<div class="w-3 h-[44px] rounded-full bg-secondary mr-6 opacity-80"></div>
+<div class="flex-1 min-w-0 pr-4">
+<h3 class="text-base font-semibold text-on-surface truncate mb-1">Why do you want to work at Apple?</h3>
+<div class="flex flex-wrap gap-3 items-center">
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Motivation</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">HR</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Apple</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Easy</span>
+<button class="px-4 py-1.5 text-xs font-bold text-primary bg-primary-fixed/50 rounded-xl hover:bg-primary-fixed transition-colors active:scale-95">Practice</button>
+</div>
+</div>
+<!-- Row 5 (Checked) -->
+<div class="group flex items-center bg-surface-container-lowest rounded-[12px] h-[76px] px-4 shadow-[0_4px_20px_0_rgba(19,27,46,0.02)] border border-transparent hover:border-primary/10 transition-all">
+<input checked="" class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary/20 mr-4" type="checkbox"/>
+<div class="w-3 h-[44px] rounded-full bg-emerald-500 mr-6 opacity-80"></div>
+<div class="flex-1 min-w-0 pr-4">
+<h3 class="text-base font-semibold text-on-surface truncate mb-1">Longest Palindromic Substring</h3>
+<div class="flex flex-wrap gap-3 items-center">
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Strings</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">DP</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Netflix</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<span class="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full">Medium</span>
+<button class="px-4 py-1.5 text-xs font-bold text-primary bg-primary-fixed/50 rounded-xl hover:bg-primary-fixed transition-colors active:scale-95">Practice</button>
+</div>
+</div>
+<!-- Row 6 -->
+<div class="group flex items-center bg-surface-container-lowest rounded-[12px] h-[76px] px-4 shadow-[0_4px_20px_0_rgba(19,27,46,0.02)] border border-transparent hover:border-primary/10 transition-all">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary/20 mr-4" type="checkbox"/>
+<div class="w-3 h-[44px] rounded-full bg-amber-500 mr-6 opacity-80"></div>
+<div class="flex-1 min-w-0 pr-4">
+<h3 class="text-base font-semibold text-on-surface truncate mb-1">Design a Distributed Rate Limiter</h3>
+<div class="flex flex-wrap gap-3 items-center">
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Cloud</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Systems</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<span class="text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-full">Hard</span>
+<button class="px-4 py-1.5 text-xs font-bold text-primary bg-primary-fixed/50 rounded-xl hover:bg-primary-fixed transition-colors active:scale-95">Practice</button>
+</div>
+</div>
+<!-- Row 7 -->
+<div class="group flex items-center bg-surface-container-lowest rounded-[12px] h-[76px] px-4 shadow-[0_4px_20px_0_rgba(19,27,46,0.02)] border border-transparent hover:border-primary/10 transition-all">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary/20 mr-4" type="checkbox"/>
+<div class="w-3 h-[44px] rounded-full bg-secondary mr-6 opacity-80"></div>
+<div class="flex-1 min-w-0 pr-4">
+<h3 class="text-base font-semibold text-on-surface truncate mb-1">How do you handle conflict in a team?</h3>
+<div class="flex flex-wrap gap-3 items-center">
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Teamwork</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Behavioral</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<span class="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full">Medium</span>
+<button class="px-4 py-1.5 text-xs font-bold text-primary bg-primary-fixed/50 rounded-xl hover:bg-primary-fixed transition-colors active:scale-95">Practice</button>
+</div>
+</div>
+<!-- Row 8 -->
+<div class="group flex items-center bg-surface-container-lowest rounded-[12px] h-[76px] px-4 shadow-[0_4px_20px_0_rgba(19,27,46,0.02)] border border-transparent hover:border-primary/10 transition-all">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary/20 mr-4" type="checkbox"/>
+<div class="w-3 h-[44px] rounded-full bg-emerald-500 mr-6 opacity-80"></div>
+<div class="flex-1 min-w-0 pr-4">
+<h3 class="text-base font-semibold text-on-surface truncate mb-1">Merge Intervals</h3>
+<div class="flex flex-wrap gap-3 items-center">
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Sorting</span>
+<span class="text-[10px] font-bold tracking-wider uppercase text-outline">Arrays</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<span class="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full">Medium</span>
+<button class="px-4 py-1.5 text-xs font-bold text-primary bg-primary-fixed/50 rounded-xl hover:bg-primary-fixed transition-colors active:scale-95">Practice</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Practice Set Overlay (Floating Sidebar) -->
+<div class="fixed bottom-0 right-0 md:right-8 md:bottom-8 w-full md:w-[360px] p-4 z-[60]">
+<div class="glass-panel rounded-2xl md:rounded-3xl border border-white shadow-2xl overflow-hidden p-6 flex flex-col gap-6">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
+<h2 class="text-lg font-bold tracking-tight text-on-surface">Selected (3)</h2>
+</div>
+<button class="text-outline hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+<div class="space-y-4">
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold tracking-widest uppercase text-outline">Duration</label>
+<div class="grid grid-cols-3 gap-2">
+<button class="px-3 py-2 text-xs font-bold rounded-lg border border-outline-variant hover:border-primary transition-colors">15m</button>
+<button class="px-3 py-2 text-xs font-bold rounded-lg bg-primary/10 border border-primary text-primary">30m</button>
+<button class="px-3 py-2 text-xs font-bold rounded-lg border border-outline-variant hover:border-primary transition-colors">45m</button>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold tracking-widest uppercase text-outline">Practice Mode</label>
+<div class="flex gap-2">
+<button class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold rounded-lg bg-primary-fixed text-on-primary-fixed">
+<span class="material-symbols-outlined text-sm" data-icon="mic">mic</span>
+                            Voice AI
+                        </button>
+<button class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold rounded-lg border border-outline-variant text-outline">
+<span class="material-symbols-outlined text-sm" data-icon="keyboard">keyboard</span>
+                            Text
+                        </button>
+</div>
+</div>
+</div>
+<button class="w-full py-4 bg-gradient-to-br from-primary to-primary-container text-on-primary font-bold rounded-xl active:scale-95 transition-all shadow-lg shadow-primary/20">
+                Start Custom Session
+            </button>
+</div>
+</div>
+<!-- Mobile Navigation Shell -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-4 pt-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl z-50 rounded-t-2xl shadow-[0_-4px_20px_0_rgba(19,27,46,0.04)]">
+<a class="flex flex-col items-center justify-center bg-[#f2f3ff] dark:bg-blue-900/30 text-[#0058be] dark:text-blue-200 rounded-xl px-4 py-2" href="#">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+<span class="font-inter text-[10px] font-bold tracking-wider uppercase mt-1">Library</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-4 py-2 hover:text-[#0058be] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="exercise">exercise</span>
+<span class="font-inter text-[10px] font-bold tracking-wider uppercase mt-1">Practice</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-4 py-2 hover:text-[#0058be] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="insights">insights</span>
+<span class="font-inter text-[10px] font-bold tracking-wider uppercase mt-1">Analysis</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-4 py-2 hover:text-[#0058be] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-inter text-[10px] font-bold tracking-wider uppercase mt-1">Account</span>
+</a>
+</nav>
+</body></html>

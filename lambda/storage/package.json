@@ -1,0 +1,11 @@
+{
+  "name": "rehearse-storage-lambda",
+  "version": "1.0.0",
+  "description": "S3 storage Lambda — runs with IAM role, no AWS keys needed",
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0",
+    "@aws-sdk/client-ses": "^3.0.0"
+  }
+}

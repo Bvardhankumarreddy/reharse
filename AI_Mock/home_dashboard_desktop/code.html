@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Interview Intelligence | Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-fixed": "#c9e6ff",
+              "primary-container": "#2170e4",
+              "outline": "#727785",
+              "on-secondary": "#ffffff",
+              "on-primary-fixed-variant": "#004395",
+              "on-tertiary-container": "#fcfcff",
+              "on-secondary-fixed-variant": "#5a00c6",
+              "on-tertiary-fixed-variant": "#004c6e",
+              "surface": "#faf8ff",
+              "surface-container": "#eaedff",
+              "surface-container-lowest": "#ffffff",
+              "secondary-fixed": "#eaddff",
+              "surface-dim": "#d2d9f4",
+              "surface-container-highest": "#dae2fd",
+              "primary": "#0058be",
+              "on-secondary-fixed": "#25005a",
+              "error-container": "#ffdad6",
+              "secondary-container": "#8a4cfc",
+              "primary-fixed-dim": "#adc6ff",
+              "on-primary-fixed": "#001a42",
+              "on-error-container": "#93000a",
+              "on-error": "#ffffff",
+              "inverse-on-surface": "#eef0ff",
+              "tertiary-fixed-dim": "#89ceff",
+              "on-tertiary-fixed": "#001e2f",
+              "on-surface-variant": "#424754",
+              "secondary-fixed-dim": "#d2bbff",
+              "inverse-primary": "#adc6ff",
+              "inverse-surface": "#283044",
+              "outline-variant": "#c2c6d6",
+              "on-primary-container": "#fefcff",
+              "surface-variant": "#dae2fd",
+              "surface-tint": "#005ac2",
+              "on-primary": "#ffffff",
+              "surface-bright": "#faf8ff",
+              "error": "#ba1a1a",
+              "on-surface": "#131b2e",
+              "tertiary-container": "#007cb1",
+              "surface-container-high": "#e2e7ff",
+              "secondary": "#712ae2",
+              "on-tertiary": "#ffffff",
+              "on-background": "#131b2e",
+              "surface-container-low": "#f2f3ff",
+              "primary-fixed": "#d8e2ff",
+              "on-secondary-container": "#fffbff",
+              "tertiary": "#00628d",
+              "background": "#faf8ff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"],
+              "mono": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(138, 76, 252, 0.08);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- SideNavBar (Authority Source: JSON) -->
+<aside class="fixed left-0 top-0 h-full flex flex-col pt-8 pb-4 px-6 bg-slate-50 dark:bg-slate-950 w-64 border-r-0 z-50">
+<div class="mb-10">
+<h1 class="text-xl font-bold tracking-tighter text-slate-900 dark:text-slate-100">Digital Stoic</h1>
+<p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mt-1">AI Interview Prep</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 transition-colors duration-200 text-blue-700 dark:text-blue-400 font-bold border-r-2 border-blue-700 dark:border-blue-400" href="#">
+<span class="material-symbols-outlined text-[20px]">home</span>
+<span class="font-sans text-sm font-medium tracking-wide">Home</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50" href="#">
+<span class="material-symbols-outlined text-[20px]">exercise</span>
+<span class="font-sans text-sm font-medium tracking-wide">Practice</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50" href="#">
+<span class="material-symbols-outlined text-[20px]">history</span>
+<span class="font-sans text-sm font-medium tracking-wide">Sessions</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50" href="#">
+<span class="material-symbols-outlined text-[20px]">leaderboard</span>
+<span class="font-sans text-sm font-medium tracking-wide">Progress</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50" href="#">
+<span class="material-symbols-outlined text-[20px]">database</span>
+<span class="font-sans text-sm font-medium tracking-wide">Question Bank</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 mt-4 transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="font-sans text-sm font-medium tracking-wide">Settings</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-slate-200 dark:border-slate-800">
+<button class="w-full bg-primary hover:bg-primary-container text-white py-3 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2">
+<span>Start Interview</span>
+</button>
+</div>
+</aside>
+<!-- TopAppBar (Authority Source: JSON) -->
+<header class="sticky top-0 z-40 flex items-center justify-between px-8 ml-64 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md w-full h-16">
+<div class="flex items-center gap-8">
+<span class="text-lg font-black text-slate-900 dark:text-slate-50 tracking-tight">Interview Intelligence</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-sm font-semibold text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 pb-1" href="#">Dashboard</a>
+<a class="text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-all pb-1" href="#">Analytics</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<input class="bg-surface-container-low border-none rounded-full px-4 py-1.5 text-sm w-64 focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Search resources..." type="text"/>
+<span class="material-symbols-outlined absolute right-3 top-1.5 text-slate-400 text-lg">search</span>
+</div>
+<button class="p-2 text-slate-600 dark:text-slate-400 hover:bg-surface-container rounded-full transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-primary-fixed overflow-hidden">
+<img alt="User avatar" class="w-full h-full object-cover" data-alt="Close-up professional portrait of a young woman with a friendly smile, soft natural office lighting, blurred modern workspace background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDTb9h-M6nfAZ8p0E2YXwjYQVZrOcG8vOr2qc-Y3YwokYFD_eGxIFmJCff1BbLcYJT72uQQGh03xIfFRM15caS3Zh2b0WTMKxQ4xoCx4dcggS2t3fjWke2cVfl3MLBIm6bUA1N-_D7nIRU3hlt8Dwah74vmMKcrVM8SPFIA4Tcx1C-v5mPOonOgzPFx4lH3VA80i-7f8VbSeO6Y0IpbALQomYD9TwdwUQYUGQ2Oj3H-az9-Wg1SdviZyreA87vl6A0u8XhZ47kC_g1b"/>
+</div>
+</div>
+</header>
+<!-- Main Content Layout -->
+<main class="ml-64 p-8 flex gap-8">
+<!-- Center Canvas -->
+<div class="flex-1 space-y-10">
+<!-- Welcome & Countdown -->
+<section class="flex flex-col lg:flex-row gap-6 items-stretch">
+<div class="flex-1">
+<h2 class="text-4xl font-black tracking-tight text-on-surface mb-2">Good morning, Priya</h2>
+<p class="text-on-surface-variant font-medium">Your preparation momentum is in the top 5% this week.</p>
+</div>
+<div class="bg-primary-container text-on-primary-container p-6 rounded-xl flex items-center gap-6 shadow-2xl shadow-primary/10 border-none min-w-[340px]">
+<div class="h-16 w-16 rounded-full border-4 border-on-primary-container/20 flex items-center justify-center relative">
+<span class="text-2xl font-black">6</span>
+<svg class="absolute inset-0 -rotate-90 w-16 h-16">
+<circle class="opacity-100" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-dasharray="175.9" stroke-dashoffset="40" stroke-width="4"></circle>
+</svg>
+</div>
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">Upcoming Milestone</p>
+<h3 class="font-bold text-lg leading-tight">Google SWE L4 Interview</h3>
+<p class="text-sm opacity-90">6 days remaining</p>
+</div>
+</div>
+</section>
+<!-- Readiness Score Bento Section -->
+<section class="grid grid-cols-12 gap-6">
+<!-- Main Score Card -->
+<div class="col-span-12 lg:col-span-5 bg-surface-container-low p-8 rounded-xl flex flex-col items-center justify-center relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4">
+<span class="material-symbols-outlined text-primary/20 text-6xl rotate-12">auto_awesome</span>
+</div>
+<div class="relative w-48 h-48 flex items-center justify-center mb-6">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-surface-container-highest" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-width="12"></circle>
+<circle class="text-primary" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-dasharray="502.6" stroke-dashoffset="140.7" stroke-linecap="round" stroke-width="12"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="text-5xl font-black tracking-tighter">72%</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Readiness</span>
+</div>
+</div>
+<div class="text-center">
+<h4 class="font-bold text-xl mb-1">Strong Foundation</h4>
+<p class="text-sm text-on-surface-variant px-8">Focus on System Design complexity to reach the 85% benchmark.</p>
+</div>
+</div>
+<!-- Detailed Breakdown List -->
+<div class="col-span-12 lg:col-span-7 grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest p-6 rounded-xl space-y-3">
+<div class="flex justify-between items-center">
+<span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Coding</span>
+<span class="font-mono text-sm font-bold text-primary">68%</span>
+</div>
+<div class="h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[68%] rounded-full"></div>
+</div>
+<p class="text-[11px] text-on-surface-variant">Algorithm efficiency needs work.</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl space-y-3">
+<div class="flex justify-between items-center text-error">
+<span class="text-xs font-bold uppercase tracking-wider">System Design</span>
+<span class="font-mono text-sm font-bold">55%</span>
+</div>
+<div class="h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-error w-[55%] rounded-full"></div>
+</div>
+<p class="text-[11px] text-on-surface-variant">Focus: Scalability &amp; Load Balancing.</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl space-y-3">
+<div class="flex justify-between items-center text-secondary">
+<span class="text-xs font-bold uppercase tracking-wider">Behavioral</span>
+<span class="font-mono text-sm font-bold">81%</span>
+</div>
+<div class="h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[81%] rounded-full"></div>
+</div>
+<p class="text-[11px] text-on-surface-variant">Excellent STAR method application.</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl space-y-3">
+<div class="flex justify-between items-center text-tertiary">
+<span class="text-xs font-bold uppercase tracking-wider">Communication</span>
+<span class="font-mono text-sm font-bold">84%</span>
+</div>
+<div class="h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-tertiary w-[84%] rounded-full"></div>
+</div>
+<p class="text-[11px] text-on-surface-variant">Clear, concise explanations.</p>
+</div>
+</div>
+</section>
+<!-- Jump Back In -->
+<section>
+<h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+                    Jump Back In
+                    <span class="h-px flex-1 bg-surface-container-highest"></span>
+</h3>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<button class="group p-5 bg-surface-container-lowest hover:bg-surface-container-high rounded-xl text-left transition-all hover:-translate-y-1">
+<span class="material-symbols-outlined text-secondary mb-3">forum</span>
+<h5 class="font-bold text-sm">Behavioral</h5>
+<p class="text-[11px] text-on-surface-variant mt-1">15 mins • STAR Method</p>
+</button>
+<button class="group p-5 bg-surface-container-lowest hover:bg-surface-container-high rounded-xl text-left transition-all hover:-translate-y-1">
+<span class="material-symbols-outlined text-primary mb-3">code</span>
+<h5 class="font-bold text-sm">Coding</h5>
+<p class="text-[11px] text-on-surface-variant mt-1">45 mins • Graph Theory</p>
+</button>
+<button class="group p-5 bg-surface-container-lowest hover:bg-surface-container-high rounded-xl text-left transition-all hover:-translate-y-1">
+<span class="material-symbols-outlined text-tertiary mb-3">account_tree</span>
+<h5 class="font-bold text-sm">System Design</h5>
+<p class="text-[11px] text-on-surface-variant mt-1">60 mins • Microservices</p>
+</button>
+<button class="group p-5 bg-primary text-on-primary rounded-xl text-left transition-all hover:-translate-y-1">
+<span class="material-symbols-outlined mb-3">autorenew</span>
+<h5 class="font-bold text-sm">Full Loop</h5>
+<p class="text-[11px] text-white/70 mt-1">3.5 hours • Mixed Round</p>
+</button>
+</div>
+</section>
+<!-- Recent Sessions -->
+<section>
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-lg font-bold">Recent Sessions</h3>
+<button class="text-primary text-xs font-bold hover:underline">View All History</button>
+</div>
+<div class="space-y-4">
+<div class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl">
+<div class="flex items-center gap-4">
+<div class="h-10 w-10 rounded-lg bg-surface-container-highest flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">psychology</span>
+</div>
+<div>
+<h6 class="font-bold text-sm">Dynamic Programming Basics</h6>
+<p class="text-[11px] text-on-surface-variant">Yesterday at 4:30 PM • 45m duration</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="text-right">
+<span class="text-xs font-bold text-primary px-2 py-0.5 bg-primary-fixed rounded-full">Completed</span>
+</div>
+<button class="p-2 hover:bg-surface-container rounded-full transition-all">
+<span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+</button>
+</div>
+</div>
+<div class="flex items-center justify-between p-4 bg-surface rounded-xl">
+<div class="flex items-center gap-4">
+<div class="h-10 w-10 rounded-lg bg-surface-container-highest flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">chat</span>
+</div>
+<div>
+<h6 class="font-bold text-sm">Conflict Resolution (Behavioral)</h6>
+<p class="text-[11px] text-on-surface-variant">Oct 24 • 20m duration</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="text-right">
+<span class="text-xs font-bold text-secondary-container px-2 py-0.5 bg-secondary-fixed rounded-full">AI Insight Available</span>
+</div>
+<button class="p-2 hover:bg-surface-container rounded-full transition-all">
+<span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Insights Panel -->
+<aside class="w-[340px] space-y-8">
+<!-- Weak Areas / Growth Focus -->
+<div class="bg-surface-container-high p-6 rounded-xl">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-error text-lg">trending_down</span>
+<h3 class="text-sm font-black uppercase tracking-widest">Weak Areas</h3>
+</div>
+<div class="space-y-6">
+<div class="group cursor-help">
+<div class="flex justify-between items-start mb-1">
+<span class="font-bold text-sm">Quantifying impact</span>
+<span class="font-mono text-[10px] text-error">High Priority</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-relaxed mb-2">Struggling to attach metrics to past projects. Recommended: Star Method Workshop.</p>
+<div class="h-1 bg-surface-container-lowest rounded-full">
+<div class="h-full bg-error w-3/4 rounded-full"></div>
+</div>
+</div>
+<div class="group cursor-help">
+<div class="flex justify-between items-start mb-1">
+<span class="font-bold text-sm">Distributed systems</span>
+<span class="font-mono text-[10px] text-on-surface-variant">Medium Priority</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-relaxed mb-2">Focus on database partitioning and consensus algorithms.</p>
+<div class="h-1 bg-surface-container-lowest rounded-full">
+<div class="h-full bg-primary-container w-1/2 rounded-full"></div>
+</div>
+</div>
+<div class="group cursor-help">
+<div class="flex justify-between items-start mb-1">
+<span class="font-bold text-sm">Dynamic programming</span>
+<span class="font-mono text-[10px] text-on-surface-variant">Medium Priority</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-relaxed mb-2">Pattern recognition is improving, but implementation speed is slow.</p>
+<div class="h-1 bg-surface-container-lowest rounded-full">
+<div class="h-full bg-primary-container w-2/5 rounded-full"></div>
+</div>
+</div>
+<div class="group cursor-help">
+<div class="flex justify-between items-start mb-1">
+<span class="font-bold text-sm">Clarifying questions</span>
+<span class="font-mono text-[10px] text-on-surface-variant">Low Priority</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-relaxed mb-2">Occasionally jumps into coding before confirming edge cases.</p>
+<div class="h-1 bg-surface-container-lowest rounded-full">
+<div class="h-full bg-tertiary w-1/4 rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- AI Insight Mini-Card -->
+<div class="secondary-container/10 border-none p-6 rounded-xl glass-panel">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-secondary">smart_toy</span>
+<h4 class="text-xs font-black uppercase tracking-widest text-secondary">AI Recommendation</h4>
+</div>
+<p class="text-sm font-medium leading-relaxed italic">
+                    "Priya, you're excelling in Communication. I've scheduled a high-difficulty System Design mock for tomorrow to push your boundary. Review the 'CAP Theorem' module tonight."
+                </p>
+</div>
+<!-- Quick Resource Grid -->
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10 text-center">
+<span class="material-symbols-outlined text-primary mb-1">book</span>
+<p class="text-[10px] font-bold">Prep Guide</p>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10 text-center">
+<span class="material-symbols-outlined text-secondary mb-1">video_library</span>
+<p class="text-[10px] font-bold">Masterclass</p>
+</div>
+</div>
+</aside>
+</main>
+</body></html>

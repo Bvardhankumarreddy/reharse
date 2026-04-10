@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&amp;family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary": "#ffffff",
+              "on-error-container": "#93000a",
+              "on-tertiary-fixed-variant": "#004c6e",
+              "on-tertiary-container": "#fcfcff",
+              "surface-dim": "#d2d9f4",
+              "primary-fixed": "#d8e2ff",
+              "surface": "#faf8ff",
+              "outline": "#727785",
+              "surface-container-lowest": "#ffffff",
+              "background": "#faf8ff",
+              "surface-container-highest": "#dae2fd",
+              "on-primary-fixed-variant": "#004395",
+              "on-primary-container": "#fefcff",
+              "on-background": "#131b2e",
+              "surface-container": "#eaedff",
+              "primary": "#0058be",
+              "surface-container-high": "#e2e7ff",
+              "on-secondary-fixed": "#25005a",
+              "inverse-on-surface": "#eef0ff",
+              "on-primary": "#ffffff",
+              "on-secondary-container": "#fffbff",
+              "on-secondary-fixed-variant": "#5a00c6",
+              "secondary-fixed-dim": "#d2bbff",
+              "error": "#ba1a1a",
+              "on-tertiary-fixed": "#001e2f",
+              "primary-container": "#2170e4",
+              "tertiary-fixed": "#c9e6ff",
+              "tertiary": "#00628d",
+              "tertiary-fixed-dim": "#89ceff",
+              "secondary-container": "#8a4cfc",
+              "on-surface-variant": "#424754",
+              "secondary": "#712ae2",
+              "primary-fixed-dim": "#adc6ff",
+              "on-tertiary": "#ffffff",
+              "outline-variant": "#c2c6d6",
+              "on-surface": "#131b2e",
+              "on-primary-fixed": "#001a42",
+              "inverse-surface": "#283044",
+              "secondary-fixed": "#eaddff",
+              "surface-container-low": "#f2f3ff",
+              "surface-variant": "#dae2fd",
+              "surface-tint": "#005ac2",
+              "on-error": "#ffffff",
+              "error-container": "#ffdad6",
+              "tertiary-container": "#007cb1",
+              "inverse-primary": "#adc6ff",
+              "surface-bright": "#faf8ff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"],
+              "mono": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .editor-container {
+        scrollbar-width: thin;
+        scrollbar-color: #424754 #131b2e;
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body min-h-screen flex flex-col overflow-hidden">
+<!-- TopAppBar Fragment from Shared Components -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-700 dark:text-blue-400 cursor-pointer active:scale-95 transition-transform" data-icon="arrow_back">arrow_back</span>
+<h1 class="font-sans tracking-tight text-slate-900 dark:text-slate-100 font-bold text-lg">System Design: Rate Limiter</h1>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex flex-col items-end">
+<span class="text-xs font-mono tracking-widest text-slate-500 uppercase">Time Remaining</span>
+<span class="text-blue-700 dark:text-blue-400 font-mono font-bold">22:14</span>
+</div>
+<div class="flex gap-2">
+<button class="px-4 py-1.5 rounded-lg bg-surface-container-highest text-primary font-semibold text-sm hover:bg-slate-200 transition-colors active:scale-95">Run Code</button>
+<button class="px-4 py-1.5 rounded-lg bg-primary text-white font-semibold text-sm shadow-sm hover:bg-primary-container transition-colors active:scale-95">Submit</button>
+</div>
+</div>
+</header>
+<main class="flex-1 flex flex-col mt-16 overflow-hidden">
+<!-- Top Part: Problem Statement & AI Chat -->
+<section class="flex-1 bg-surface flex flex-col overflow-y-auto p-4 space-y-6">
+<!-- Problem Title & Badges -->
+<div class="space-y-3">
+<div class="flex justify-between items-start">
+<h2 class="text-2xl font-bold tracking-tight text-on-surface">Two Sum</h2>
+<span class="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full uppercase tracking-tighter">Medium</span>
+</div>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-0.5 bg-surface-container-high text-on-surface-variant text-xs font-medium rounded">Array</span>
+<span class="px-2 py-0.5 bg-surface-container-high text-on-surface-variant text-xs font-medium rounded">Hash Map</span>
+</div>
+</div>
+<!-- Problem Description -->
+<div class="prose prose-slate max-w-none text-on-surface-variant text-sm leading-relaxed">
+<p>Given an array of integers <code class="bg-surface-container font-mono px-1 rounded">nums</code> and an integer <code class="bg-surface-container font-mono px-1 rounded">target</code>, return indices of the two numbers such that they add up to target.</p>
+<p>You may assume that each input would have exactly one solution, and you may not use the same element twice.</p>
+</div>
+<!-- AI Interviewer Thread -->
+<div class="mt-8 space-y-4">
+<div class="flex items-center gap-2 mb-2">
+<div class="w-1 h-4 bg-secondary rounded-full"></div>
+<span class="text-[10px] uppercase tracking-[0.2em] font-bold text-secondary">AI Interviewer Interaction</span>
+</div>
+<!-- AI Message -->
+<div class="flex gap-3 max-w-[90%]">
+<div class="flex-shrink-0 w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-white shadow-lg overflow-hidden">
+<span class="material-symbols-outlined text-sm" data-icon="smart_toy">smart_toy</span>
+</div>
+<div class="relative bg-white p-4 rounded-xl rounded-tl-none shadow-sm border border-secondary-container/10">
+<p class="text-sm text-on-surface">That implementation looks solid so far. Before we move on to testing, could you explain the **time complexity** of using a nested loop versus a hash map approach for this problem?</p>
+<span class="block mt-2 text-[10px] text-slate-400 font-mono">10:41 AM</span>
+</div>
+</div>
+<!-- User Message Suggestion -->
+<div class="flex justify-end pr-2">
+<div class="bg-primary/5 border border-primary/10 p-3 rounded-xl rounded-br-none max-w-[80%] italic text-sm text-primary-container">
+                        Waiting for your response...
+                    </div>
+</div>
+</div>
+</section>
+<!-- Bottom Part: Editor & Console -->
+<section class="h-[397px] bg-inverse-surface flex flex-col border-t border-slate-700/50">
+<!-- Editor Tabs/Header -->
+<div class="flex items-center justify-between px-4 h-10 bg-[#1e2536] border-b border-slate-800">
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2 bg-inverse-surface px-4 h-full border-t-2 border-primary">
+<span class="material-symbols-outlined text-sm text-blue-400" data-icon="code">code</span>
+<span class="text-xs font-mono text-white">solution.py</span>
+</div>
+</div>
+<div class="flex items-center gap-4 text-slate-400">
+<span class="material-symbols-outlined text-sm cursor-pointer hover:text-white" data-icon="settings">settings</span>
+<span class="text-[10px] font-mono">Python 3.10</span>
+</div>
+</div>
+<!-- Code Content -->
+<div class="flex-1 flex overflow-hidden editor-container">
+<!-- Line Numbers -->
+<div class="w-10 bg-[#1e2536] py-4 text-right pr-2 select-none border-r border-slate-800">
+<span class="block text-[10px] font-mono text-slate-600">1</span>
+<span class="block text-[10px] font-mono text-slate-600">2</span>
+<span class="block text-[10px] font-mono text-slate-600">3</span>
+<span class="block text-[10px] font-mono text-slate-600">4</span>
+<span class="block text-[10px] font-mono text-slate-600">5</span>
+<span class="block text-[10px] font-mono text-slate-600">6</span>
+<span class="block text-[10px] font-mono text-slate-600">7</span>
+</div>
+<!-- Editor Canvas -->
+<div class="flex-1 p-4 font-mono text-sm overflow-y-auto bg-[#131b2e]">
+<div class="whitespace-pre text-slate-300"><span class="text-secondary-fixed">class</span> <span class="text-tertiary-fixed-dim">Solution</span>:</div>
+<div class="whitespace-pre text-slate-300"> <span class="text-secondary-fixed">def</span> <span class="text-primary-fixed-dim">twoSum</span>(self, nums: List[int], target: int) -&gt; List[int]:</div>
+<div class="whitespace-pre text-slate-300">        prevMap = {} <span class="text-slate-500"># val : index</span></div>
+<div class="whitespace-pre text-slate-300"> </div>
+<div class="whitespace-pre text-slate-300"> <span class="text-secondary-fixed">for</span> i, n <span class="text-secondary-fixed">in</span> <span class="text-primary-fixed-dim">enumerate</span>(nums):</div>
+<div class="whitespace-pre text-slate-300">            diff = target - n</div>
+<div class="whitespace-pre text-slate-300"> <span class="text-secondary-fixed">if</span> diff <span class="text-secondary-fixed">in</span> prevMap:</div>
+<div class="whitespace-pre text-slate-300 cursor-text animate-pulse border-l-2 border-primary ml-[1ch]"> <span class="text-secondary-fixed">return</span> [prevMap[diff], i]</div>
+</div>
+</div>
+<!-- Test Output Panel (Collapsed-ish) -->
+<div class="bg-[#0f172a] border-t border-slate-800">
+<div class="flex items-center px-4 h-8 gap-4 border-b border-slate-800/50">
+<span class="text-[10px] font-bold text-primary uppercase tracking-wider">Test Cases</span>
+<span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Console</span>
+</div>
+<div class="p-3 flex gap-3 overflow-x-auto">
+<div class="flex-shrink-0 bg-slate-800/50 p-2 rounded border border-primary/20 min-w-[120px]">
+<div class="flex items-center gap-1 mb-1">
+<span class="material-symbols-outlined text-[10px] text-green-400" data-icon="check_circle" data-weight="fill">check_circle</span>
+<span class="text-[9px] font-mono text-slate-300">Case 1</span>
+</div>
+<span class="text-[10px] font-mono text-slate-500">nums = [2,7,11,15]</span>
+</div>
+<div class="flex-shrink-0 bg-slate-800/50 p-2 rounded border border-slate-700 min-w-[120px]">
+<div class="flex items-center gap-1 mb-1">
+<span class="material-symbols-outlined text-[10px] text-slate-500" data-icon="radio_button_unchecked">radio_button_unchecked</span>
+<span class="text-[9px] font-mono text-slate-300">Case 2</span>
+</div>
+<span class="text-[10px] font-mono text-slate-500">nums = [3,2,4]</span>
+</div>
+<div class="flex-shrink-0 bg-slate-800/50 p-2 rounded border border-slate-700 min-w-[120px]">
+<div class="flex items-center gap-1 mb-1">
+<span class="material-symbols-outlined text-[10px] text-slate-500" data-icon="radio_button_unchecked">radio_button_unchecked</span>
+<span class="text-[9px] font-mono text-slate-300">Case 3</span>
+</div>
+<span class="text-[10px] font-mono text-slate-500">nums = [3,3]</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- NavigationDrawer Fragment logic (Suppressed due to task-focus but here is the structural reference if needed) -->
+<!-- We hide the side/bottom nav to focus on the Interview Canvas as per the Shell Visibility Rule -->
+</body></html>

@@ -1,0 +1,155 @@
+version: "3.9"
+
+# ── Shared network ─────────────────────────────────────────────────────────────
+networks:
+  rehearse:
+    driver: bridge
+
+# ── Named volumes ──────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks: [rehearse]
+    environment:
+      POSTGRES_USER:     rehearse
+      POSTGRES_PASSWORD: rehearse
+      POSTGRES_DB:       rehearse
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test:         ["CMD-SHELL", "pg_isready -U rehearse -d rehearse"]
+      interval:     10s
+      timeout:      5s
+      retries:      5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  # ── Redis ─────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [rehearse]
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test:         ["CMD", "redis-cli", "ping"]
+      interval:     10s
+      timeout:      5s
+      retries:      5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 320m
+
+  # ── NestJS API ─────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context:    ./api
+      dockerfile: Dockerfile
+    image: rehearse-api:latest
+    restart: unless-stopped
+    networks: [rehearse]
+    env_file: ./api/.env
+    environment:
+      NODE_ENV:     production
+      DATABASE_URL: postgresql://rehearse:rehearse@postgres:5432/rehearse
+      REDIS_URL:    redis://redis:6379
+      AI_ENGINE_URL: http://ai-engine:8000
+      CORS_ORIGIN:  http://localhost:3000
+      PORT:         "3001"
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:         ["CMD-SHELL", "wget -qO- http://localhost:3001/api/v1/health || exit 1"]
+      interval:     15s
+      timeout:      5s
+      retries:      4
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  # ── Python AI Engine ───────────────────────────────────────────────────────────
+  ai-engine:
+    build:
+      context:    ./ai-engine
+      dockerfile: Dockerfile
+    image: rehearse-ai-engine:latest
+    restart: unless-stopped
+    networks: [rehearse]
+    env_file: ./ai-engine/.env
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT:      "8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:         ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval:     15s
+      timeout:      5s
+      retries:      4
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 1g   # LLM calls can be memory-hungry
+
+  # ── Next.js Web ────────────────────────────────────────────────────────────────
+  web:
+    build:
+      context:    ./web
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* are baked in at build time — set the browser-visible API URL
+        NEXT_PUBLIC_API_URL:               http://localhost:3001/api/v1
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    image: rehearse-web:latest
+    restart: unless-stopped
+    networks: [rehearse]
+    environment:
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      PORT:             "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:         ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"]
+      interval:     20s
+      timeout:      5s
+      retries:      3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512m

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>InterviewAI — Pricing</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-dim": "#d2d9f4",
+          "inverse-primary": "#adc6ff",
+          "surface": "#faf8ff",
+          "error": "#ba1a1a",
+          "primary-fixed-dim": "#adc6ff",
+          "secondary-container": "#8a4cfc",
+          "outline-variant": "#c2c6d6",
+          "on-secondary-fixed-variant": "#5a00c6",
+          "outline": "#727785",
+          "on-tertiary-fixed-variant": "#004c6e",
+          "on-primary": "#ffffff",
+          "secondary-fixed-dim": "#d2bbff",
+          "error-container": "#ffdad6",
+          "on-primary-container": "#fefcff",
+          "on-secondary": "#ffffff",
+          "on-error-container": "#93000a",
+          "on-secondary-container": "#fffbff",
+          "background": "#faf8ff",
+          "tertiary": "#00628d",
+          "on-tertiary-fixed": "#001e2f",
+          "on-surface": "#131b2e",
+          "surface-container-high": "#e2e7ff",
+          "surface-container-lowest": "#ffffff",
+          "surface-container-low": "#f2f3ff",
+          "on-surface-variant": "#424754",
+          "on-primary-fixed-variant": "#004395",
+          "primary-container": "#2170e4",
+          "tertiary-fixed-dim": "#89ceff",
+          "secondary": "#712ae2",
+          "primary-fixed": "#d8e2ff",
+          "inverse-on-surface": "#eef0ff",
+          "tertiary-container": "#007cb1",
+          "surface-variant": "#dae2fd",
+          "surface-tint": "#005ac2",
+          "inverse-surface": "#283044",
+          "primary": "#0058be",
+          "surface-container": "#eaedff",
+          "on-tertiary-container": "#fcfcff",
+          "on-error": "#ffffff",
+          "tertiary-fixed": "#c9e6ff",
+          "surface-container-highest": "#dae2fd",
+          "secondary-fixed": "#eaddff",
+          "on-background": "#131b2e",
+          "surface-bright": "#faf8ff",
+          "on-primary-fixed": "#001a42",
+          "on-tertiary": "#ffffff",
+          "on-secondary-fixed": "#25005a"
+        },
+        fontFamily: {
+          "headline": ["Inter"],
+          "body": ["Inter"],
+          "label": ["Inter"],
+          "mono": ["JetBrains Mono"]
+        },
+        borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }
+      }
+    }
+  }
+</script>
+<style>
+  body { font-family: 'Inter', sans-serif; background-color: #faf8ff; }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  body { min-height: max(884px, 100dvh); }
+  .pro-card {
+    background: linear-gradient(145deg, #eef3ff 0%, #f5f0ff 100%);
+    border: 2px solid #0058be;
+    box-shadow: 0 8px 32px rgba(0, 88, 190, 0.14);
+  }
+  .feature-yes { color: #22c55e; }
+  .feature-no  { color: #c2c6d6; }
+</style>
+</head>
+<body class="text-on-surface antialiased pb-20">
+
+<!-- Top bar -->
+<header class="w-full sticky top-0 z-40 bg-[#faf8ff] px-6 py-4 flex items-center justify-between border-b border-surface-container-high">
+  <div class="flex items-center gap-2">
+    <button class="p-1 -ml-1">
+      <span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
+    </button>
+    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center ml-1">
+      <span class="material-symbols-outlined text-white text-sm" style="font-variation-settings:'FILL' 1;">mic</span>
+    </div>
+    <span class="font-extrabold text-on-surface tracking-tight text-base">InterviewAI</span>
+  </div>
+  <span class="text-xs font-semibold text-on-surface-variant">Pricing</span>
+</header>
+
+<main class="px-5 pt-8 max-w-lg mx-auto">
+
+  <!-- Hero -->
+  <div class="text-center mb-8">
+    <p class="text-xs font-bold uppercase tracking-widest text-secondary mb-2">Simple Pricing</p>
+    <h1 class="text-3xl font-extrabold tracking-tight text-on-surface mb-2">Start free.<br/>Go deep when ready.</h1>
+    <p class="text-sm text-on-surface-variant">No credit card required. Cancel anytime.</p>
+  </div>
+
+  <!-- Billing toggle -->
+  <div class="flex items-center justify-center gap-3 mb-8">
+    <span class="text-sm font-semibold text-on-surface-variant">Monthly</span>
+    <div class="relative">
+      <div class="w-12 h-6 bg-primary rounded-full cursor-pointer"></div>
+      <div class="absolute top-0.5 right-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all"></div>
+    </div>
+    <span class="text-sm font-bold text-on-surface">Annual</span>
+    <span class="text-[10px] font-black text-white bg-secondary px-2 py-0.5 rounded-full uppercase tracking-wide">Save 35%</span>
+  </div>
+
+  <!-- Plan cards -->
+  <div class="space-y-4">
+
+    <!-- Free Plan -->
+    <div class="bg-surface-container-lowest rounded-full p-5 border-2 border-surface-container-high">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">Free</p>
+          <div class="flex items-end gap-1">
+            <span class="text-3xl font-black text-on-surface">$0</span>
+            <span class="text-sm text-on-surface-variant mb-1">/ month</span>
+          </div>
+          <p class="text-xs text-on-surface-variant">Get started with the basics</p>
+        </div>
+        <div class="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center">
+          <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'FILL' 1;">explore</span>
+        </div>
+      </div>
+
+      <div class="space-y-2.5 mb-5">
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-medium text-on-surface">3 practice sessions / month</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-medium text-on-surface">Behavioral interviews</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-medium text-on-surface">Basic feedback report</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-medium text-on-surface">100 questions (question bank)</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-no text-base" style="font-variation-settings:'FILL' 1;">cancel</span>
+          <span class="text-xs font-medium text-on-surface-variant">Voice mode</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-no text-base" style="font-variation-settings:'FILL' 1;">cancel</span>
+          <span class="text-xs font-medium text-on-surface-variant">Coding &amp; system design</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-no text-base" style="font-variation-settings:'FILL' 1;">cancel</span>
+          <span class="text-xs font-medium text-on-surface-variant">AI Coach</span>
+        </div>
+      </div>
+
+      <button class="w-full py-3 rounded-2xl border-2 border-surface-container-high text-on-surface font-bold text-sm active:scale-[0.98] transition-all">
+        Get Started Free
+      </button>
+    </div>
+
+    <!-- Pro Plan (highlighted) -->
+    <div class="pro-card rounded-full p-5 relative overflow-hidden">
+      <!-- Most Popular badge -->
+      <div class="absolute top-0 right-0">
+        <div class="bg-primary text-white text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-bl-full rounded-tr-full">
+          Most Popular
+        </div>
+      </div>
+
+      <div class="flex items-start justify-between mb-4 pr-20">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-widest text-primary mb-0.5">Pro</p>
+          <div class="flex items-end gap-1.5">
+            <span class="text-3xl font-black text-on-surface">$12</span>
+            <div class="mb-1">
+              <span class="text-sm text-on-surface-variant line-through block leading-none">$19</span>
+              <span class="text-xs text-on-surface-variant">/ month</span>
+            </div>
+          </div>
+          <p class="text-xs text-on-surface-variant">Billed annually · Cancel anytime</p>
+        </div>
+      </div>
+
+      <div class="space-y-2.5 mb-5">
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-bold text-on-surface">Unlimited sessions</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-bold text-on-surface">All interview types (Behavioral, Coding, Design)</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-bold text-on-surface">Voice + Text + Mixed modes</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-bold text-on-surface">Full question bank (1,800+ questions)</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-bold text-on-surface">Detailed AI feedback reports</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-bold text-on-surface">Company-specific modes (Google, Amazon…)</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-bold text-on-surface">AI Coach — unlimited</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-bold text-on-surface">Resume-based personalized questions</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined feature-yes text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-bold text-on-surface">Progress tracking &amp; weak area detection</span>
+        </div>
+      </div>
+
+      <button class="w-full py-3.5 rounded-2xl bg-gradient-to-br from-primary to-primary-container text-white font-bold text-sm shadow-lg shadow-primary/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-white text-base" style="font-variation-settings:'FILL' 1;">bolt</span>
+        Start 7-Day Free Trial
+      </button>
+      <p class="text-center text-[10px] text-on-surface-variant mt-2">No charge today. Cancel before trial ends.</p>
+    </div>
+
+    <!-- Teams Plan -->
+    <div class="bg-inverse-surface rounded-full p-5">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-widest text-inverse-on-surface/60 mb-0.5">Teams</p>
+          <div class="flex items-end gap-1">
+            <span class="text-3xl font-black text-inverse-on-surface">$49</span>
+            <span class="text-sm text-inverse-on-surface/60 mb-1">/ seat / mo</span>
+          </div>
+          <p class="text-xs text-inverse-on-surface/60">Billed annually</p>
+        </div>
+        <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+          <span class="material-symbols-outlined text-inverse-on-surface text-xl" style="font-variation-settings:'FILL' 1;">groups</span>
+        </div>
+      </div>
+
+      <div class="space-y-2.5 mb-5">
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined text-green-400 text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-medium text-inverse-on-surface">Everything in Pro</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined text-green-400 text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-medium text-inverse-on-surface">Admin dashboard &amp; cohort tracking</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined text-green-400 text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-medium text-inverse-on-surface">Custom question sets</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined text-green-400 text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-medium text-inverse-on-surface">Bulk invites &amp; SSO</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined text-green-400 text-base" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-xs font-medium text-inverse-on-surface">White-label option</span>
+        </div>
+      </div>
+
+      <button class="w-full py-3 rounded-2xl bg-white/10 border border-white/20 text-inverse-on-surface font-bold text-sm active:scale-[0.98] transition-all">
+        Contact Sales
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Trust row -->
+  <div class="mt-8 flex items-center justify-center gap-1 text-center">
+    <span class="material-symbols-outlined text-base text-on-surface-variant" style="font-variation-settings:'FILL' 1;">verified_user</span>
+    <p class="text-xs text-on-surface-variant">Trusted by <span class="font-bold text-on-surface">50,000+</span> engineers at Google, Meta, Amazon &amp; more</p>
+  </div>
+
+  <!-- FAQ -->
+  <div class="mt-8 space-y-1">
+    <p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">Frequently Asked</p>
+
+    <div class="py-4 border-b border-surface-container-high">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-semibold text-on-surface">Can I cancel anytime?</p>
+        <span class="material-symbols-outlined text-on-surface-variant text-base">expand_more</span>
+      </div>
+    </div>
+
+    <div class="py-4 border-b border-surface-container-high">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-semibold text-on-surface mb-1">What AI model powers the interviews?</p>
+          <p class="text-xs text-on-surface-variant">We use Claude (Anthropic) for question generation, answer evaluation, and the AI Coach — ensuring nuanced, honest, high-quality feedback.</p>
+        </div>
+        <span class="material-symbols-outlined text-on-surface-variant text-base flex-none mt-0.5">expand_less</span>
+      </div>
+    </div>
+
+    <div class="py-4 border-b border-surface-container-high">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-semibold text-on-surface">Is my data private?</p>
+        <span class="material-symbols-outlined text-on-surface-variant text-base">expand_more</span>
+      </div>
+    </div>
+
+    <div class="py-4">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-semibold text-on-surface">Do you offer student discounts?</p>
+        <span class="material-symbols-outlined text-on-surface-variant text-base">expand_more</span>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Bottom nav -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-[#ffffff]/80 backdrop-blur-xl border-t border-slate-200/15 shadow-[0_-4px_24px_rgba(19,27,46,0.04)]">
+  <a class="flex flex-col items-center justify-center text-slate-500 px-3 py-1.5 active:scale-90 transition-transform duration-200" href="#">
+    <span class="material-symbols-outlined">home</span>
+    <span class="text-[10px] font-medium uppercase tracking-[0.05em]">Home</span>
+  </a>
+  <a class="flex flex-col items-center justify-center text-slate-500 px-3 py-1.5 active:scale-90 transition-transform duration-200" href="#">
+    <span class="material-symbols-outlined">exercise</span>
+    <span class="text-[10px] font-medium uppercase tracking-[0.05em]">Practice</span>
+  </a>
+  <a class="flex flex-col items-center justify-center text-slate-500 px-3 py-1.5 active:scale-90 transition-transform duration-200" href="#">
+    <span class="material-symbols-outlined">history</span>
+    <span class="text-[10px] font-medium uppercase tracking-[0.05em]">Sessions</span>
+  </a>
+  <a class="flex flex-col items-center justify-center text-slate-500 px-3 py-1.5 active:scale-90 transition-transform duration-200" href="#">
+    <span class="material-symbols-outlined">leaderboard</span>
+    <span class="text-[10px] font-medium uppercase tracking-[0.05em]">Progress</span>
+  </a>
+  <a class="flex flex-col items-center justify-center bg-blue-50 text-blue-700 rounded-2xl px-3 py-1.5 active:scale-90 transition-transform duration-200" href="#">
+    <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">payments</span>
+    <span class="text-[10px] font-medium uppercase tracking-[0.05em]">Plans</span>
+  </a>
+</nav>
+
+</body>
+</html>

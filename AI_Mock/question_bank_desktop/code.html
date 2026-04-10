@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Question Bank | Interview Intelligence</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .mono {
+            font-family: 'JetBrains+Mono', monospace;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "tertiary-fixed": "#c9e6ff",
+                "primary-container": "#2170e4",
+                "outline": "#727785",
+                "on-secondary": "#ffffff",
+                "on-primary-fixed-variant": "#004395",
+                "on-tertiary-container": "#fcfcff",
+                "on-secondary-fixed-variant": "#5a00c6",
+                "on-tertiary-fixed-variant": "#004c6e",
+                "surface": "#faf8ff",
+                "surface-container": "#eaedff",
+                "surface-container-lowest": "#ffffff",
+                "secondary-fixed": "#eaddff",
+                "surface-dim": "#d2d9f4",
+                "surface-container-highest": "#dae2fd",
+                "primary": "#0058be",
+                "on-secondary-fixed": "#25005a",
+                "error-container": "#ffdad6",
+                "secondary-container": "#8a4cfc",
+                "primary-fixed-dim": "#adc6ff",
+                "on-primary-fixed": "#001a42",
+                "on-error-container": "#93000a",
+                "on-error": "#ffffff",
+                "inverse-on-surface": "#eef0ff",
+                "tertiary-fixed-dim": "#89ceff",
+                "on-tertiary-fixed": "#001e2f",
+                "on-surface-variant": "#424754",
+                "secondary-fixed-dim": "#d2bbff",
+                "inverse-primary": "#adc6ff",
+                "inverse-surface": "#283044",
+                "outline-variant": "#c2c6d6",
+                "on-primary-container": "#fefcff",
+                "surface-variant": "#dae2fd",
+                "surface-tint": "#005ac2",
+                "on-primary": "#ffffff",
+                "surface-bright": "#faf8ff",
+                "error": "#ba1a1a",
+                "on-surface": "#131b2e",
+                "tertiary-container": "#007cb1",
+                "surface-container-high": "#e2e7ff",
+                "secondary": "#712ae2",
+                "on-tertiary": "#ffffff",
+                "on-background": "#131b2e",
+                "surface-container-low": "#f2f3ff",
+                "primary-fixed": "#d8e2ff",
+                "on-secondary-container": "#fffbff",
+                "tertiary": "#00628d",
+                "background": "#faf8ff"
+              },
+              fontFamily: {
+                "headline": ["Inter"],
+                "body": ["Inter"],
+                "label": ["Inter"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-full flex flex-col pt-8 pb-4 px-6 h-screen w-64 bg-slate-50 dark:bg-slate-950 z-50">
+<div class="mb-10 px-2">
+<h1 class="text-xl font-bold tracking-tighter text-slate-900 dark:text-slate-100">Digital Stoic</h1>
+<p class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mt-1">AI Interview Prep</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-sans text-sm font-medium tracking-wide">Home</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50" href="#">
+<span class="material-symbols-outlined" data-icon="exercise">exercise</span>
+<span class="font-sans text-sm font-medium tracking-wide">Practice</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="font-sans text-sm font-medium tracking-wide">Sessions</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50" href="#">
+<span class="material-symbols-outlined" data-icon="leaderboard">leaderboard</span>
+<span class="font-sans text-sm font-medium tracking-wide">Progress</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-blue-700 dark:text-blue-400 font-bold border-r-2 border-blue-700 dark:border-blue-400 bg-slate-100 dark:bg-slate-900" href="#">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+<span class="font-sans text-sm font-medium tracking-wide">Question Bank</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-sans text-sm font-medium tracking-wide">Settings</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-slate-200/50 dark:border-slate-800/50">
+<button class="w-full py-3 bg-gradient-to-br from-primary to-primary-container text-white rounded-xl font-bold text-sm tracking-tight active:scale-[0.99] transition-transform">
+                Start Interview
+            </button>
+</div>
+</aside>
+<!-- Main Content Shell -->
+<main class="ml-64 min-h-screen">
+<!-- TopAppBar Anchor -->
+<header class="sticky top-0 z-40 flex items-center justify-between px-8 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+<div class="flex items-center gap-8">
+<span class="text-lg font-black text-slate-900 dark:text-slate-50 tracking-tight">Interview Intelligence</span>
+<nav class="flex gap-6">
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-blue-500 transition-all" href="#">Dashboard</a>
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-blue-500 transition-all" href="#">Analytics</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative flex items-center bg-surface-container-low px-3 py-1.5 rounded-full">
+<span class="material-symbols-outlined text-outline text-sm" data-icon="search">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-xs w-48 placeholder:text-outline-variant" placeholder="Search questions..." type="text"/>
+</div>
+<button class="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 rounded-full transition-all">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="professional portrait of a hiring manager in a modern office with soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKYlS5hkp3XQwHcIJWEGTxn0bEcT5xo7VZ-P7veXP81ImGAzggfYAPsYVlAtWyLaadZm-gJ__S7H_Rw_IU5mBBwncnrNHZ-gDnT6rQO4DIlRa3ltw056Ba9dMEJJsKKpYuqPnt_XCLk9zyzCmAbUM4JSBVDJ5mBO3RABnOgNVoeGhZWHSZ4JssMYgD2Fbwsrc547UDKooak6hslbBp9VOZMx5ef9nYuOYOMEjkbpKif-UTjKYpfFtO9VppbJJeq0MtY9BMvaP5emz_"/>
+</div>
+</div>
+</header>
+<!-- Page Canvas -->
+<div class="p-8 max-w-[1600px] mx-auto flex gap-8">
+<!-- Left: Question List Area -->
+<section class="flex-1 space-y-8">
+<!-- Header & Stats -->
+<div class="flex items-end justify-between">
+<div>
+<h2 class="text-3xl font-black tracking-tight text-on-surface">Question Bank</h2>
+<p class="text-on-surface-variant text-sm mt-1 mono uppercase tracking-wider">Showing 142 of 1,840 available prompts</p>
+</div>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-highest text-on-surface text-sm font-semibold rounded-full hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="upload_file">upload_file</span>
+                            Export
+                        </button>
+</div>
+</div>
+<!-- Filters -->
+<div class="grid grid-cols-5 gap-4 p-4 bg-surface-container-low rounded-xl">
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold uppercase tracking-widest text-outline ml-1">Type</label>
+<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option>All Types</option>
+<option>Behavioral</option>
+<option>Technical</option>
+<option>Situational</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold uppercase tracking-widest text-outline ml-1">Difficulty</label>
+<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option>All Levels</option>
+<option>Entry</option>
+<option>Intermediate</option>
+<option>Advanced</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold uppercase tracking-widest text-outline ml-1">Company</label>
+<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option>FAANG+</option>
+<option>Startups</option>
+<option>Fortune 500</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold uppercase tracking-widest text-outline ml-1">Role</label>
+<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option>Product Manager</option>
+<option>Engineer</option>
+<option>Data Science</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold uppercase tracking-widest text-outline ml-1">Topic</label>
+<select class="w-full bg-surface-container-lowest border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option>System Design</option>
+<option>Leadership</option>
+<option>Problem Solving</option>
+</select>
+</div>
+</div>
+<!-- Question Table -->
+<div class="overflow-hidden bg-surface-container-low rounded-2xl">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-high/50 border-b border-outline-variant/10">
+<tr>
+<th class="py-4 px-6 w-12"><input class="rounded text-primary focus:ring-primary border-outline-variant" type="checkbox"/></th>
+<th class="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-outline">Type</th>
+<th class="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-outline">Question Prompt</th>
+<th class="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-outline">Tags</th>
+<th class="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-outline">Level</th>
+<th class="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-outline">Avg Score</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<!-- Question Row 1 -->
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="py-5 px-6"><input checked="" class="rounded text-primary focus:ring-primary border-outline-variant" type="checkbox"/></td>
+<td class="py-5 px-4">
+<span class="material-symbols-outlined text-secondary text-xl" data-icon="psychology">psychology</span>
+</td>
+<td class="py-5 px-4 max-w-md">
+<p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">Tell me about a time you had to manage a conflict with a senior stakeholder.</p>
+</td>
+<td class="py-5 px-4">
+<div class="flex gap-1">
+<span class="px-2 py-0.5 bg-surface-container-highest text-[10px] font-bold rounded uppercase">Leadership</span>
+<span class="px-2 py-0.5 bg-surface-container-highest text-[10px] font-bold rounded uppercase">Conflict</span>
+</div>
+</td>
+<td class="py-5 px-4">
+<span class="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter bg-amber-100 text-amber-700">Intermediate</span>
+</td>
+<td class="py-5 px-4">
+<span class="mono text-xs font-bold text-on-surface">8.4<span class="text-outline">/10</span></span>
+</td>
+</tr>
+<!-- Question Row 2 -->
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="py-5 px-6"><input class="rounded text-primary focus:ring-primary border-outline-variant" type="checkbox"/></td>
+<td class="py-5 px-4">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="terminal">terminal</span>
+</td>
+<td class="py-5 px-4 max-w-md">
+<p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">Design a scalable architecture for a real-time notification service like WhatsApp.</p>
+</td>
+<td class="py-5 px-4">
+<div class="flex gap-1">
+<span class="px-2 py-0.5 bg-surface-container-highest text-[10px] font-bold rounded uppercase">Backend</span>
+<span class="px-2 py-0.5 bg-surface-container-highest text-[10px] font-bold rounded uppercase">System</span>
+</div>
+</td>
+<td class="py-5 px-4">
+<span class="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter bg-red-100 text-red-700">Advanced</span>
+</td>
+<td class="py-5 px-4">
+<span class="mono text-xs font-bold text-on-surface">6.1<span class="text-outline">/10</span></span>
+</td>
+</tr>
+<!-- Question Row 3 -->
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="py-5 px-6"><input checked="" class="rounded text-primary focus:ring-primary border-outline-variant" type="checkbox"/></td>
+<td class="py-5 px-4">
+<span class="material-symbols-outlined text-tertiary text-xl" data-icon="lightbulb">lightbulb</span>
+</td>
+<td class="py-5 px-4 max-w-md">
+<p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">How do you prioritize features for a product with limited engineering bandwidth?</p>
+</td>
+<td class="py-5 px-4">
+<div class="flex gap-1">
+<span class="px-2 py-0.5 bg-surface-container-highest text-[10px] font-bold rounded uppercase">Product</span>
+<span class="px-2 py-0.5 bg-surface-container-highest text-[10px] font-bold rounded uppercase">Logic</span>
+</div>
+</td>
+<td class="py-5 px-4">
+<span class="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter bg-green-100 text-green-700">Entry</span>
+</td>
+<td class="py-5 px-4">
+<span class="mono text-xs font-bold text-on-surface">9.0<span class="text-outline">/10</span></span>
+</td>
+</tr>
+<!-- Question Row 4 -->
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="py-5 px-6"><input class="rounded text-primary focus:ring-primary border-outline-variant" type="checkbox"/></td>
+<td class="py-5 px-4">
+<span class="material-symbols-outlined text-secondary text-xl" data-icon="psychology">psychology</span>
+</td>
+<td class="py-5 px-4 max-w-md">
+<p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">Describe a project you are most proud of. What was the impact and what did you learn?</p>
+</td>
+<td class="py-5 px-4">
+<div class="flex gap-1">
+<span class="px-2 py-0.5 bg-surface-container-highest text-[10px] font-bold rounded uppercase">Behavioral</span>
+</div>
+</td>
+<td class="py-5 px-4">
+<span class="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter bg-green-100 text-green-700">Entry</span>
+</td>
+<td class="py-5 px-4">
+<span class="mono text-xs font-bold text-on-surface">8.8<span class="text-outline">/10</span></span>
+</td>
+</tr>
+<!-- Question Row 5 -->
+<tr class="hover:bg-surface-container-lowest transition-colors group">
+<td class="py-5 px-6"><input checked="" class="rounded text-primary focus:ring-primary border-outline-variant" type="checkbox"/></td>
+<td class="py-5 px-4">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="terminal">terminal</span>
+</td>
+<td class="py-5 px-4 max-w-md">
+<p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">Implement a thread-safe LRU cache with expiration logic.</p>
+</td>
+<td class="py-5 px-4">
+<div class="flex gap-1">
+<span class="px-2 py-0.5 bg-surface-container-highest text-[10px] font-bold rounded uppercase">Data Structures</span>
+</div>
+</td>
+<td class="py-5 px-4">
+<span class="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter bg-amber-100 text-amber-700">Intermediate</span>
+</td>
+<td class="py-5 px-4">
+<span class="mono text-xs font-bold text-on-surface">7.2<span class="text-outline">/10</span></span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Right Sidebar: Practice Set (Visible when items selected) -->
+<aside class="w-80 shrink-0">
+<div class="sticky top-24 bg-surface-container-lowest rounded-3xl p-6 shadow-2xl shadow-on-surface/5 flex flex-col gap-6">
+<div class="flex items-center justify-between">
+<h3 class="text-lg font-black tracking-tight">Practice Set</h3>
+<span class="bg-primary text-white text-[10px] font-black px-2 py-0.5 rounded-full">3 Selected</span>
+</div>
+<div class="space-y-4">
+<div class="p-4 bg-surface-container-low rounded-2xl relative overflow-hidden group">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-secondary"></div>
+<p class="text-xs font-bold text-outline uppercase tracking-widest mb-1">Behavioral</p>
+<p class="text-sm font-medium leading-relaxed truncate">Tell me about a time you had to manage a conflict...</p>
+<button class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-outline hover:text-error text-lg" data-icon="close">close</span>
+</button>
+</div>
+<div class="p-4 bg-surface-container-low rounded-2xl relative overflow-hidden group">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-tertiary"></div>
+<p class="text-xs font-bold text-outline uppercase tracking-widest mb-1">Product</p>
+<p class="text-sm font-medium leading-relaxed truncate">How do you prioritize features for a product...</p>
+<button class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-outline hover:text-error text-lg" data-icon="close">close</span>
+</button>
+</div>
+<div class="p-4 bg-surface-container-low rounded-2xl relative overflow-hidden group">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+<p class="text-xs font-bold text-outline uppercase tracking-widest mb-1">Technical</p>
+<p class="text-sm font-medium leading-relaxed truncate">Implement a thread-safe LRU cache...</p>
+<button class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-outline hover:text-error text-lg" data-icon="close">close</span>
+</button>
+</div>
+</div>
+<div class="space-y-3 pt-2">
+<div class="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-outline px-1">
+<span>Estimated Duration</span>
+<span class="text-on-surface">~45 mins</span>
+</div>
+<div class="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-outline px-1">
+<span>AI Intensity</span>
+<span class="text-secondary">High (Feedback On)</span>
+</div>
+</div>
+<button class="w-full py-4 bg-gradient-to-br from-primary to-primary-container text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
+                        Launch Session
+                    </button>
+<button class="w-full py-3 bg-surface-container-highest text-on-surface rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-surface-container transition-colors">
+                        Clear All
+                    </button>
+<!-- AI Coach Mini-Card -->
+<div class="mt-4 p-4 rounded-2xl bg-secondary-container/10 border border-secondary-container/20 flex gap-4">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-white" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<div>
+<p class="text-[10px] font-black uppercase tracking-widest text-secondary">Coach Recommendation</p>
+<p class="text-xs text-on-surface/80 mt-1 leading-relaxed italic">"This mix of behavioral and technical logic perfectly mimics a Google L5 loop. Great selection!"</p>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</main>
+</body></html>

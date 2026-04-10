@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary-fixed": "#c9e6ff",
+                        "primary-container": "#2170e4",
+                        "outline": "#727785",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#004395",
+                        "on-tertiary-container": "#fcfcff",
+                        "on-secondary-fixed-variant": "#5a00c6",
+                        "on-tertiary-fixed-variant": "#004c6e",
+                        "surface": "#faf8ff",
+                        "surface-container": "#eaedff",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed": "#eaddff",
+                        "surface-dim": "#d2d9f4",
+                        "surface-container-highest": "#dae2fd",
+                        "primary": "#0058be",
+                        "on-secondary-fixed": "#25005a",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#8a4cfc",
+                        "primary-fixed-dim": "#adc6ff",
+                        "on-primary-fixed": "#001a42",
+                        "on-error-container": "#93000a",
+                        "on-error": "#ffffff",
+                        "inverse-on-surface": "#eef0ff",
+                        "tertiary-fixed-dim": "#89ceff",
+                        "on-tertiary-fixed": "#001e2f",
+                        "on-surface-variant": "#424754",
+                        "secondary-fixed-dim": "#d2bbff",
+                        "inverse-primary": "#adc6ff",
+                        "inverse-surface": "#283044",
+                        "outline-variant": "#c2c6d6",
+                        "on-primary-container": "#fefcff",
+                        "surface-variant": "#dae2fd",
+                        "surface-tint": "#005ac2",
+                        "on-primary": "#ffffff",
+                        "surface-bright": "#faf8ff",
+                        "error": "#ba1a1a",
+                        "on-surface": "#131b2e",
+                        "tertiary-container": "#007cb1",
+                        "surface-container-high": "#e2e7ff",
+                        "secondary": "#712ae2",
+                        "on-tertiary": "#ffffff",
+                        "on-background": "#131b2e",
+                        "surface-container-low": "#f2f3ff",
+                        "primary-fixed": "#d8e2ff",
+                        "on-secondary-container": "#fffbff",
+                        "tertiary": "#00628d",
+                        "background": "#faf8ff"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(138, 76, 252, 0.08);
+            backdrop-filter: blur(20px);
+        }
+        .github-cell { width: 12px; height: 12px; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+<!-- SideNavBar (Authority: JSON) -->
+<aside class="fixed left-0 top-0 h-full flex flex-col pt-8 pb-4 px-6 bg-slate-50 dark:bg-slate-950 h-screen w-64 border-r-0 z-50">
+<div class="mb-10">
+<h1 class="text-xl font-bold tracking-tighter text-slate-900 dark:text-slate-100">Digital Stoic</h1>
+<p class="text-xs text-slate-500 font-medium">AI Interview Prep</p>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 transition-colors duration-200 font-sans text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span>Home</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 transition-colors duration-200 font-sans text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined" data-icon="exercise">exercise</span>
+<span>Practice</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 transition-colors duration-200 font-sans text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span>Sessions</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-blue-700 dark:text-blue-400 font-bold border-r-2 border-blue-700 dark:border-blue-400 bg-slate-200/30 font-sans text-sm tracking-wide" href="#">
+<span class="material-symbols-outlined" data-icon="leaderboard" style="font-variation-settings: 'FILL' 1;">leaderboard</span>
+<span>Progress</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 transition-colors duration-200 font-sans text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+<span>Question Bank</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 transition-colors duration-200 font-sans text-sm font-medium tracking-wide" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+<div class="mt-auto">
+<button class="w-full bg-primary text-white py-3 rounded-xl font-bold text-sm tracking-tight shadow-lg transition-transform active:scale-95">
+                Start Interview
+            </button>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="ml-64 min-h-screen">
+<!-- TopAppBar (Authority: JSON) -->
+<header class="sticky top-0 z-40 flex items-center justify-between px-8 w-full h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+<div class="flex items-center gap-8">
+<span class="text-lg font-black text-slate-900 dark:text-slate-50">Interview Intelligence</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-all font-sans text-sm font-medium" href="#">Dashboard</a>
+<a class="text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 font-sans text-sm font-medium" href="#">Analytics</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative flex items-center bg-slate-100 dark:bg-slate-800 rounded-full px-4 py-1.5 w-64">
+<span class="material-symbols-outlined text-slate-400 text-sm" data-icon="search">search</span>
+<input class="bg-transparent border-none text-xs focus:ring-0 w-full placeholder:text-slate-400" placeholder="Search insights..." type="text"/>
+</div>
+<button class="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 rounded-full">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden bg-slate-200">
+<img class="w-full h-full object-cover" data-alt="professional portrait of a young male executive in a studio with soft key lighting and neutral gray background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDoUyBfN_0do3PWdMXdaNqY8Zazur0So566bBfhLdfYwAkazP9r4EAfSvq5Z-Uf8MQTMvmzrljfMroWFc11DKoWm5NnYy_P9ww6UpS8VF_8MNQJPS6kGKpaD78NRiZr-ZudqrC0gLggEC09pJUKKZ_Lem5NDrzrPn00VpcXkYIWMENcM0ISkK-kqn8A6YhfBFn4m78nRSCdolT0F7uNi3eTIFyTmTga5ZLTPrqjl4YFCVGAcZURVaTO2J7L_pNd6dXPRdTbaRdjNAAl"/>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="p-8 space-y-8">
+<!-- Headline Section -->
+<section>
+<p class="font-mono text-[10px] uppercase tracking-[0.2em] text-primary mb-2">Performance Ledger</p>
+<h2 class="text-4xl font-bold tracking-tight text-on-surface">Skill Maturity Overview</h2>
+</section>
+<!-- Stats Row: Bento Style -->
+<section class="grid grid-cols-4 gap-6">
+<div class="bg-surface-container-low p-6 rounded-xl flex flex-col justify-between h-32 relative overflow-hidden">
+<span class="font-mono text-[10px] text-primary font-bold tracking-widest uppercase">Overall Score</span>
+<div class="flex items-baseline gap-2">
+<span class="text-5xl font-black tracking-tighter">74</span>
+<span class="text-sm text-primary font-bold">/100</span>
+</div>
+<div class="absolute -right-4 -bottom-4 opacity-5 scale-150">
+<span class="material-symbols-outlined text-8xl" data-icon="analytics">analytics</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl flex flex-col justify-between h-32">
+<span class="font-mono text-[10px] text-on-surface-variant font-bold tracking-widest uppercase">Total Sessions</span>
+<span class="text-5xl font-black tracking-tighter">18</span>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl flex flex-col justify-between h-32 border-l-4 border-secondary">
+<span class="font-mono text-[10px] text-secondary font-bold tracking-widest uppercase">Best Category</span>
+<div>
+<span class="block text-lg font-bold">Behavioral</span>
+<span class="text-3xl font-black tracking-tighter">81%</span>
+</div>
+</div>
+<div class="bg-primary text-white p-6 rounded-xl flex flex-col justify-between h-32 shadow-xl shadow-primary/20">
+<span class="font-mono text-[10px] font-bold tracking-widest uppercase opacity-80">Current Streak</span>
+<div class="flex items-center gap-2">
+<span class="text-5xl font-black tracking-tighter">12</span>
+<span class="material-symbols-outlined text-3xl" data-icon="local_fire_department" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+</div>
+</div>
+</section>
+<!-- Middle Section: Chart and Heatmap -->
+<div class="grid grid-cols-12 gap-8">
+<!-- Score Trend Chart -->
+<div class="col-span-8 bg-surface-container-low p-8 rounded-xl">
+<div class="flex justify-between items-center mb-10">
+<div>
+<h3 class="text-xl font-bold tracking-tight">Growth Trajectory</h3>
+<p class="text-xs text-on-surface-variant">Last 30 days performance index</p>
+</div>
+<div class="flex gap-4">
+<span class="flex items-center gap-2 text-xs font-bold text-primary">
+<span class="w-2 h-2 rounded-full bg-primary"></span> Technical
+                            </span>
+<span class="flex items-center gap-2 text-xs font-bold text-secondary">
+<span class="w-2 h-2 rounded-full bg-secondary"></span> Behavioral
+                            </span>
+</div>
+</div>
+<div class="h-64 flex items-end justify-between gap-1 relative">
+<!-- Simulated SVG Line Chart Path for Smoothness -->
+<svg class="absolute inset-0 w-full h-full" preserveaspectratio="none" viewbox="0 0 100 100">
+<path class="text-primary opacity-30" d="M0,80 Q10,75 20,60 T40,55 T60,35 T80,30 T100,20" fill="none" stroke="currentColor" stroke-width="2"></path>
+<path class="text-secondary opacity-30" d="M0,85 Q15,80 30,70 T50,65 T70,50 T90,45 T100,35" fill="none" stroke="currentColor" stroke-width="2"></path>
+</svg>
+<!-- Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-5">
+<div class="border-t border-on-surface w-full"></div>
+<div class="border-t border-on-surface w-full"></div>
+<div class="border-t border-on-surface w-full"></div>
+<div class="border-t border-on-surface w-full"></div>
+</div>
+<!-- Chart X Axis Labels -->
+<div class="absolute -bottom-6 w-full flex justify-between px-2">
+<span class="text-[9px] font-mono text-on-surface-variant">01 OCT</span>
+<span class="text-[9px] font-mono text-on-surface-variant">10 OCT</span>
+<span class="text-[9px] font-mono text-on-surface-variant">20 OCT</span>
+<span class="text-[9px] font-mono text-on-surface-variant">30 OCT</span>
+</div>
+</div>
+</div>
+<!-- AI Insight Card: Glassmorphism -->
+<div class="col-span-4 glass-panel p-8 rounded-xl border border-white/20 flex flex-col h-full">
+<div class="flex items-center gap-2 mb-6 text-secondary">
+<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+<span class="font-mono text-[10px] font-bold tracking-[0.2em] uppercase">AI Stoic Advisor</span>
+</div>
+<h4 class="text-xl font-bold leading-tight mb-4">Focus on System Design edge cases.</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed mb-8">
+                        Your technical scores are stabilizing, but "Load Balancing" and "Consistency Models" remain outliers. Devote the next 3 sessions to high-concurrency scenarios to break the 80% ceiling.
+                    </p>
+<div class="mt-auto">
+<button class="flex items-center gap-2 text-xs font-bold text-secondary-container hover:underline">
+                            View Study Plan <span class="material-symbols-outlined text-sm" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bottom Section: Heatmap & Mastery -->
+<div class="grid grid-cols-12 gap-8">
+<!-- Activity Heatmap -->
+<div class="col-span-5 bg-surface-container-low p-8 rounded-xl">
+<h3 class="text-sm font-bold tracking-tight mb-6">Activity Intensity</h3>
+<div class="flex gap-2">
+<!-- Columns -->
+<div class="grid grid-rows-7 gap-2">
+<!-- Mon-Sun indicators -->
+<span class="text-[8px] font-mono opacity-40">M</span>
+<span class="text-[8px] font-mono opacity-0">T</span>
+<span class="text-[8px] font-mono opacity-40">W</span>
+<span class="text-[8px] font-mono opacity-0">T</span>
+<span class="text-[8px] font-mono opacity-40">F</span>
+<span class="text-[8px] font-mono opacity-0">S</span>
+<span class="text-[8px] font-mono opacity-40">S</span>
+</div>
+<div class="flex-1 flex gap-2 overflow-hidden">
+<!-- 13 columns of data -->
+<div class="flex flex-col gap-2">
+<div class="github-cell bg-surface-container-highest"></div>
+<div class="github-cell bg-primary/20"></div>
+<div class="github-cell bg-primary/40"></div>
+<div class="github-cell bg-primary/10"></div>
+<div class="github-cell bg-surface-container-highest"></div>
+<div class="github-cell bg-primary/60"></div>
+<div class="github-cell bg-primary/20"></div>
+</div>
+<!-- Repeat columns with random variance -->
+<div class="flex flex-col gap-2"><div class="github-cell bg-primary/80"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-surface-container-highest"></div><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/90"></div><div class="github-cell bg-primary/10"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-surface-container-highest"></div><div class="github-cell bg-surface-container-highest"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/5"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/90"></div><div class="github-cell bg-primary/60"></div><div class="github-cell bg-primary/80"></div><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-primary/10"></div><div class="github-cell bg-surface-container-highest"></div><div class="github-cell bg-surface-container-highest"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/50"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-primary/80"></div><div class="github-cell bg-primary/100"></div><div class="github-cell bg-primary/90"></div><div class="github-cell bg-primary/70"></div><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/20"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-surface-container-highest"></div><div class="github-cell bg-surface-container-highest"></div><div class="github-cell bg-surface-container-highest"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/30"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/60"></div><div class="github-cell bg-primary/10"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/50"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-surface-container-highest"></div><div class="github-cell bg-surface-container-highest"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-primary/90"></div><div class="github-cell bg-primary/80"></div><div class="github-cell bg-primary/60"></div><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/5"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-surface-container-highest"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-surface-container-highest"></div><div class="github-cell bg-primary/40"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/10"></div><div class="github-cell bg-primary/30"></div><div class="github-cell bg-primary/20"></div></div>
+<div class="flex flex-col gap-2"><div class="github-cell bg-primary/100"></div><div class="github-cell bg-primary/90"></div><div class="github-cell bg-primary/80"></div><div class="github-cell bg-primary/70"></div><div class="github-cell bg-primary/60"></div><div class="github-cell bg-primary/20"></div><div class="github-cell bg-primary/10"></div></div>
+</div>
+</div>
+<div class="mt-6 flex justify-between items-center">
+<span class="text-[10px] text-on-surface-variant font-mono">Total Sessions: 142</span>
+<div class="flex items-center gap-1">
+<span class="text-[8px] font-mono mr-1">Less</span>
+<div class="github-cell bg-surface-container-highest"></div>
+<div class="github-cell bg-primary/20"></div>
+<div class="github-cell bg-primary/60"></div>
+<div class="github-cell bg-primary/100"></div>
+<span class="text-[8px] font-mono ml-1">More</span>
+</div>
+</div>
+</div>
+<!-- Topic Mastery Grid -->
+<div class="col-span-7 bg-surface-container-low p-8 rounded-xl">
+<h3 class="text-sm font-bold tracking-tight mb-6">Topic Mastery</h3>
+<div class="grid grid-cols-3 gap-6">
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold">
+<span>STAR Behavioral</span>
+<span class="text-primary">89%</span>
+</div>
+<div class="h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[89%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold">
+<span>Leadership</span>
+<span class="text-primary">72%</span>
+</div>
+<div class="h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[72%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold">
+<span>Arrays &amp; Logic</span>
+<span class="text-primary">65%</span>
+</div>
+<div class="h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[65%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold">
+<span>Dynamic Programming</span>
+<span class="text-primary">42%</span>
+</div>
+<div class="h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[42%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold">
+<span>System Design</span>
+<span class="text-primary">58%</span>
+</div>
+<div class="h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[58%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold">
+<span>API Design</span>
+<span class="text-primary">77%</span>
+</div>
+<div class="h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[77%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Achievements Row -->
+<section class="bg-surface-container-low p-8 rounded-xl">
+<div class="flex items-center justify-between mb-8">
+<h3 class="text-sm font-bold tracking-tight">Milestone Credentials</h3>
+<button class="text-[10px] font-bold text-primary uppercase tracking-widest">View All</button>
+</div>
+<div class="flex gap-8 overflow-x-auto pb-2 scrollbar-hide">
+<div class="flex flex-col items-center text-center gap-3 group min-w-[100px]">
+<div class="w-16 h-16 rounded-full bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed shadow-inner group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl" data-icon="stars" style="font-variation-settings: 'FILL' 1;">stars</span>
+</div>
+<span class="text-[10px] font-bold">Fast Responder</span>
+</div>
+<div class="flex flex-col items-center text-center gap-3 group min-w-[100px]">
+<div class="w-16 h-16 rounded-full bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed shadow-inner group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl" data-icon="psychology" style="font-variation-settings: 'FILL' 1;">psychology</span>
+</div>
+<span class="text-[10px] font-bold">Logic Master</span>
+</div>
+<div class="flex flex-col items-center text-center gap-3 group min-w-[100px]">
+<div class="w-16 h-16 rounded-full bg-primary-fixed flex items-center justify-center text-on-primary-fixed shadow-inner group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl" data-icon="military_tech" style="font-variation-settings: 'FILL' 1;">military_tech</span>
+</div>
+<span class="text-[10px] font-bold">10-Day Grind</span>
+</div>
+<div class="flex flex-col items-center text-center gap-3 group min-w-[100px] opacity-40 grayscale">
+<div class="w-16 h-16 rounded-full bg-surface-container-highest flex items-center justify-center text-outline shadow-inner">
+<span class="material-symbols-outlined text-3xl" data-icon="terminal">terminal</span>
+</div>
+<span class="text-[10px] font-bold">System Architect</span>
+</div>
+<div class="flex flex-col items-center text-center gap-3 group min-w-[100px] opacity-40 grayscale">
+<div class="w-16 h-16 rounded-full bg-surface-container-highest flex items-center justify-center text-outline shadow-inner">
+<span class="material-symbols-outlined text-3xl" data-icon="history_edu">history_edu</span>
+</div>
+<span class="text-[10px] font-bold">Polished Storyteller</span>
+</div>
+</div>
+</section>
+</div>
+</main>
+</body></html>

@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-app:      #F7F8FA;
+    --surface:     #FFFFFF;
+    --border:      #E2E6ED;
+    --text-pri:    #0F172A;
+    --text-sec:    #64748B;
+    --text-muted:  #94A3B8;
+    --blue:        #3B82F6;
+    --violet:      #7C3AED;
+    --green:       #22C55E;
+    --amber:       #F59E0B;
+    --red:         #EF4444;
+    --teal:        #0EA5E9;
+  }
+
+  html {
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--bg-app);
+    color: var(--text-pri);
+  }
+
+  /* Spec: Label utility — 11px / 600 / uppercase / tracked */
+  .label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    line-height: 1.4;
+  }
+
+  /* Spec: Monospace for code / data-heavy strings */
+  .mono {
+    font-family: "JetBrains Mono", monospace;
+  }
+}
+
+/* ── Responsive heading overrides ───────────────────────────────────────────── */
+/* text-heading-l (28px) and text-heading-xl (36px) are too large on small phones */
+@media (max-width: 639px) {
+  .text-heading-xl { font-size: 24px !important; }
+  .text-heading-l  { font-size: 20px !important; }
+  .text-heading-m  { font-size: 17px !important; }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Donut ring progress – used in ReadinessScoreCard */
+  .ring-fill {
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Gradient CTA — used on primary Start Interview button */
+  .btn-gradient {
+    background: linear-gradient(135deg, #3B82F6, #7C3AED);
+  }
+  .btn-gradient:hover {
+    background: linear-gradient(135deg, #2563EB, #6D28D9);
+  }
+}
+
+/* ── Print / PDF export styles ───────────────────────────────────────────────
+   Activated by window.print() on the feedback report page.
+   Hides nav chrome, forces white background, and ensures colours print.     */
+@media print {
+  /* Hide all navigation and non-report chrome */
+  nav, aside, header:not(.print-header),
+  footer, [data-sidebar], [data-bottomnav] { display: none !important; }
+
+  /* Utilities that hide elements during print */
+  .print\:hidden { display: none !important; }
+
+  body, html {
+    background: #fff !important;
+    font-size: 12pt;
+  }
+
+  /* Expand the report to full page width */
+  .max-w-\[860px\] { max-width: 100% !important; }
+
+  /* Ensure card backgrounds and borders print */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Avoid page breaks inside cards */
+  .rounded-card, .rounded-2xl, .rounded-xl { break-inside: avoid; }
+
+  /* Remove shadows for cleaner print */
+  .shadow-card, .shadow-blue-glow { box-shadow: none !important; }
+
+  /* Colour progress bars print correctly */
+  [style*="background-color"] { -webkit-print-color-adjust: exact; }
+}

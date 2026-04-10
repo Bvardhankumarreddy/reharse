@@ -1,0 +1,4 @@
+.env
+auth-state.json
+demo-output/
+node_modules/

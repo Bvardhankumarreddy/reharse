@@ -1,0 +1,23 @@
+{
+  "name": "rehearse-demo-recorder",
+  "version": "1.0.0",
+  "description": "Automated Playwright demo recorder for Rehearse",
+  "scripts": {
+    "save-auth": "ts-node scripts/save-auth.ts",
+    "record": "ts-node scripts/record-demo.ts",
+    "voiceover": "ts-node scripts/generate-voiceover.ts",
+    "sync-audio": "ts-node scripts/sync-audio.ts",
+    "assets": "ts-node scripts/generate-assets.ts",
+    "merge-audio": "bash scripts/merge-audio.sh",
+    "demo": "npm run record && npm run voiceover && npm run sync-audio"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.0",
+    "playwright": "^1.43.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}

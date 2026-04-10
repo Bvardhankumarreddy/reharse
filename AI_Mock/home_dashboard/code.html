@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InterviewAI | Dashboard</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            /* ── Spec: Section 2 – Color Palette ── */
+            "bg-app":      "#F7F8FA",
+            "surface":     "#FFFFFF",
+            "border":      "#E2E6ED",
+            "text-pri":    "#0F172A",
+            "text-sec":    "#64748B",
+            "text-muted":  "#94A3B8",
+            /* Accents */
+            "blue":        "#3B82F6",
+            "violet":      "#7C3AED",
+            "green":       "#22C55E",
+            "amber":       "#F59E0B",
+            "red":         "#EF4444",
+            "teal":        "#0EA5E9",
+            /* Score bands */
+            "score-strong": "#22C55E",
+            "score-good":   "#3B82F6",
+            "score-fair":   "#F59E0B",
+            "score-weak":   "#EF4444",
+          },
+          fontFamily: {
+            sans: ["Inter", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"],
+          },
+          maxWidth: {
+            app: "1440px",
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    /* Spec: Typography – Label (11px / 600 uppercase) */
+    .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    /* Spec: Typography – Small (13px / 400) */
+    .small { font-size: 13px; }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .fill-icon { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    /* Donut progress ring – animated on load */
+    .ring-track  { stroke: #E2E6ED; }
+    .ring-fill   { stroke-linecap: round; transition: stroke-dashoffset 1s ease-in-out; }
+    /* Progress bar width helpers rendered inline for accuracy */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    body { background-color: #F7F8FA; font-family: "Inter", sans-serif; color: #0F172A; }
+  </style>
+</head>
+<body class="antialiased min-h-screen">
+
+<!-- ═══════════════════════════════════════════════════════════════
+     LEFT SIDEBAR  (240 px, desktop only)
+     Spec: "Left sidebar (240px, white, subtle right border #E2E6ED)"
+════════════════════════════════════════════════════════════════ -->
+<aside id="sidebar"
+  class="fixed inset-y-0 left-0 z-50 hidden lg:flex flex-col w-60 bg-[#FFFFFF] border-r border-[#E2E6ED]">
+
+  <!-- Logo -->
+  <div class="flex items-center gap-3 px-6 py-5 border-b border-[#E2E6ED]">
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3B82F6] to-[#7C3AED] flex items-center justify-center flex-shrink-0">
+      <span class="material-symbols-outlined fill-icon text-white text-[18px]">mic</span>
+    </div>
+    <div>
+      <p class="text-[15px] font-bold tracking-tight text-[#0F172A]">InterviewAI</p>
+      <p class="label text-[#94A3B8]" style="font-size:10px;">AI Interview Coach</p>
+    </div>
+  </div>
+
+  <!-- Nav items -->
+  <!-- Spec: "Active item: blue filled pill background, white icon, blue label" -->
+  <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+    <a href="#"
+       class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[#3B82F6] text-white font-semibold text-[14px]">
+      <span class="material-symbols-outlined fill-icon text-[20px]">home</span>
+      <span>Home</span>
+    </a>
+    <a href="#"
+       class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#64748B] hover:bg-[#F7F8FA] hover:text-[#0F172A] transition-colors text-[14px] font-medium">
+      <span class="material-symbols-outlined text-[20px]">exercise</span>
+      <span>Practice</span>
+    </a>
+    <a href="#"
+       class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#64748B] hover:bg-[#F7F8FA] hover:text-[#0F172A] transition-colors text-[14px] font-medium">
+      <span class="material-symbols-outlined text-[20px]">history</span>
+      <span>My Sessions</span>
+    </a>
+    <a href="#"
+       class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#64748B] hover:bg-[#F7F8FA] hover:text-[#0F172A] transition-colors text-[14px] font-medium">
+      <span class="material-symbols-outlined text-[20px]">leaderboard</span>
+      <span>Progress</span>
+    </a>
+    <a href="#"
+       class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#64748B] hover:bg-[#F7F8FA] hover:text-[#0F172A] transition-colors text-[14px] font-medium">
+      <span class="material-symbols-outlined text-[20px]">database</span>
+      <span>Question Bank</span>
+    </a>
+    <div class="pt-3 mt-3 border-t border-[#E2E6ED]">
+      <a href="#"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#64748B] hover:bg-[#F7F8FA] hover:text-[#0F172A] transition-colors text-[14px] font-medium">
+        <span class="material-symbols-outlined text-[20px]">settings</span>
+        <span>Settings</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- User + Streak -->
+  <!-- Spec: "Bottom: user avatar, name 'Priya Sharma', streak flame icon '12-day streak'" -->
+  <div class="px-4 py-4 border-t border-[#E2E6ED]">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#7C3AED] flex items-center justify-center text-white font-bold text-[14px] flex-shrink-0">
+        P
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-[13px] font-semibold text-[#0F172A] truncate">Priya Sharma</p>
+        <div class="flex items-center gap-1 mt-0.5">
+          <span class="material-symbols-outlined fill-icon text-orange-500 text-[14px]">local_fire_department</span>
+          <span class="text-[11px] font-bold text-orange-500">12-day streak</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MOBILE TOP BAR  (hidden on lg+)
+════════════════════════════════════════════════════════════════ -->
+<header class="lg:hidden sticky top-0 z-40 bg-[#FFFFFF] border-b border-[#E2E6ED] px-4 py-3 flex items-center justify-between">
+  <div class="flex items-center gap-2">
+    <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-[#3B82F6] to-[#7C3AED] flex items-center justify-center">
+      <span class="material-symbols-outlined fill-icon text-white text-[15px]">mic</span>
+    </div>
+    <span class="text-[15px] font-bold tracking-tight text-[#0F172A]">InterviewAI</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <div class="flex items-center gap-1 bg-orange-50 px-2.5 py-1 rounded-full">
+      <span class="material-symbols-outlined fill-icon text-orange-500 text-[14px]">local_fire_department</span>
+      <span class="text-[12px] font-bold text-orange-500">12</span>
+    </div>
+    <button class="p-1.5 rounded-full text-[#64748B] hover:bg-[#F7F8FA] transition-colors">
+      <span class="material-symbols-outlined text-[20px]">settings</span>
+    </button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE SHELL  (offset by sidebar on desktop)
+════════════════════════════════════════════════════════════════ -->
+<div class="lg:pl-60">
+  <main class="max-w-[1200px] mx-auto px-4 lg:px-8 py-6 lg:py-8 flex gap-8 items-start">
+
+    <!-- ────────────────── CENTER CANVAS ────────────────── -->
+    <div class="flex-1 min-w-0 space-y-8">
+
+      <!-- ┌─────────────────────────────────────────────┐
+           │  1. GREETING + COUNTDOWN                    │
+           │  Spec: "'Good morning, Priya' in 28px bold" │
+           └─────────────────────────────────────────────┘ -->
+      <section class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <!-- Spec: Heading L – 28px / 600 -->
+          <h2 class="text-[28px] font-bold tracking-tight text-[#0F172A] leading-tight">
+            Good morning, Priya
+          </h2>
+          <!-- Spec: grey subtext -->
+          <p class="text-[15px] text-[#64748B] mt-1 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px] text-[#94A3B8]">calendar_today</span>
+            Your Google SWE interview is in 6 days
+          </p>
+        </div>
+
+        <!-- Countdown Card -->
+        <!-- Spec: "countdown card — '6 days' in large blue number, 'until Google SWE L4' subtitle" -->
+        <div class="flex-shrink-0 bg-[#3B82F6] text-white rounded-2xl px-6 py-4 flex items-center gap-4
+                    shadow-lg shadow-blue-500/25">
+          <!-- Circular progress ring: 6/30 days = 80% remaining -->
+          <div class="relative w-14 h-14 flex items-center justify-center flex-shrink-0">
+            <svg class="absolute inset-0 -rotate-90 w-14 h-14" viewBox="0 0 56 56">
+              <circle class="ring-track" cx="28" cy="28" r="22" fill="none" stroke-width="3.5"/>
+              <circle class="ring-fill" cx="28" cy="28" r="22" fill="none"
+                stroke="rgba(255,255,255,0.9)" stroke-width="3.5"
+                stroke-dasharray="138.2" stroke-dashoffset="34.6"/>
+            </svg>
+            <span class="text-[22px] font-black leading-none">6</span>
+          </div>
+          <div>
+            <p class="label text-white/70" style="font-size:10px;">Upcoming Milestone</p>
+            <p class="text-[15px] font-bold leading-snug mt-0.5">Google SWE L4</p>
+            <p class="text-[13px] text-white/80 mt-0.5">6 days remaining</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ┌──────────────────────────────────────────────────────────────┐
+           │  2. AI READINESS SCORE CARD                                  │
+           │  Spec: "full width, white, rounded 16px, subtle shadow"      │
+           │  Left: donut ring 72%  Right: breakdown + AI insight badge   │
+           └──────────────────────────────────────────────────────────────┘ -->
+      <section class="bg-[#FFFFFF] rounded-2xl p-6 lg:p-8 shadow-sm border border-[#E2E6ED]">
+        <div class="flex flex-col lg:flex-row gap-8">
+
+          <!-- Donut ring + score label -->
+          <!-- Spec: "Large donut ring chart, 72% filled in blue, '72' large in center" -->
+          <div class="flex flex-col items-center justify-center gap-3 flex-shrink-0 lg:w-52">
+            <div class="relative w-44 h-44">
+              <svg class="w-full h-full -rotate-90" viewBox="0 0 176 176">
+                <circle class="ring-track" cx="88" cy="88" r="70" fill="none" stroke-width="10"/>
+                <!-- 72 % → dashoffset = circumference × (1 − 0.72) = 439.8 × 0.28 = 123.1 -->
+                <circle class="ring-fill" cx="88" cy="88" r="70" fill="none"
+                  stroke="#3B82F6" stroke-width="10"
+                  stroke-dasharray="439.8" stroke-dashoffset="123.1"/>
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <!-- Spec: Heading XL – 36px / 700 for hero moments -->
+                <span class="text-[40px] font-black text-[#0F172A] tracking-tighter leading-none">72</span>
+                <span class="label text-[#64748B] mt-1" style="font-size:10px;">Readiness Score</span>
+              </div>
+            </div>
+            <div class="text-center">
+              <p class="text-[15px] font-semibold text-[#0F172A]">Strong Foundation</p>
+              <p class="text-[13px] text-[#64748B] mt-0.5 max-w-[180px] leading-relaxed">
+                Focus on System Design to reach the 85% benchmark.
+              </p>
+            </div>
+          </div>
+
+          <!-- Breakdown + AI badge -->
+          <div class="flex-1 flex flex-col justify-center gap-5">
+            <!-- Spec: breakdown list with teal / amber / violet / blue -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+
+              <!-- Coding 68% – teal -->
+              <div class="space-y-1.5">
+                <div class="flex justify-between items-center">
+                  <span class="label text-[#64748B]">Coding</span>
+                  <span class="font-mono text-[13px] font-bold text-[#0EA5E9]">68%</span>
+                </div>
+                <div class="h-2 bg-[#F7F8FA] rounded-full overflow-hidden">
+                  <div class="h-full bg-[#0EA5E9] rounded-full" style="width:68%"></div>
+                </div>
+              </div>
+
+              <!-- System Design 55% – amber -->
+              <div class="space-y-1.5">
+                <div class="flex justify-between items-center">
+                  <span class="label text-[#64748B]">System Design</span>
+                  <span class="font-mono text-[13px] font-bold text-[#F59E0B]">55%</span>
+                </div>
+                <div class="h-2 bg-[#F7F8FA] rounded-full overflow-hidden">
+                  <div class="h-full bg-[#F59E0B] rounded-full" style="width:55%"></div>
+                </div>
+              </div>
+
+              <!-- Behavioral 81% – violet -->
+              <div class="space-y-1.5">
+                <div class="flex justify-between items-center">
+                  <span class="label text-[#64748B]">Behavioral</span>
+                  <span class="font-mono text-[13px] font-bold text-[#7C3AED]">81%</span>
+                </div>
+                <div class="h-2 bg-[#F7F8FA] rounded-full overflow-hidden">
+                  <div class="h-full bg-[#7C3AED] rounded-full" style="width:81%"></div>
+                </div>
+              </div>
+
+              <!-- Communication 84% – blue -->
+              <div class="space-y-1.5">
+                <div class="flex justify-between items-center">
+                  <span class="label text-[#64748B]">Communication</span>
+                  <span class="font-mono text-[13px] font-bold text-[#3B82F6]">84%</span>
+                </div>
+                <div class="h-2 bg-[#F7F8FA] rounded-full overflow-hidden">
+                  <div class="h-full bg-[#3B82F6] rounded-full" style="width:84%"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Insight badge -->
+            <!-- Spec: "violet sparkle badge — 'AI insight: Your system design is holding you back. 3 sessions recommended.'" -->
+            <div class="flex items-start gap-3 bg-violet-50 border border-violet-100 rounded-xl px-4 py-3.5">
+              <span class="material-symbols-outlined fill-icon text-[#7C3AED] text-[20px] mt-0.5 flex-shrink-0">auto_awesome</span>
+              <p class="text-[13px] text-[#0F172A] leading-relaxed">
+                <span class="font-semibold text-[#7C3AED]">AI Insight:</span>
+                Your system design is holding you back.
+                <span class="font-semibold">3 sessions recommended</span> to reach the 85% benchmark.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ┌──────────────────────────────────────────────────────────────────────┐
+           │  3. JUMP BACK IN                                                     │
+           │  Spec: "4 quick-start cards in a row (white, rounded 12px,          │
+           │         hover: blue border). Each: icon, title, duration,            │
+           │         violet 'AI Adaptive' chip"                                   │
+           └──────────────────────────────────────────────────────────────────────┘ -->
+      <section>
+        <!-- Spec: Heading M – 20px / 600 -->
+        <h3 class="text-[20px] font-semibold text-[#0F172A] mb-4">Jump Back In</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+
+          <!-- Behavioral – violet -->
+          <button class="group p-5 bg-[#FFFFFF] border border-[#E2E6ED] hover:border-[#7C3AED]
+                         rounded-2xl text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5
+                         active:scale-95">
+            <div class="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center mb-3">
+              <span class="material-symbols-outlined text-[#7C3AED] text-[20px]">forum</span>
+            </div>
+            <h4 class="text-[14px] font-bold text-[#0F172A]">Behavioral</h4>
+            <p class="text-[12px] text-[#64748B] mt-1">30 min · STAR method</p>
+            <span class="inline-flex items-center gap-1 mt-3 px-2 py-0.5 bg-violet-50 text-[#7C3AED]
+                         rounded-full label" style="font-size:10px;">
+              <span class="material-symbols-outlined fill-icon text-[11px]">auto_awesome</span>
+              AI Adaptive
+            </span>
+          </button>
+
+          <!-- Coding – teal -->
+          <button class="group p-5 bg-[#FFFFFF] border border-[#E2E6ED] hover:border-[#0EA5E9]
+                         rounded-2xl text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5
+                         active:scale-95">
+            <div class="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center mb-3">
+              <span class="material-symbols-outlined text-[#0EA5E9] text-[20px]">code</span>
+            </div>
+            <h4 class="text-[14px] font-bold text-[#0F172A]">Coding</h4>
+            <p class="text-[12px] text-[#64748B] mt-1">45 min · DSA</p>
+            <span class="inline-flex items-center gap-1 mt-3 px-2 py-0.5 bg-teal-50 text-[#0EA5E9]
+                         rounded-full label" style="font-size:10px;">
+              <span class="material-symbols-outlined fill-icon text-[11px]">auto_awesome</span>
+              AI Adaptive
+            </span>
+          </button>
+
+          <!-- System Design – amber -->
+          <button class="group p-5 bg-[#FFFFFF] border border-[#E2E6ED] hover:border-[#F59E0B]
+                         rounded-2xl text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5
+                         active:scale-95">
+            <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
+              <span class="material-symbols-outlined text-[#F59E0B] text-[20px]">architecture</span>
+            </div>
+            <h4 class="text-[14px] font-bold text-[#0F172A]">System Design</h4>
+            <p class="text-[12px] text-[#64748B] mt-1">60 min · Architecture</p>
+            <span class="inline-flex items-center gap-1 mt-3 px-2 py-0.5 bg-amber-50 text-[#F59E0B]
+                         rounded-full label" style="font-size:10px;">
+              <span class="material-symbols-outlined fill-icon text-[11px]">auto_awesome</span>
+              AI Adaptive
+            </span>
+          </button>
+
+          <!-- Full Loop – gradient CTA -->
+          <button class="group p-5 bg-gradient-to-br from-[#3B82F6] to-[#7C3AED]
+                         rounded-2xl text-left transition-all duration-200
+                         hover:shadow-lg hover:shadow-blue-500/30 hover:-translate-y-0.5
+                         active:scale-95">
+            <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mb-3">
+              <span class="material-symbols-outlined text-white text-[20px]">autorenew</span>
+            </div>
+            <h4 class="text-[14px] font-bold text-white">Full Loop</h4>
+            <p class="text-[12px] text-white/70 mt-1">90 min · All types</p>
+            <span class="inline-flex items-center gap-1 mt-3 px-2 py-0.5 bg-white/20 text-white
+                         rounded-full label" style="font-size:10px;">
+              <span class="material-symbols-outlined fill-icon text-[11px]">auto_awesome</span>
+              AI Adaptive
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ┌──────────────────────────────────────────────────────────────────────────────┐
+           │  4. RECENT SESSIONS                                                          │
+           │  Spec: "3 session rows: date | interview type chip | role | score | Review"  │
+           │         "Score badges: colored by score band (green/blue/amber/red)"         │
+           └──────────────────────────────────────────────────────────────────────────────┘ -->
+      <section>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-[20px] font-semibold text-[#0F172A]">Recent Sessions</h3>
+          <button class="text-[#3B82F6] text-[13px] font-semibold hover:underline">View All History</button>
+        </div>
+
+        <div class="space-y-2">
+
+          <!-- Session 1 – Coding – Score 82 (Good: blue) -->
+          <div class="bg-[#FFFFFF] border border-[#E2E6ED] rounded-xl px-4 py-3.5
+                      flex items-center gap-4 hover:shadow-sm transition-shadow cursor-pointer">
+            <div class="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center flex-shrink-0">
+              <span class="material-symbols-outlined text-[#0EA5E9] text-[20px]">psychology</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-[14px] font-semibold text-[#0F172A] truncate">Dynamic Programming Basics</p>
+              <div class="flex items-center flex-wrap gap-2 mt-0.5">
+                <span class="small text-[#94A3B8]">Yesterday · 45 min</span>
+                <span class="w-1 h-1 rounded-full bg-[#E2E6ED]"></span>
+                <span class="px-2 py-0.5 bg-teal-50 text-[#0EA5E9] rounded-full label" style="font-size:10px;">Coding</span>
+                <span class="small text-[#64748B]">Google SWE L4</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 flex-shrink-0">
+              <!-- Score band: Good (60–79) → blue; 82 falls in Strong (80–100) → green -->
+              <span class="font-mono text-[13px] font-bold px-2.5 py-0.5 bg-green-50 text-[#22C55E] rounded-full">82</span>
+              <button class="small text-[#3B82F6] font-semibold hover:underline">Review</button>
+              <span class="material-symbols-outlined text-[#94A3B8] text-[18px]">chevron_right</span>
+            </div>
+          </div>
+
+          <!-- Session 2 – Behavioral – Score 74 (Good: blue) -->
+          <div class="bg-[#FFFFFF] border border-[#E2E6ED] rounded-xl px-4 py-3.5
+                      flex items-center gap-4 hover:shadow-sm transition-shadow cursor-pointer">
+            <div class="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+              <span class="material-symbols-outlined text-[#7C3AED] text-[20px]">chat</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-[14px] font-semibold text-[#0F172A] truncate">Conflict Resolution (Behavioral)</p>
+              <div class="flex items-center flex-wrap gap-2 mt-0.5">
+                <span class="small text-[#94A3B8]">Oct 24 · 20 min</span>
+                <span class="w-1 h-1 rounded-full bg-[#E2E6ED]"></span>
+                <span class="px-2 py-0.5 bg-violet-50 text-[#7C3AED] rounded-full label" style="font-size:10px;">Behavioral</span>
+                <span class="small text-[#64748B]">Google SWE L4</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 flex-shrink-0">
+              <!-- Score 74 → Good (60–79): blue -->
+              <span class="font-mono text-[13px] font-bold px-2.5 py-0.5 bg-blue-50 text-[#3B82F6] rounded-full">74</span>
+              <button class="small text-[#3B82F6] font-semibold hover:underline">Review</button>
+              <span class="material-symbols-outlined text-[#94A3B8] text-[18px]">chevron_right</span>
+            </div>
+          </div>
+
+          <!-- Session 3 – System Design – Score 55 (Fair: amber) -->
+          <div class="bg-[#FFFFFF] border border-[#E2E6ED] rounded-xl px-4 py-3.5
+                      flex items-center gap-4 hover:shadow-sm transition-shadow cursor-pointer">
+            <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+              <span class="material-symbols-outlined text-[#F59E0B] text-[20px]">account_tree</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-[14px] font-semibold text-[#0F172A] truncate">Distributed System Design</p>
+              <div class="flex items-center flex-wrap gap-2 mt-0.5">
+                <span class="small text-[#94A3B8]">Oct 22 · 60 min</span>
+                <span class="w-1 h-1 rounded-full bg-[#E2E6ED]"></span>
+                <span class="px-2 py-0.5 bg-amber-50 text-[#F59E0B] rounded-full label" style="font-size:10px;">System Design</span>
+                <span class="small text-[#64748B]">Google SWE L4</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 flex-shrink-0">
+              <!-- Score 55 → Fair (40–59): amber -->
+              <span class="font-mono text-[13px] font-bold px-2.5 py-0.5 bg-amber-50 text-[#F59E0B] rounded-full">55</span>
+              <button class="small text-[#3B82F6] font-semibold hover:underline">Review</button>
+              <span class="material-symbols-outlined text-[#94A3B8] text-[18px]">chevron_right</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </div><!-- /center canvas -->
+
+    <!-- ────────────────── RIGHT PANEL  (340 px, desktop xl+) ────────────────── -->
+    <!-- Spec: "Right column (340px)" -->
+    <aside class="hidden xl:flex flex-col w-[300px] flex-shrink-0 space-y-5">
+
+      <!-- Start Interview CTA -->
+      <button class="w-full bg-gradient-to-r from-[#3B82F6] to-[#7C3AED] text-white
+                     py-3.5 rounded-xl font-bold text-[15px]
+                     flex items-center justify-center gap-2
+                     shadow-lg shadow-blue-500/25
+                     hover:shadow-xl hover:shadow-blue-500/35
+                     transition-all hover:-translate-y-0.5 active:scale-95">
+        <span class="material-symbols-outlined fill-icon text-[20px]">play_circle</span>
+        Start New Interview
+      </button>
+
+      <!-- ┌──────────────────────────────────────────────────────────────┐
+           │  WEAK AREAS                                                  │
+           │  Spec: "bulleted list of 4 topics with red/amber indicators" │
+           │         Each: topic label, "Practice this →" link           │
+           └──────────────────────────────────────────────────────────────┘ -->
+      <div class="bg-[#FFFFFF] border border-[#E2E6ED] rounded-2xl p-5">
+        <div class="flex items-center gap-2 mb-5">
+          <span class="material-symbols-outlined fill-icon text-[#EF4444] text-[18px]">trending_down</span>
+          <h3 class="label text-[#0F172A]">Weak Areas</h3>
+        </div>
+
+        <div class="space-y-5">
+
+          <!-- Weak 1 – High (red) -->
+          <div>
+            <p class="text-[13px] font-semibold text-[#0F172A] leading-snug">
+              Quantifying impact in STAR answers
+            </p>
+            <p class="small text-[#64748B] mt-0.5 leading-relaxed">
+              Struggling to attach metrics to past projects.
+            </p>
+            <div class="flex items-center gap-2 mt-2">
+              <div class="flex-1 h-1.5 bg-[#F7F8FA] rounded-full overflow-hidden">
+                <div class="h-full bg-[#EF4444] rounded-full" style="width:75%"></div>
+              </div>
+              <span class="label text-[#EF4444]" style="font-size:10px; flex-shrink:0;">High</span>
+            </div>
+            <a href="#" class="inline-flex items-center gap-0.5 mt-1.5 small text-[#3B82F6] font-semibold hover:underline">
+              Practice this
+              <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </a>
+          </div>
+
+          <!-- Weak 2 – Medium (amber) -->
+          <div>
+            <p class="text-[13px] font-semibold text-[#0F172A] leading-snug">
+              Distributed systems — consistency models
+            </p>
+            <p class="small text-[#64748B] mt-0.5 leading-relaxed">
+              Focus on database partitioning and consensus.
+            </p>
+            <div class="flex items-center gap-2 mt-2">
+              <div class="flex-1 h-1.5 bg-[#F7F8FA] rounded-full overflow-hidden">
+                <div class="h-full bg-[#F59E0B] rounded-full" style="width:50%"></div>
+              </div>
+              <span class="label text-[#F59E0B]" style="font-size:10px; flex-shrink:0;">Medium</span>
+            </div>
+            <a href="#" class="inline-flex items-center gap-0.5 mt-1.5 small text-[#3B82F6] font-semibold hover:underline">
+              Practice this
+              <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </a>
+          </div>
+
+          <!-- Weak 3 – Medium (amber) -->
+          <div>
+            <p class="text-[13px] font-semibold text-[#0F172A] leading-snug">
+              Dynamic programming — tree problems
+            </p>
+            <p class="small text-[#64748B] mt-0.5 leading-relaxed">
+              Pattern recognition improving, but implementation speed slow.
+            </p>
+            <div class="flex items-center gap-2 mt-2">
+              <div class="flex-1 h-1.5 bg-[#F7F8FA] rounded-full overflow-hidden">
+                <div class="h-full bg-[#F59E0B] rounded-full" style="width:40%"></div>
+              </div>
+              <span class="label text-[#F59E0B]" style="font-size:10px; flex-shrink:0;">Medium</span>
+            </div>
+            <a href="#" class="inline-flex items-center gap-0.5 mt-1.5 small text-[#3B82F6] font-semibold hover:underline">
+              Practice this
+              <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </a>
+          </div>
+
+          <!-- Weak 4 – Low (blue) -->
+          <div>
+            <p class="text-[13px] font-semibold text-[#0F172A] leading-snug">
+              Asking clarifying questions in system design
+            </p>
+            <p class="small text-[#64748B] mt-0.5 leading-relaxed">
+              Occasionally jumps into coding before confirming edge cases.
+            </p>
+            <div class="flex items-center gap-2 mt-2">
+              <div class="flex-1 h-1.5 bg-[#F7F8FA] rounded-full overflow-hidden">
+                <div class="h-full bg-[#3B82F6] rounded-full" style="width:25%"></div>
+              </div>
+              <span class="label text-[#64748B]" style="font-size:10px; flex-shrink:0;">Low</span>
+            </div>
+            <a href="#" class="inline-flex items-center gap-0.5 mt-1.5 small text-[#3B82F6] font-semibold hover:underline">
+              Practice this
+              <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </a>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Quick Resources -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-[#FFFFFF] border border-[#E2E6ED] rounded-xl p-4 text-center
+                    hover:shadow-sm transition-shadow cursor-pointer">
+          <span class="material-symbols-outlined text-[#3B82F6] text-[24px]">book</span>
+          <p class="label mt-1 text-[#0F172A]" style="font-size:11px;">Prep Guide</p>
+        </div>
+        <div class="bg-[#FFFFFF] border border-[#E2E6ED] rounded-xl p-4 text-center
+                    hover:shadow-sm transition-shadow cursor-pointer">
+          <span class="material-symbols-outlined text-[#7C3AED] text-[24px]">video_library</span>
+          <p class="label mt-1 text-[#0F172A]" style="font-size:11px;">Masterclass</p>
+        </div>
+      </div>
+
+    </aside><!-- /right panel -->
+
+  </main>
+</div><!-- /page shell -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MOBILE BOTTOM NAV  (hidden on lg+)
+════════════════════════════════════════════════════════════════ -->
+<nav class="lg:hidden fixed bottom-0 left-0 right-0 z-50
+            bg-white border-t border-[#E2E6ED]
+            flex justify-around items-center px-2 pt-2"
+     style="padding-bottom: max(12px, env(safe-area-inset-bottom));">
+  <a href="#" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl bg-blue-50 text-[#3B82F6]">
+    <span class="material-symbols-outlined fill-icon text-[22px]">home</span>
+    <span class="label text-[10px]">Home</span>
+  </a>
+  <a href="#" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl text-[#94A3B8]">
+    <span class="material-symbols-outlined text-[22px]">exercise</span>
+    <span class="label text-[10px]">Practice</span>
+  </a>
+  <a href="#" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl text-[#94A3B8]">
+    <span class="material-symbols-outlined text-[22px]">history</span>
+    <span class="label text-[10px]">Sessions</span>
+  </a>
+  <a href="#" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl text-[#94A3B8]">
+    <span class="material-symbols-outlined text-[22px]">leaderboard</span>
+    <span class="label text-[10px]">Progress</span>
+  </a>
+  <a href="#" class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl text-[#94A3B8]">
+    <span class="material-symbols-outlined text-[22px]">database</span>
+    <span class="label text-[10px]">Bank</span>
+  </a>
+</nav>
+
+<!-- Mobile spacer + FAB -->
+<div class="lg:hidden h-20"></div>
+<button class="lg:hidden fixed bottom-20 right-5 z-40 w-14 h-14
+               bg-gradient-to-br from-[#3B82F6] to-[#7C3AED] text-white
+               rounded-2xl shadow-lg shadow-blue-500/30
+               flex items-center justify-center
+               hover:shadow-xl transition-all active:scale-95">
+  <span class="material-symbols-outlined fill-icon text-[24px]">add</span>
+</button>
+
+</body>
+</html>

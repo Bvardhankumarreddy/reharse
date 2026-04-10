@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>InterviewAI — Get Started</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-dim": "#d2d9f4",
+          "inverse-primary": "#adc6ff",
+          "surface": "#faf8ff",
+          "error": "#ba1a1a",
+          "primary-fixed-dim": "#adc6ff",
+          "secondary-container": "#8a4cfc",
+          "outline-variant": "#c2c6d6",
+          "on-secondary-fixed-variant": "#5a00c6",
+          "outline": "#727785",
+          "on-tertiary-fixed-variant": "#004c6e",
+          "on-primary": "#ffffff",
+          "secondary-fixed-dim": "#d2bbff",
+          "error-container": "#ffdad6",
+          "on-primary-container": "#fefcff",
+          "on-secondary": "#ffffff",
+          "on-error-container": "#93000a",
+          "on-secondary-container": "#fffbff",
+          "background": "#faf8ff",
+          "tertiary": "#00628d",
+          "on-tertiary-fixed": "#001e2f",
+          "on-surface": "#131b2e",
+          "surface-container-high": "#e2e7ff",
+          "surface-container-lowest": "#ffffff",
+          "surface-container-low": "#f2f3ff",
+          "on-surface-variant": "#424754",
+          "on-primary-fixed-variant": "#004395",
+          "primary-container": "#2170e4",
+          "tertiary-fixed-dim": "#89ceff",
+          "secondary": "#712ae2",
+          "primary-fixed": "#d8e2ff",
+          "inverse-on-surface": "#eef0ff",
+          "tertiary-container": "#007cb1",
+          "surface-variant": "#dae2fd",
+          "surface-tint": "#005ac2",
+          "inverse-surface": "#283044",
+          "primary": "#0058be",
+          "surface-container": "#eaedff",
+          "on-tertiary-container": "#fcfcff",
+          "on-error": "#ffffff",
+          "tertiary-fixed": "#c9e6ff",
+          "surface-container-highest": "#dae2fd",
+          "secondary-fixed": "#eaddff",
+          "on-background": "#131b2e",
+          "surface-bright": "#faf8ff",
+          "on-primary-fixed": "#001a42",
+          "on-tertiary": "#ffffff",
+          "on-secondary-fixed": "#25005a"
+        },
+        fontFamily: {
+          "headline": ["Inter"],
+          "body": ["Inter"],
+          "label": ["Inter"],
+          "mono": ["JetBrains Mono"]
+        },
+        borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }
+      }
+    }
+  }
+</script>
+<style>
+  body { font-family: 'Inter', sans-serif; background-color: #faf8ff; }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  body { min-height: max(884px, 100dvh); }
+
+  /* Step card selected state */
+  .type-card { transition: all 0.18s ease; }
+  .type-card.selected {
+    border-color: #0058be;
+    background: #eef3ff;
+  }
+  .type-card.selected .card-icon-wrap { background: #0058be; }
+  .type-card.selected .card-icon-wrap span { color: #fff; }
+  .type-card.selected .card-title { color: #0058be; }
+  .type-card.selected .check-circle {
+    background: #0058be;
+    border-color: #0058be;
+  }
+  .type-card.selected .check-circle::after {
+    content: '';
+    display: block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    margin: auto;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body class="text-on-surface antialiased">
+
+<!-- Top bar -->
+<header class="w-full sticky top-0 z-40 bg-[#faf8ff] px-6 py-4 flex items-center justify-between border-b border-surface-container-high">
+  <div class="flex items-center gap-2">
+    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+      <span class="material-symbols-outlined text-white text-base" style="font-variation-settings:'FILL' 1;">mic</span>
+    </div>
+    <span class="font-extrabold text-on-surface tracking-tight text-base">InterviewAI</span>
+  </div>
+  <a href="#" class="text-xs font-semibold text-on-surface-variant">Sign in</a>
+</header>
+
+<main class="px-6 pt-8 pb-36 max-w-lg mx-auto">
+
+  <!-- Step progress dots -->
+  <div class="flex items-center justify-center gap-2 mb-8">
+    <div class="w-6 h-2 rounded-full bg-primary"></div>
+    <div class="w-2 h-2 rounded-full bg-surface-container-high"></div>
+    <div class="w-2 h-2 rounded-full bg-surface-container-high"></div>
+    <div class="w-2 h-2 rounded-full bg-surface-container-high"></div>
+  </div>
+
+  <!-- Step label -->
+  <p class="text-xs font-bold uppercase tracking-widest text-primary mb-2 text-center">Step 1 of 4</p>
+
+  <!-- Heading -->
+  <h1 class="text-3xl font-extrabold tracking-tight text-on-surface text-center mb-1">What are you preparing for?</h1>
+  <p class="text-sm text-on-surface-variant text-center mb-8">AI will tailor questions and feedback to match your goal</p>
+
+  <!-- Option cards -->
+  <div class="space-y-3">
+
+    <!-- Card 1 — Job Interview (selected) -->
+    <div class="type-card selected flex items-center gap-4 p-4 rounded-full border-2 border-surface-container-high cursor-pointer">
+      <div class="card-icon-wrap w-11 h-11 rounded-full bg-primary flex items-center justify-center flex-none">
+        <span class="material-symbols-outlined text-white text-xl" style="font-variation-settings:'FILL' 1;">work</span>
+      </div>
+      <div class="flex-1">
+        <p class="card-title font-bold text-on-surface text-sm">Job Interview</p>
+        <p class="text-xs text-on-surface-variant">Preparing for a new company or role</p>
+      </div>
+      <div class="check-circle w-5 h-5 rounded-full border-2 border-surface-container-high flex items-center justify-center flex-none bg-primary border-primary">
+        <div class="w-2 h-2 rounded-full bg-white"></div>
+      </div>
+    </div>
+
+    <!-- Card 2 — Promotion -->
+    <div class="type-card flex items-center gap-4 p-4 rounded-full border-2 border-surface-container-high cursor-pointer hover:border-primary/30 hover:bg-surface-container-low">
+      <div class="card-icon-wrap w-11 h-11 rounded-full bg-surface-container-high flex items-center justify-center flex-none">
+        <span class="material-symbols-outlined text-on-surface-variant text-xl" style="font-variation-settings:'FILL' 1;">trending_up</span>
+      </div>
+      <div class="flex-1">
+        <p class="card-title font-bold text-on-surface text-sm">Promotion / Internal Move</p>
+        <p class="text-xs text-on-surface-variant">Leveling up or switching teams</p>
+      </div>
+      <div class="check-circle w-5 h-5 rounded-full border-2 border-outline-variant flex-none"></div>
+    </div>
+
+    <!-- Card 3 — Career Change -->
+    <div class="type-card flex items-center gap-4 p-4 rounded-full border-2 border-surface-container-high cursor-pointer hover:border-primary/30 hover:bg-surface-container-low">
+      <div class="card-icon-wrap w-11 h-11 rounded-full bg-surface-container-high flex items-center justify-center flex-none">
+        <span class="material-symbols-outlined text-on-surface-variant text-xl" style="font-variation-settings:'FILL' 1;">autorenew</span>
+      </div>
+      <div class="flex-1">
+        <p class="card-title font-bold text-on-surface text-sm">Career Change</p>
+        <p class="text-xs text-on-surface-variant">Transitioning into a new field</p>
+      </div>
+      <div class="check-circle w-5 h-5 rounded-full border-2 border-outline-variant flex-none"></div>
+    </div>
+
+    <!-- Card 4 — Just Exploring -->
+    <div class="type-card flex items-center gap-4 p-4 rounded-full border-2 border-surface-container-high cursor-pointer hover:border-primary/30 hover:bg-surface-container-low">
+      <div class="card-icon-wrap w-11 h-11 rounded-full bg-surface-container-high flex items-center justify-center flex-none">
+        <span class="material-symbols-outlined text-on-surface-variant text-xl" style="font-variation-settings:'FILL' 1;">explore</span>
+      </div>
+      <div class="flex-1">
+        <p class="card-title font-bold text-on-surface text-sm">Just Exploring</p>
+        <p class="text-xs text-on-surface-variant">Curious about how AI interviews work</p>
+      </div>
+      <div class="check-circle w-5 h-5 rounded-full border-2 border-outline-variant flex-none"></div>
+    </div>
+
+  </div>
+
+  <!-- Target company (shown when Job Interview selected) -->
+  <div class="mt-6 p-4 bg-surface-container-low rounded-full border border-surface-container-high">
+    <p class="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3">Target Company (optional)</p>
+    <div class="flex flex-wrap gap-2">
+      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border-2 border-primary text-primary text-xs font-bold shadow-sm">Google</button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-surface-container-high text-on-surface-variant text-xs font-semibold">Amazon</button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-surface-container-high text-on-surface-variant text-xs font-semibold">Meta</button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-surface-container-high text-on-surface-variant text-xs font-semibold">Apple</button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-surface-container-high text-on-surface-variant text-xs font-semibold">Microsoft</button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-dashed border-outline-variant text-on-surface-variant text-xs font-semibold">+ Other</button>
+    </div>
+  </div>
+
+  <!-- Trust signals -->
+  <div class="mt-8 flex items-center justify-center gap-6 text-xs text-on-surface-variant">
+    <div class="flex items-center gap-1">
+      <span class="material-symbols-outlined text-base text-primary" style="font-variation-settings:'FILL' 1;">bolt</span>
+      <span>Ready in 10 sec</span>
+    </div>
+    <div class="flex items-center gap-1">
+      <span class="material-symbols-outlined text-base text-primary" style="font-variation-settings:'FILL' 1;">lock</span>
+      <span>No credit card</span>
+    </div>
+    <div class="flex items-center gap-1">
+      <span class="material-symbols-outlined text-base text-primary" style="font-variation-settings:'FILL' 1;">verified</span>
+      <span>Free forever</span>
+    </div>
+  </div>
+
+</main>
+
+<!-- Fixed CTA footer -->
+<div class="fixed bottom-0 left-0 right-0 px-6 pb-8 pt-4 bg-gradient-to-t from-[#faf8ff] via-[#faf8ff] to-transparent">
+  <div class="max-w-lg mx-auto space-y-3">
+    <button class="w-full py-4 rounded-2xl bg-gradient-to-br from-primary to-primary-container text-white font-bold text-base shadow-xl shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+      Continue
+      <span class="material-symbols-outlined text-white text-xl">arrow_forward</span>
+    </button>
+    <p class="text-center text-xs text-on-surface-variant">By continuing you agree to our <span class="underline">Terms</span> and <span class="underline">Privacy Policy</span></p>
+  </div>
+</div>
+
+</body>
+</html>

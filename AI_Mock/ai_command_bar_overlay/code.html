@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Stoic Interview | AI Command Bar</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-fixed-variant": "#5a00c6",
+                        "inverse-on-surface": "#eef0ff",
+                        "surface-container-highest": "#dae2fd",
+                        "tertiary-fixed-dim": "#89ceff",
+                        "surface-variant": "#dae2fd",
+                        "outline": "#727785",
+                        "error-container": "#ffdad6",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#adc6ff",
+                        "on-secondary-fixed": "#25005a",
+                        "tertiary": "#00628d",
+                        "on-primary-fixed-variant": "#004395",
+                        "inverse-surface": "#283044",
+                        "secondary-fixed": "#eaddff",
+                        "primary": "#0058be",
+                        "on-primary-container": "#fefcff",
+                        "on-primary-fixed": "#001a42",
+                        "surface-dim": "#d2d9f4",
+                        "on-tertiary-fixed-variant": "#004c6e",
+                        "on-secondary": "#ffffff",
+                        "on-surface-variant": "#424754",
+                        "on-secondary-container": "#fffbff",
+                        "primary-container": "#2170e4",
+                        "outline-variant": "#c2c6d6",
+                        "background": "#faf8ff",
+                        "primary-fixed": "#d8e2ff",
+                        "surface-tint": "#005ac2",
+                        "tertiary-fixed": "#c9e6ff",
+                        "on-error": "#ffffff",
+                        "on-surface": "#131b2e",
+                        "tertiary-container": "#007cb1",
+                        "on-tertiary-container": "#fcfcff",
+                        "secondary": "#712ae2",
+                        "surface": "#faf8ff",
+                        "surface-container-high": "#e2e7ff",
+                        "secondary-container": "#8a4cfc",
+                        "surface-container": "#eaedff",
+                        "on-tertiary": "#ffffff",
+                        "inverse-primary": "#adc6ff",
+                        "surface-container-low": "#f2f3ff",
+                        "error": "#ba1a1a",
+                        "surface-container-lowest": "#ffffff",
+                        "on-background": "#131b2e",
+                        "secondary-fixed-dim": "#d2bbff",
+                        "on-tertiary-fixed": "#001e2f",
+                        "surface-bright": "#faf8ff",
+                        "on-error-container": "#93000a"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    },
+                    borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem", "2xl": "1.25rem" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .command-gradient {
+            background: linear-gradient(135deg, #0058be 0%, #2170e4 100%);
+        }
+        .glass-overlay {
+            background-color: rgba(19, 27, 46, 0.6);
+            backdrop-filter: blur(8px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body">
+<!-- Top Navigation Anchor -->
+<header class="bg-[#faf8ff] dark:bg-slate-950 w-full top-0 sticky z-40">
+<div class="flex items-center justify-between px-6 h-16 w-full max-w-full mx-auto">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#0058be] dark:text-blue-400">terminal</span>
+<h1 class="text-xl font-black tracking-tighter text-[#0058be] dark:text-blue-400">Stoic Interview</h1>
+</div>
+<nav class="hidden md:flex gap-8">
+<a class="font-['Inter'] tracking-tight font-bold text-[#0058be] dark:text-blue-400 border-b-2 border-[#0058be]" href="#">Dashboard</a>
+<a class="font-['Inter'] tracking-tight font-bold text-slate-500 dark:text-slate-400 hover:bg-[#e2e7ff] dark:hover:bg-slate-800 transition-colors duration-200 px-2 rounded" href="#">Interviews</a>
+<a class="font-['Inter'] tracking-tight font-bold text-slate-500 dark:text-slate-400 hover:bg-[#e2e7ff] dark:hover:bg-slate-800 transition-colors duration-200 px-2 rounded" href="#">Library</a>
+</nav>
+<div class="h-10 w-10 rounded-full bg-surface-container overflow-hidden">
+<img alt="User profile" data-alt="professional portrait of a male software engineer with glasses smiling slightly in a bright office environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBk77nnjlCs8nXCZXNMvmRrSnWh8hoY4BpeOVyi1Yc8OSlWokYy0ZkTSE1UQZW9m6SRkjG20VRjXW5H8zCI2Dd5KZu5a69euGGSL6NzdvZwCfTdLsWIzjC7StothXLa5i7olzBpvINSG3UlqYbISrUh38bC6HkfqqvhxwLBQyMoi4WoxIFY3c802azyvMTpqdsrtQKrXlsvu4HgLQzoZkey78rPCyMcChyWPQBicBtYAj_g4mAeZVcusqeAgvZ_to33uYr-hTAe_8Tn"/>
+</div>
+</div>
+</header>
+<main class="min-h-screen p-8 max-w-7xl mx-auto">
+<!-- Dashboard Content Background -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<section class="md:col-span-2 space-y-6">
+<div class="bg-surface-container-low p-8 rounded-2xl">
+<h2 class="text-3xl font-headline font-extrabold tracking-tight mb-2">Welcome back, Alex.</h2>
+<p class="text-on-surface-variant">Your technical readiness score is up by <span class="text-primary font-bold">12%</span> this week.</p>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm">
+<span class="material-symbols-outlined text-secondary mb-4">analytics</span>
+<h3 class="font-bold">Last Session</h3>
+<p class="text-sm text-on-surface-variant">System Design: Scalability</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm">
+<span class="material-symbols-outlined text-primary mb-4">verified</span>
+<h3 class="font-bold">Next Goal</h3>
+<p class="text-sm text-on-surface-variant">Behavioral Mastery</p>
+</div>
+</div>
+</section>
+<aside class="bg-surface-container-high p-6 rounded-2xl">
+<h3 class="font-['Inter'] uppercase tracking-[0.05em] text-[12px] font-semibold mb-6">Upcoming Schedule</h3>
+<div class="space-y-4">
+<div class="bg-surface-container-lowest p-4 rounded-xl flex items-center gap-4">
+<div class="h-10 w-10 bg-secondary/10 flex items-center justify-center rounded-lg">
+<span class="material-symbols-outlined text-secondary">calendar_today</span>
+</div>
+<div>
+<p class="text-sm font-bold">Mock with Senior Lead</p>
+<p class="text-[11px] font-mono text-on-surface-variant uppercase">Tomorrow @ 14:00</p>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</main>
+<!-- AI COMMAND BAR OVERLAY -->
+<div class="fixed inset-0 z-50 glass-overlay flex items-start justify-center pt-32 px-4">
+<div class="bg-surface-container-lowest w-full max-w-2xl rounded-2xl shadow-[0_32px_64px_-12px_rgba(19,27,46,0.3)] overflow-hidden">
+<!-- Input Area -->
+<div class="p-6 pb-4">
+<div class="flex items-center gap-4 bg-surface-container-low rounded-xl px-5 py-4 focus-within:bg-surface-container-lowest transition-all duration-200 group">
+<span class="material-symbols-outlined text-secondary text-2xl" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<input class="bg-transparent border-none focus:ring-0 w-full font-body text-on-surface placeholder:text-outline-variant text-lg" placeholder="Search questions, start interview, or ask anything..." type="text"/>
+<div class="hidden sm:flex items-center gap-1 bg-surface-container-highest px-2 py-1 rounded text-[10px] font-mono font-bold text-on-surface-variant">
+<span>ESC</span>
+</div>
+</div>
+</div>
+<!-- Quick Actions Section -->
+<div class="px-6 pb-6">
+<p class="font-['Inter'] uppercase tracking-[0.1em] text-[10px] font-bold text-outline mb-3">Quick Actions</p>
+<div class="flex flex-wrap gap-2">
+<button class="flex items-center gap-2 px-4 py-2.5 bg-secondary/10 hover:bg-secondary/20 text-secondary rounded-full transition-all active:scale-95">
+<span class="material-symbols-outlined text-[18px]">play_circle</span>
+<span class="text-xs font-semibold">▶ Start Behavioral Interview</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2.5 bg-tertiary-container/10 hover:bg-tertiary-container/20 text-tertiary-container rounded-full transition-all active:scale-95">
+<span class="material-symbols-outlined text-[18px]">code</span>
+<span class="text-xs font-semibold">💻 Coding Session</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2.5 bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant rounded-full transition-all active:scale-95">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span class="text-xs font-semibold">+ Practice this topic</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2.5 bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant rounded-full transition-all active:scale-95">
+<span class="material-symbols-outlined text-[18px]">insights</span>
+<span class="text-xs font-semibold">📊 Show my progress</span>
+</button>
+</div>
+</div>
+<!-- Recent Activity List -->
+<div class="bg-surface-container-low/50">
+<div class="px-6 py-4 border-t border-outline-variant/10">
+<p class="font-['Inter'] uppercase tracking-[0.1em] text-[10px] font-bold text-outline mb-4">Recently Practiced</p>
+<div class="space-y-1">
+<!-- Item 1 -->
+<div class="group flex items-center justify-between p-3 -mx-3 rounded-xl hover:bg-surface-container-lowest transition-all cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-container-highest text-on-surface-variant group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[20px]">chat_bubble</span>
+</div>
+<span class="text-sm font-medium text-on-surface">Tell me about a time you influenced without authority</span>
+</div>
+<span class="text-[11px] font-mono text-outline opacity-0 group-hover:opacity-100 transition-opacity">GO TO QUESTION</span>
+</div>
+<!-- Item 2 -->
+<div class="group flex items-center justify-between p-3 -mx-3 rounded-xl hover:bg-surface-container-lowest transition-all cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-container-highest text-on-surface-variant group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[20px]">terminal</span>
+</div>
+<span class="text-sm font-medium text-on-surface">Two Sum</span>
+</div>
+<span class="text-[11px] font-mono text-outline opacity-0 group-hover:opacity-100 transition-opacity">OPEN EDITOR</span>
+</div>
+<!-- Item 3 -->
+<div class="group flex items-center justify-between p-3 -mx-3 rounded-xl hover:bg-surface-container-lowest transition-all cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-container-highest text-on-surface-variant group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[20px]">layers</span>
+</div>
+<span class="text-sm font-medium text-on-surface">Explain the difference between SQL and NoSQL</span>
+</div>
+<span class="text-[11px] font-mono text-outline opacity-0 group-hover:opacity-100 transition-opacity">RETRY TOPIC</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Meta -->
+<div class="px-6 py-4 flex items-center justify-between bg-surface-container-low border-t border-outline-variant/10">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">AI Coach Online</span>
+</div>
+<div class="flex items-center gap-2 text-[10px] font-mono text-outline uppercase tracking-wider">
+<span class="material-symbols-outlined text-[14px]">bolt</span>
+<span>4.0 Turbo Active</span>
+</div>
+</div>
+<div class="flex items-center gap-2 text-[10px] font-mono text-outline">
+<span>Press</span>
+<kbd class="bg-surface-container-highest px-1.5 py-0.5 rounded border border-outline-variant/20 text-on-surface font-bold">↵</kbd>
+<span>to select</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Navigation for Mobile -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl z-30 rounded-t-3xl border-t border-slate-100 dark:border-slate-800">
+<a class="flex flex-col items-center justify-center text-[#712ae2] dark:text-violet-300 bg-[#712ae2]/10 dark:bg-violet-500/10 rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-['Inter'] text-[10px] font-medium tracking-wide">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100" href="#">
+<span class="material-symbols-outlined">play_circle</span>
+<span class="font-['Inter'] text-[10px] font-medium tracking-wide">Practice</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100" href="#">
+<span class="material-symbols-outlined">psychology</span>
+<span class="font-['Inter'] text-[10px] font-medium tracking-wide">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100" href="#">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span class="font-['Inter'] text-[10px] font-medium tracking-wide">Coach</span>
+</a>
+</nav>
+</body></html>

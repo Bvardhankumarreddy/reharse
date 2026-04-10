@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-fixed": "#c9e6ff",
+              "primary-container": "#2170e4",
+              "outline": "#727785",
+              "on-secondary": "#ffffff",
+              "on-primary-fixed-variant": "#004395",
+              "on-tertiary-container": "#fcfcff",
+              "on-secondary-fixed-variant": "#5a00c6",
+              "on-tertiary-fixed-variant": "#004c6e",
+              "surface": "#faf8ff",
+              "surface-container": "#eaedff",
+              "surface-container-lowest": "#ffffff",
+              "secondary-fixed": "#eaddff",
+              "surface-dim": "#d2d9f4",
+              "surface-container-highest": "#dae2fd",
+              "primary": "#0058be",
+              "on-secondary-fixed": "#25005a",
+              "error-container": "#ffdad6",
+              "secondary-container": "#8a4cfc",
+              "primary-fixed-dim": "#adc6ff",
+              "on-primary-fixed": "#001a42",
+              "on-error-container": "#93000a",
+              "on-error": "#ffffff",
+              "inverse-on-surface": "#eef0ff",
+              "tertiary-fixed-dim": "#89ceff",
+              "on-tertiary-fixed": "#001e2f",
+              "on-surface-variant": "#424754",
+              "secondary-fixed-dim": "#d2bbff",
+              "inverse-primary": "#adc6ff",
+              "inverse-surface": "#283044",
+              "outline-variant": "#c2c6d6",
+              "on-primary-container": "#fefcff",
+              "surface-variant": "#dae2fd",
+              "surface-tint": "#005ac2",
+              "on-primary": "#ffffff",
+              "surface-bright": "#faf8ff",
+              "error": "#ba1a1a",
+              "on-surface": "#131b2e",
+              "tertiary-container": "#007cb1",
+              "surface-container-high": "#e2e7ff",
+              "secondary": "#712ae2",
+              "on-tertiary": "#ffffff",
+              "on-background": "#131b2e",
+              "surface-container-low": "#f2f3ff",
+              "primary-fixed": "#d8e2ff",
+              "on-secondary-container": "#fffbff",
+              "tertiary": "#00628d",
+              "background": "#faf8ff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"],
+              "mono": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(138, 76, 252, 0.08);
+            backdrop-filter: blur(12px);
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface overflow-hidden">
+<!-- Top Navigation Anchor -->
+<header class="sticky top-0 z-40 flex items-center justify-between px-8 w-full h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-transparent">
+<div class="flex items-center gap-6">
+<span class="text-lg font-black text-slate-900 dark:text-slate-50 tracking-tight">Interview Intelligence</span>
+<div class="h-6 w-[1px] bg-outline-variant/30"></div>
+<div class="flex items-center gap-2 px-3 py-1 bg-tertiary/10 rounded-full">
+<span class="material-symbols-outlined text-tertiary text-sm" data-icon="timer">timer</span>
+<span class="font-mono text-tertiary font-bold tracking-widest text-sm">22:14</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high transition-colors font-medium rounded-xl">
+<span class="material-symbols-outlined text-sm" data-icon="settings">settings</span>
+<span class="text-xs tracking-wider uppercase">Environment</span>
+</button>
+<button class="px-6 py-2 bg-gradient-to-br from-primary to-primary-container text-on-primary font-bold rounded-xl transition-all active:scale-95 shadow-lg shadow-primary/20">
+                Run Code
+            </button>
+<button class="px-6 py-2 bg-error text-on-error font-bold rounded-xl transition-all active:scale-95">
+                Finish Interview
+            </button>
+</div>
+</header>
+<main class="flex h-[calc(100vh-64px)] w-full">
+<!-- Left Column: Problem & Chat -->
+<section class="w-1/2 flex flex-col bg-surface-container-low border-r border-transparent overflow-hidden">
+<!-- Problem Description -->
+<div class="flex-1 overflow-y-auto p-10 space-y-8">
+<div class="space-y-4">
+<div class="flex items-center gap-3">
+<span class="bg-primary/10 text-primary px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase">Question 01</span>
+<h1 class="text-3xl font-extrabold tracking-tight text-on-surface">Two Sum</h1>
+</div>
+<p class="text-on-surface-variant leading-relaxed text-lg font-normal">
+                        Given an array of integers <code class="font-mono bg-surface-container-high px-1.5 py-0.5 rounded text-primary">nums</code> and an integer <code class="font-mono bg-surface-container-high px-1.5 py-0.5 rounded text-primary">target</code>, return indices of the two numbers such that they add up to <code class="font-mono bg-surface-container-high px-1.5 py-0.5 rounded text-primary">target</code>.
+                    </p>
+<p class="text-on-surface-variant leading-relaxed">
+                        You may assume that each input would have <strong class="text-on-surface">exactly one solution</strong>, and you may not use the same element twice.
+                    </p>
+</div>
+<div class="space-y-6">
+<div class="bg-surface-container-lowest p-6 rounded-xl space-y-4">
+<h3 class="text-xs font-bold uppercase tracking-widest text-outline">Example 1</h3>
+<div class="font-mono text-sm space-y-1">
+<div class="flex"><span class="w-20 text-outline">Input:</span> <span class="text-on-surface">nums = [2,7,11,15], target = 9</span></div>
+<div class="flex"><span class="w-20 text-outline">Output:</span> <span class="text-on-surface">[0,1]</span></div>
+<div class="flex"><span class="w-20 text-outline">Explanation:</span> <span class="text-on-surface-variant">Because nums[0] + nums[1] == 9, we return [0, 1].</span></div>
+</div>
+</div>
+<div class="space-y-3">
+<h3 class="text-xs font-bold uppercase tracking-widest text-outline">Constraints</h3>
+<ul class="space-y-2 text-sm text-on-surface-variant list-none">
+<li class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 bg-primary/40 rounded-full"></span>
+<code class="font-mono bg-surface-container-highest px-1 rounded">2 &lt;= nums.length &lt;= 10^4</code>
+</li>
+<li class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 bg-primary/40 rounded-full"></span>
+<code class="font-mono bg-surface-container-highest px-1 rounded">-10^9 &lt;= nums[i] &lt;= 10^9</code>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<!-- AI Chat Interface -->
+<div class="h-80 border-t border-outline-variant/10 flex flex-col bg-surface-container">
+<div class="px-6 py-3 bg-surface-container-high/50 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 bg-secondary rounded-full animate-pulse"></span>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-on-surface-variant">Interviewer Live Feedback</span>
+</div>
+<span class="material-symbols-outlined text-sm text-outline" data-icon="keyboard_arrow_down">keyboard_arrow_down</span>
+</div>
+<div class="flex-1 overflow-y-auto p-6 space-y-4">
+<!-- Interviewer Bubble -->
+<div class="flex gap-3 max-w-[85%]">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-secondary text-sm" data-icon="smart_toy" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl rounded-tl-none">
+<p class="text-sm leading-relaxed text-on-surface">That's a great start. Before we jump into coding, could you walk me through the time complexity of the brute force approach versus an optimized hash map solution?</p>
+</div>
+</div>
+<!-- User Bubble -->
+<div class="flex gap-3 max-w-[85%] ml-auto flex-row-reverse">
+<div class="w-8 h-8 rounded-full overflow-hidden shrink-0">
+<img class="w-full h-full object-cover" data-alt="professional portrait of a young man with a slight smile in soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEX2o8Ni_68dWoB5fNvSIMY0QttwWGhBkUIFRigaJVEXY9lQvO7THLJUwsCMrACsS1d0633d_s9W4rVxb_lofs8EqF_6mrFgasKMClkRXqu03OHVvQ_EEQ__QGTyKWyC72pFrpXZMlDliWCahwWnCc_kVz1egzDjdnY0RPURxhMOccGRf0_SeG-4sIYI3o6_bJd1kF3XPXY3aGmSaUF8cDol8fHWC2sXG7mC-sFoXS5x3iM3Hz2PnHxDMQWT-_U91aqiM2QNNvqrcZ"/>
+</div>
+<div class="bg-primary text-on-primary p-4 rounded-xl rounded-tr-none">
+<p class="text-sm leading-relaxed">The brute force approach would involve nested loops, giving us O(n²). Using a dictionary to store values as we iterate should bring it down to O(n) time complexity.</p>
+</div>
+</div>
+</div>
+<div class="p-4 bg-surface-container-lowest">
+<div class="relative">
+<input class="w-full pl-4 pr-12 py-3 bg-surface-container-low border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 placeholder:text-outline/50" placeholder="Explain your approach..." type="text"/>
+<button class="absolute right-2 top-1.5 p-1.5 text-primary">
+<span class="material-symbols-outlined" data-icon="send" style="font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Column: Code Editor -->
+<section class="w-1/2 flex flex-col bg-inverse-surface overflow-hidden">
+<!-- Editor Header -->
+<div class="flex items-center justify-between px-6 py-3 bg-[#1e2536]">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 text-outline-variant">
+<span class="material-symbols-outlined text-sm" data-icon="description">description</span>
+<span class="font-mono text-xs tracking-tight">solution.py</span>
+</div>
+<div class="h-4 w-[1px] bg-white/10"></div>
+<div class="flex items-center gap-2 text-outline-variant">
+<span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+<span class="font-mono text-xs tracking-tight">Python 3.10</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline-variant cursor-pointer hover:text-white" data-icon="fullscreen">fullscreen</span>
+</div>
+</div>
+<!-- Code Content (Monaco-esque) -->
+<div class="flex-1 overflow-y-auto p-6 font-mono text-sm leading-relaxed relative">
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">1</div>
+<div class="text-purple-400">class <span class="text-yellow-200">Solution</span>:</div>
+</div>
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">2</div>
+<div class="pl-4 text-purple-400">def <span class="text-blue-300">twoSum</span>(<span class="text-on-primary-container">self</span>, nums: <span class="text-green-300">List[int]</span>, target: <span class="text-green-300">int</span>) -&gt; <span class="text-green-300">List[int]</span>:</div>
+</div>
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">3</div>
+<div class="pl-8 text-outline-variant italic"># Use hash map for O(n) complexity</div>
+</div>
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">4</div>
+<div class="pl-8"><span class="text-on-primary-container">prev_map</span> = {}</div>
+</div>
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">5</div>
+<div class="pl-8"> </div>
+</div>
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">6</div>
+<div class="pl-8 text-purple-400">for <span class="text-on-primary-container">i</span>, <span class="text-on-primary-container">n</span> <span class="text-purple-400">in</span> <span class="text-blue-300">enumerate</span>(nums):</div>
+</div>
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">7</div>
+<div class="pl-12 text-on-primary-container">diff = target - n</div>
+</div>
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">8</div>
+<div class="pl-12 text-purple-400">if <span class="text-on-primary-container">diff</span> <span class="text-purple-400">in</span> prev_map:</div>
+</div>
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">9</div>
+<div class="pl-16 text-purple-400">return <span class="text-on-primary-container">[prev_map[diff], i]</span></div>
+</div>
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">10</div>
+<div class="pl-12 text-on-primary-container">prev_map[n] = i</div>
+</div>
+<div class="flex">
+<div class="w-8 text-outline/30 select-none text-right pr-4">11</div>
+<div class="pl-8 text-purple-400">return <span class="text-on-primary-container">[]</span></div>
+</div>
+<!-- Cursor simulation -->
+<div class="absolute left-[200px] top-[215px] w-0.5 h-5 bg-primary animate-pulse"></div>
+</div>
+<!-- Test Output Panel -->
+<div class="h-64 bg-[#141a29] flex flex-col">
+<div class="px-6 py-3 border-t border-white/5 flex items-center justify-between">
+<div class="flex items-center gap-6">
+<button class="text-xs font-bold uppercase tracking-widest text-primary border-b-2 border-primary pb-1">Test Cases</button>
+<button class="text-xs font-bold uppercase tracking-widest text-outline-variant pb-1">Console</button>
+</div>
+<div class="flex items-center gap-2 px-2 py-0.5 bg-green-500/10 text-green-400 rounded border border-green-500/20">
+<span class="material-symbols-outlined text-xs" data-icon="check_circle">check_circle</span>
+<span class="text-[10px] font-bold">LATEST RUN PASSED</span>
+</div>
+</div>
+<div class="flex-1 p-6 flex gap-4 overflow-hidden">
+<!-- Case List -->
+<div class="w-40 space-y-2">
+<div class="bg-white/5 p-3 rounded-lg border-l-4 border-green-500 flex items-center justify-between">
+<span class="text-xs font-mono text-on-primary-container">Case 1</span>
+<span class="material-symbols-outlined text-xs text-green-500" data-icon="check">check</span>
+</div>
+<div class="bg-white/5 p-3 rounded-lg border-l-4 border-green-500 flex items-center justify-between">
+<span class="text-xs font-mono text-on-primary-container">Case 2</span>
+<span class="material-symbols-outlined text-xs text-green-500" data-icon="check">check</span>
+</div>
+<div class="bg-white/5 p-3 rounded-lg border-l-4 border-white/5 flex items-center justify-between">
+<span class="text-xs font-mono text-outline-variant">Case 3</span>
+</div>
+</div>
+<!-- Case Detail -->
+<div class="flex-1 bg-white/5 rounded-xl p-5 font-mono text-xs space-y-4">
+<div class="space-y-1">
+<span class="text-outline-variant uppercase text-[10px] font-bold">Input</span>
+<div class="text-on-primary-container bg-inverse-surface p-2 rounded">nums = [2,7,11,15], target = 9</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1">
+<span class="text-outline-variant uppercase text-[10px] font-bold">Output</span>
+<div class="text-green-400 bg-inverse-surface p-2 rounded">[0,1]</div>
+</div>
+<div class="space-y-1">
+<span class="text-outline-variant uppercase text-[10px] font-bold">Expected</span>
+<div class="text-on-primary-container bg-inverse-surface p-2 rounded">[0,1]</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Side Feedback Toast (Glassmorphism) -->
+<div class="fixed bottom-8 right-8 w-80 glass-panel p-5 rounded-2xl border border-secondary/20 shadow-2xl z-50">
+<div class="flex items-start gap-4">
+<div class="p-2 bg-secondary rounded-xl">
+<span class="material-symbols-outlined text-on-secondary" data-icon="lightbulb" style="font-variation-settings: 'FILL' 1;">lightbulb</span>
+</div>
+<div>
+<h4 class="text-sm font-bold text-on-surface">AI Suggestion</h4>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">Consider how your hash map handles negative integers in the target sum.</p>
+</div>
+</div>
+</div>
+</body></html>
