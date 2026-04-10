@@ -24,7 +24,7 @@ function isOnboardingExempt(pathname: string): boolean {
 }
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, method } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
     return NextResponse.next();
@@ -36,13 +36,17 @@ export function middleware(request: NextRequest) {
     request.cookies.get("__Secure-better-auth.session_token");
 
   if (!sessionCookie) {
+    // Non-GET requests (API calls) should get 401, not a page redirect
+    if (request.method !== "GET") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const signIn = new URL("/sign-in", request.url);
     signIn.searchParams.set("redirect_url", pathname);
     return NextResponse.redirect(signIn);
   }
 
-  // Onboarding gate — skip for exempt routes
-  if (!isOnboardingExempt(pathname)) {
+  // Onboarding gate — skip for exempt routes and non-GET requests
+  if (!isOnboardingExempt(pathname) && request.method === "GET") {
     const onboarded = request.cookies.get("rehearse_onboarded")?.value;
     if (!onboarded) {
       return NextResponse.redirect(new URL("/onboarding", request.url));
