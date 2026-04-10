@@ -6,7 +6,7 @@
 import { useState, Suspense, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { authClient } from "@/lib/auth-client";
 import { clsx } from "clsx";
 import { useApiClient } from "@/lib/hooks/useApiClient";
 import { useInterviewSocket, fmtMs } from "@/lib/hooks/useInterviewSocket";
@@ -123,7 +123,19 @@ function ErrorScreen({ message, onBack }: { message: string; onBack: () => void 
 function CodingInterviewPageInner() {
   const params     = useSearchParams();
   const router     = useRouter();
-  const { getToken } = useAuth();
+  const { data: session } = authClient.useSession();
+
+  const getToken = useCallback(async (): Promise<string | null> => {
+    if (!session) return null;
+    try {
+      const res = await fetch("/api/auth/token");
+      if (!res.ok) return null;
+      const data = await res.json() as { token?: string };
+      return data.token ?? null;
+    } catch {
+      return null;
+    }
+  }, [session]);
 
   const sessionId = params.get("sessionId");
   const role      = params.get("role") ?? "Software Engineer";

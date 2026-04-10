@@ -4,7 +4,7 @@
 // "Clean settings page. Linear/Notion-inspired. Feels like a professional tool."
 
 import { useState, useEffect, useRef, Suspense } from "react";
-import { useUser } from "@clerk/nextjs";
+import { authClient } from "@/lib/auth-client";
 import { useSearchParams } from "next/navigation";
 import { clsx } from "clsx";
 import { useApiClient } from "@/lib/hooks/useApiClient";
@@ -152,7 +152,8 @@ function SegmentedControl({ value, options, onChange }: { value: string; options
 // ── Profile panel ─────────────────────────────────────────────────────────────
 
 function ProfilePanel({ user, onSave }: { user: UserResponse | null; onSave: (dto: UpdateUserDto) => Promise<void> }) {
-  const { user: clerkUser } = useUser();
+  const { data: session } = authClient.useSession();
+  const authUser = session?.user;
   const [firstName,     setFirstName]     = useState(user?.firstName ?? "");
   const [lastName,      setLastName]      = useState(user?.lastName ?? "");
   const [targetRole,    setTargetRole]    = useState(user?.targetRole ?? "");
@@ -197,9 +198,9 @@ function ProfilePanel({ user, onSave }: { user: UserResponse | null; onSave: (dt
       {/* Avatar */}
       <div className="flex items-center gap-3">
         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden flex-shrink-0">
-          {clerkUser?.imageUrl ? (
+          {authUser?.image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={clerkUser.imageUrl} alt="avatar" className="w-full h-full object-cover" />
+            <img src={authUser.image} alt="avatar" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full btn-gradient flex items-center justify-center text-white text-[20px] font-black">
               {initials}
@@ -211,7 +212,7 @@ function ProfilePanel({ user, onSave }: { user: UserResponse | null; onSave: (dt
             {[firstName, lastName].filter(Boolean).join(" ") || "Your Name"}
           </p>
           <p className="text-small text-text-sec mt-0.5 truncate">
-            {user?.email ?? clerkUser?.primaryEmailAddress?.emailAddress ?? ""}
+            {user?.email ?? authUser?.email ?? ""}
           </p>
         </div>
       </div>

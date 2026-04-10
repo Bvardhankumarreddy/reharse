@@ -5,41 +5,28 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwksClient } from 'jwks-rsa';
 import * as jwt from 'jsonwebtoken';
 import type { Request } from 'express';
 
+/**
+ * Validates HS256 JWTs issued by the Next.js /api/auth/token endpoint
+ * (Better Auth jwt plugin, signed with BETTER_AUTH_SECRET).
+ * Kept named ClerkGuard so all existing @UseGuards(ClerkGuard) imports
+ * continue to work without touching every controller.
+ */
 @Injectable()
 export class ClerkGuard implements CanActivate {
-  private readonly jwksClient: JwksClient;
+  constructor(private readonly config: ConfigService) {}
 
-  constructor(private readonly config: ConfigService) {
-    this.jwksClient = new JwksClient({
-      jwksUri: config.getOrThrow<string>('CLERK_JWKS_URL'),
-      cache: true,
-      rateLimit: true,
-    });
-  }
-
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
     const token = this.extractToken(request);
     if (!token) throw new UnauthorizedException('No bearer token');
 
     try {
-      const decoded = jwt.decode(token, { complete: true });
-      if (!decoded || typeof decoded === 'string' || !decoded.header.kid) {
-        throw new UnauthorizedException('Invalid token format');
-      }
-
-      const key = await this.jwksClient.getSigningKey(decoded.header.kid);
-      const publicKey = key.getPublicKey();
-
-      const payload = jwt.verify(token, publicKey, {
-        algorithms: ['RS256'],
-        // Clerk dev tokens use localhost as azp — skip audience/issuer checks here
-        // and rely on the JWKS signature check alone
-        ignoreExpiration: false,
+      const secret = this.config.getOrThrow<string>('BETTER_AUTH_SECRET');
+      const payload = jwt.verify(token, secret, {
+        algorithms: ['HS256'],
       }) as jwt.JwtPayload;
 
       (request as Request & { user: jwt.JwtPayload }).user = payload;
@@ -52,9 +39,7 @@ export class ClerkGuard implements CanActivate {
 
   private extractToken(request: Request): string | null {
     const authHeader = request.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      return authHeader.slice(7);
-    }
+    if (authHeader?.startsWith('Bearer ')) return authHeader.slice(7);
     return null;
   }
 }

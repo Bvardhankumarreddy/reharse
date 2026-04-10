@@ -7,7 +7,7 @@
 import { useState, Suspense, useCallback, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useApiClient } from "@/lib/hooks/useApiClient";
-import { useAuth } from "@clerk/nextjs";
+import { authClient } from "@/lib/auth-client";
 import { clsx } from "clsx";
 import { useInterviewSocket, fmtMs } from "@/lib/hooks/useInterviewSocket";
 import { useVoiceRecorder } from "@/lib/hooks/useVoiceRecorder";
@@ -133,7 +133,19 @@ const INTERVIEWER: Record<string, { name: string; title: string; initials: strin
 function InterviewSessionPageInner() {
   const params     = useSearchParams();
   const router     = useRouter();
-  const { getToken } = useAuth();
+  const { data: session } = authClient.useSession();
+
+  const getToken = useCallback(async (): Promise<string | null> => {
+    if (!session) return null;
+    try {
+      const res = await fetch("/api/auth/token");
+      if (!res.ok) return null;
+      const data = await res.json() as { token?: string };
+      return data.token ?? null;
+    } catch {
+      return null;
+    }
+  }, [session]);
 
   const sessionId = params.get("sessionId");
   const type      = params.get("type") ?? "behavioral";

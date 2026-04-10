@@ -11,7 +11,7 @@ import type { Session } from '../sessions/session.entity';
 
 @Entity('users')
 export class User {
-  /** Clerk user ID — used as primary key so no UUID mismatch */
+  /** Better Auth user ID — used as primary key */
   @PrimaryColumn({ type: 'varchar', length: 64 })
   id: string;
 

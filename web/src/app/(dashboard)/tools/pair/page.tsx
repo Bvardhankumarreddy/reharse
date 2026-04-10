@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
-import { useAuth } from "@clerk/nextjs";
+import { authClient } from "@/lib/auth-client";
 import { clsx } from "clsx";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -236,7 +236,19 @@ function useWebRTC(send: { offer: (s: RTCSessionDescriptionInit) => void; answer
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function PairPracticePage() {
-  const { getToken } = useAuth();
+  const { data: session } = authClient.useSession();
+
+  const getToken = useCallback(async (): Promise<string | null> => {
+    if (!session) return null;
+    try {
+      const res = await fetch("/api/auth/token");
+      if (!res.ok) return null;
+      const data = await res.json() as { token?: string };
+      return data.token ?? null;
+    } catch {
+      return null;
+    }
+  }, [session]);
 
   const [status,        setStatus]        = useState<Status>("lobby");
   const [myRole,        setMyRole]        = useState<Role>("candidate");

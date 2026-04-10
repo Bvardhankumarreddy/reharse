@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { usePathname, useRouter } from "next/navigation";
 import { clsx } from "clsx";
+import { authClient } from "@/lib/auth-client";
 import { useDashboardStore } from "@/lib/store/dashboard";
 
 const NAV_ITEMS = [
@@ -42,33 +42,36 @@ function NavIcon({ name, filled }: { name: string; filled?: boolean }) {
 }
 
 function UserFooter() {
-  const { user }    = useUser();
-  const { signOut } = useClerk();
-  const streak      = useDashboardStore((s) => s.user.streak);
+  const router                       = useRouter();
+  const { data: session }            = authClient.useSession();
+  const streak                       = useDashboardStore((s) => s.user.streak);
+  const user                         = session?.user;
 
-  function handleSignOut() {
-    // Clear onboarding cookie so middleware redirects correctly on next login
+  async function handleSignOut() {
     document.cookie = "rehearse_onboarded=; path=/; max-age=0; SameSite=Lax";
-    signOut({ redirectUrl: "/sign-in" });
+    await authClient.signOut({
+      fetchOptions: { onSuccess: () => router.push("/sign-in") },
+    });
   }
 
-  const initials = [user?.firstName, user?.lastName]
+  const name = user?.name ?? "";
+  const parts = name.trim().split(" ");
+  const initials = parts
     .filter(Boolean)
-    .map((n) => n![0])
+    .map((n) => n[0])
+    .slice(0, 2)
     .join("")
     .toUpperCase() || "?";
 
-  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ")
-    || user?.primaryEmailAddress?.emailAddress
-    || "You";
+  const displayName = name || user?.email || "You";
 
   return (
     <div className="px-4 py-4 border-t border-border">
       <div className="flex items-center gap-3">
-        {user?.imageUrl ? (
+        {user?.image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={user.imageUrl}
+            src={user.image}
             alt={displayName}
             className="w-9 h-9 rounded-full object-cover flex-shrink-0"
           />

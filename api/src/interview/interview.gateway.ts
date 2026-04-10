@@ -13,7 +13,6 @@ import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { Server, Socket } from 'socket.io';
-import { JwksClient } from 'jwks-rsa';
 import * as jwt from 'jsonwebtoken';
 import { InterviewStateService, type InterviewQuestion } from './interview-state.service';
 import { SessionsService } from '../sessions/sessions.service';
@@ -78,7 +77,6 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
   server!: Server;
 
   private readonly logger       = new Logger(InterviewGateway.name);
-  private readonly jwksClient: JwksClient;
   private readonly timers       = new Map<string, ReturnType<typeof setInterval>>();
   /** Prefetched Q2 keyed by sessionId — consumed once in recordAndAdvance */
   private readonly prefetchedQ  = new Map<string, InterviewQuestion>();
@@ -94,19 +92,13 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
     private readonly feedback:   FeedbackService,
     @InjectQueue(QUEUES.FEEDBACK)
     private readonly feedbackQ: Queue,
-  ) {
-    this.jwksClient = new JwksClient({
-      jwksUri:   config.getOrThrow<string>('CLERK_JWKS_URL'),
-      cache:     true,
-      rateLimit: true,
-    });
-  }
+  ) {}
 
   // ── Connection lifecycle ──────────────────────────────────────────────────
 
   async handleConnection(client: Socket) {
     try {
-      const { userId, sessionId } = await this.authenticate(client);
+      const { userId, sessionId } = this.authenticate(client);
       (client as AuthenticatedSocket).userId    = userId;
       (client as AuthenticatedSocket).sessionId = sessionId;
 
@@ -710,19 +702,12 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
     };
   }
 
-  private async authenticate(client: Socket): Promise<{ userId: string; sessionId: string }> {
+  private authenticate(client: Socket): { userId: string; sessionId: string } {
     const token = this.extractToken(client);
     if (!token) throw new UnauthorizedException('Missing token');
 
-    const decoded = jwt.decode(token, { complete: true });
-    if (!decoded || typeof decoded === 'string' || !decoded.header.kid) {
-      throw new UnauthorizedException('Invalid token structure');
-    }
-
-    const key     = await this.jwksClient.getSigningKey(decoded.header.kid);
-    const payload = jwt.verify(token, key.getPublicKey(), {
-      algorithms: ['RS256'],
-    }) as jwt.JwtPayload;
+    const secret  = this.config.getOrThrow<string>('BETTER_AUTH_SECRET');
+    const payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as jwt.JwtPayload;
 
     const sessionId = (client.handshake.query['sessionId'] as string | undefined)?.trim();
     if (!sessionId) throw new UnauthorizedException('Missing sessionId query param');

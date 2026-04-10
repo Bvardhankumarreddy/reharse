@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useUser } from "@clerk/nextjs";
+import { authClient } from "@/lib/auth-client";
 import { useDashboardStore } from "@/lib/store/dashboard";
 
 interface Props {
@@ -11,12 +11,17 @@ interface Props {
 
 /** Mobile-only top bar (hidden on lg+). Sign-out lives in the BottomNav account sheet. */
 export default function TopBar({ onCmdOpen, onCoachOpen }: Props) {
-  const { user } = useUser();
-  const streak   = useDashboardStore((s) => s.user.streak);
+  const { data: session } = authClient.useSession();
+  const streak            = useDashboardStore((s) => s.user.streak);
+  const user              = session?.user;
 
-  const initials = [user?.firstName, user?.lastName]
+  const name     = user?.name ?? "";
+  const initials = name
+    .trim()
+    .split(" ")
     .filter(Boolean)
-    .map((n) => n![0])
+    .map((n) => n[0])
+    .slice(0, 2)
     .join("")
     .toUpperCase() || "?";
 
@@ -76,17 +81,17 @@ export default function TopBar({ onCmdOpen, onCoachOpen }: Props) {
           </div>
         )}
 
-        {/* Avatar → tapping opens the Account bottom sheet (via BottomNav) */}
+        {/* Avatar → settings */}
         <Link
           href="/settings"
-          title={user?.firstName ? `${user.firstName}'s account` : "Account"}
+          title={name || "Account"}
           aria-label="Account settings"
           className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ml-0.5
                      ring-2 ring-transparent hover:ring-blue transition-all active:scale-95"
         >
-          {user?.imageUrl ? (
+          {user?.image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.imageUrl} alt={user.firstName ?? "avatar"} className="w-full h-full object-cover" />
+            <img src={user.image} alt={name || "avatar"} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full btn-gradient flex items-center justify-center
                             text-white font-bold text-[12px]">

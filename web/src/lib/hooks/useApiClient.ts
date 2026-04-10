@@ -1,26 +1,36 @@
 "use client";
 
 import { useMemo } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { authClient } from "@/lib/auth-client";
 import { createApiClient } from "@/lib/api/client";
 
 /**
  * Returns a memoised API client + a `ready` flag.
- * `ready` is true once Clerk has loaded and the user is signed in.
+ * `ready` is true once Better Auth has loaded and the user is signed in.
  * Pages should put `ready` in their useEffect dependency array so API calls
- * re-fire once Clerk has hydrated (avoids "No bearer token" 401s on first render).
+ * re-fire once the session has hydrated (avoids 401s on first render).
  */
 export function useApiClient() {
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const { data: session, isPending } = authClient.useSession();
 
-  const ready = isLoaded && !!isSignedIn;
+  const ready = !isPending && !!session;
 
-  // Wraps getToken so requests made before Clerk is ready return null safely
-  // (the API client already skips the Authorization header when token is null)
-  const safeGetToken = useMemo(() => async () => {
-    if (!isLoaded || !isSignedIn) return null;
-    return getToken();
-  }, [getToken, isLoaded, isSignedIn]);
+  // Fetches a short-lived HS256 JWT from /api/auth/token.
+  // The NestJS API validates this JWT with BETTER_AUTH_SECRET.
+  const safeGetToken = useMemo(
+    () => async (): Promise<string | null> => {
+      if (!session) return null;
+      try {
+        const res = await fetch("/api/auth/token");
+        if (!res.ok) return null;
+        const data = await res.json() as { token?: string };
+        return data.token ?? null;
+      } catch {
+        return null;
+      }
+    },
+    [session],
+  );
 
   const api = useMemo(() => createApiClient(safeGetToken), [safeGetToken]);
 

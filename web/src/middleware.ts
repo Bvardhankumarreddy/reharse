@@ -1,41 +1,57 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-// ── Route classification ───────────────────────────────────────────────────────
+// Routes that don't require authentication
+function isPublicPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/sign-up") ||
+    pathname.startsWith("/pricing") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/api/auth") ||
+    /\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|woff2?|ttf)$/.test(pathname)
+  );
+}
 
-const isPublicRoute = createRouteMatcher([
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/onboarding(.*)",
-  "/pricing(.*)",
-]);
+// Routes that authenticated users can access without finishing onboarding
+function isOnboardingExempt(pathname: string): boolean {
+  return (
+    pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/sign-up") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/api/auth")
+  );
+}
 
-// ── Middleware ─────────────────────────────────────────────────────────────────
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-export default clerkMiddleware(async (auth, req) => {
-  const { userId } = await auth();
-  const url        = req.nextUrl;
+  if (isPublicPath(pathname)) {
+    return NextResponse.next();
+  }
 
-  // 1. Unauthenticated + protected route → sign-in
-  if (!userId && !isPublicRoute(req)) {
-    const signIn = new URL("/sign-in", url);
-    signIn.searchParams.set("redirect_url", url.pathname);
+  // Better Auth sets either a plain or Secure-prefixed session cookie
+  const sessionCookie =
+    request.cookies.get("better-auth.session_token") ??
+    request.cookies.get("__Secure-better-auth.session_token");
+
+  if (!sessionCookie) {
+    const signIn = new URL("/sign-in", request.url);
+    signIn.searchParams.set("redirect_url", pathname);
     return NextResponse.redirect(signIn);
   }
 
-  // 2. Authenticated + hasn't completed onboarding → onboarding
-  //    Skip if already heading there (prevents redirect loops)
-  if (userId && !isPublicRoute(req)) {
-    const onboarded = req.cookies.get("rehearse_onboarded")?.value;
+  // Onboarding gate — skip for exempt routes
+  if (!isOnboardingExempt(pathname)) {
+    const onboarded = request.cookies.get("rehearse_onboarded")?.value;
     if (!onboarded) {
-      return NextResponse.redirect(new URL("/onboarding", url));
+      return NextResponse.redirect(new URL("/onboarding", request.url));
     }
   }
 
   return NextResponse.next();
-});
+}
 
-// Apply to all routes except Next.js internals and static assets
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",

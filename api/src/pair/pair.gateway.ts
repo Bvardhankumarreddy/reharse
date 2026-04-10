@@ -11,7 +11,6 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { JwksClient } from 'jwks-rsa';
 import * as jwt from 'jsonwebtoken';
 import { Server, Socket } from 'socket.io';
 import { User } from '../users/user.entity';
@@ -74,18 +73,10 @@ export class PairGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   private readonly dailyRooms  = new Map<string, number>();
 
-  private readonly jwksClient: JwksClient;
-
   constructor(
-    config: ConfigService,
+    private readonly config: ConfigService,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
-  ) {
-    this.jwksClient = new JwksClient({
-      jwksUri: config.getOrThrow<string>('CLERK_JWKS_URL'),
-      cache: true,
-      rateLimit: true,
-    });
-  }
+  ) {}
 
   // ── Connection lifecycle ───────────────────────────────────────────────────
 
@@ -94,13 +85,8 @@ export class PairGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const token = socket.handshake.auth?.token as string | undefined;
       if (!token) throw new Error('No token');
 
-      const decoded = jwt.decode(token, { complete: true });
-      if (!decoded || typeof decoded === 'string' || !decoded.header.kid) {
-        throw new Error('Invalid token format');
-      }
-
-      const key     = await this.jwksClient.getSigningKey(decoded.header.kid);
-      const payload = jwt.verify(token, key.getPublicKey(), { algorithms: ['RS256'] }) as jwt.JwtPayload;
+      const secret  = this.config.getOrThrow<string>('BETTER_AUTH_SECRET');
+      const payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as jwt.JwtPayload;
       const userId  = payload.sub as string;
 
       // Look up subscription tier from DB

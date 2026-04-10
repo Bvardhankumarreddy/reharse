@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useClerk } from "@clerk/nextjs";
+import { usePathname, useRouter } from "next/navigation";
 import { clsx } from "clsx";
 import { useState } from "react";
+import { authClient } from "@/lib/auth-client";
 
 const TABS = [
   { href: "/",              label: "Home",     icon: "home"       },
@@ -26,12 +26,14 @@ type Sheet = "account" | "tools" | null;
 /** Mobile bottom tab bar (hidden on lg+) */
 export default function BottomNav() {
   const pathname          = usePathname();
-  const { signOut }       = useClerk();
+  const router            = useRouter();
   const [sheet, setSheet] = useState<Sheet>(null);
 
-  function handleSignOut() {
+  async function handleSignOut() {
     document.cookie = "rehearse_onboarded=; path=/; max-age=0; SameSite=Lax";
-    signOut({ redirectUrl: "/sign-in" });
+    await authClient.signOut({
+      fetchOptions: { onSuccess: () => router.push("/sign-in") },
+    });
   }
 
   const toolsActive = pathname.startsWith("/tools");

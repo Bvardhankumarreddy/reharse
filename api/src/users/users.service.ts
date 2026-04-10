@@ -22,7 +22,7 @@ export class UsersService {
         id:        clerkUser.sub,
         // Fall back to a unique placeholder so the UNIQUE constraint never fires
         // even when Clerk's JWT template omits the email claim.
-        email:     clerkUser.email ?? `${clerkUser.sub}@clerk.local`,
+        email:     clerkUser.email ?? `${clerkUser.sub}@rehearse.local`,
         firstName: clerkUser.firstName,
         lastName:  clerkUser.lastName,
         imageUrl:  clerkUser.imageUrl,

@@ -1,4 +1,100 @@
-import { SignIn } from "@clerk/nextjs";
+"use client";
+
+import { useState, Suspense } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+
+function SignInForm() {
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const redirect     = searchParams.get("redirect_url") ?? "/";
+
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
+  const [error,    setError]    = useState<string | null>(null);
+  const [loading,  setLoading]  = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: authError } = await authClient.signIn.email({ email, password });
+      if (authError) {
+        setError(authError.message ?? "Sign in failed. Please check your credentials.");
+      } else {
+        router.push(redirect);
+        router.refresh();
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="w-full max-w-sm bg-surface border border-border shadow-xl rounded-2xl p-8 space-y-6">
+      <div className="space-y-1 text-center">
+        <h1 className="text-[22px] font-bold text-text-pri">Welcome back</h1>
+        <p className="text-text-sec text-[14px]">Sign in to continue to Rehearse</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-medium text-text-sec">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+            autoComplete="email"
+            className="w-full h-11 px-4 bg-bg-app border border-border rounded-xl text-[14px]
+                       text-text-pri placeholder:text-text-muted focus:outline-none
+                       focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-medium text-text-sec">Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+            autoComplete="current-password"
+            className="w-full h-11 px-4 bg-bg-app border border-border rounded-xl text-[14px]
+                       text-text-pri placeholder:text-text-muted focus:outline-none
+                       focus:ring-2 focus:ring-blue/20 focus:border-blue/40 transition"
+          />
+        </div>
+
+        {error && (
+          <p className="text-[13px] text-red-500 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full h-11 btn-gradient text-white font-semibold rounded-xl
+                     disabled:opacity-60 transition-opacity"
+        >
+          {loading ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
+
+      <p className="text-center text-[13px] text-text-sec">
+        {"Don't have an account? "}
+        <Link href="/sign-up" className="text-blue hover:text-blue/80 font-medium">
+          Sign up
+        </Link>
+      </p>
+    </div>
+  );
+}
 
 export default function SignInPage() {
   return (
@@ -13,30 +109,12 @@ export default function SignInPage() {
             mic
           </span>
         </div>
-        <span className="text-[20px] font-bold text-text-pri tracking-tight">
-          Rehearse
-        </span>
+        <span className="text-[20px] font-bold text-text-pri tracking-tight">Rehearse</span>
       </div>
 
-      <SignIn
-        appearance={{
-          elements: {
-            card:            "bg-surface border border-border shadow-xl rounded-2xl",
-            headerTitle:     "text-text-pri font-bold",
-            headerSubtitle:  "text-text-sec",
-            formButtonPrimary:
-              "btn-gradient text-white font-semibold rounded-xl",
-            footerActionLink: "text-blue hover:text-blue/80",
-            formFieldInput:
-              "bg-bg-app border-border text-text-pri rounded-xl focus:ring-blue focus:border-blue",
-            formFieldLabel:  "text-text-sec text-[13px]",
-            dividerLine:     "bg-border",
-            dividerText:     "text-text-muted",
-            socialButtonsBlockButton:
-              "border-border bg-bg-app text-text-pri hover:bg-surface rounded-xl",
-          },
-        }}
-      />
+      <Suspense>
+        <SignInForm />
+      </Suspense>
     </div>
   );
 }

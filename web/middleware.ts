@@ -1,46 +1,55 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+// Root-level middleware — mirrors src/middleware.ts.
+// Next.js uses src/middleware.ts when src/ is present; this is kept for safety.
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-const isPublic = createRouteMatcher([
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/pricing(.*)",
-  "/onboarding(.*)",
-]);
+function isPublicPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/sign-up") ||
+    pathname.startsWith("/pricing") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/api/auth") ||
+    /\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|woff2?|ttf)$/.test(pathname)
+  );
+}
 
-// Routes that authenticated users can access without onboarding
-const isOnboardingExempt = createRouteMatcher([
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/onboarding(.*)",
-]);
+function isOnboardingExempt(pathname: string): boolean {
+  return (
+    pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/sign-up") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/api/auth")
+  );
+}
 
-export default clerkMiddleware(async (auth, req) => {
-  const { userId } = await auth();
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-  // Unauthenticated — protect non-public routes
-  if (!userId) {
-    if (!isPublic(req)) {
-      await auth.protect();
-    }
-    return;
+  if (isPublicPath(pathname)) return NextResponse.next();
+
+  const sessionCookie =
+    request.cookies.get("better-auth.session_token") ??
+    request.cookies.get("__Secure-better-auth.session_token");
+
+  if (!sessionCookie) {
+    const signIn = new URL("/sign-in", request.url);
+    signIn.searchParams.set("redirect_url", pathname);
+    return NextResponse.redirect(signIn);
   }
 
-  // Authenticated — check onboarding completion
-  if (!isOnboardingExempt(req)) {
-    const onboarded = req.cookies.get("rehearse_onboarded")?.value === "1";
+  if (!isOnboardingExempt(pathname)) {
+    const onboarded = request.cookies.get("rehearse_onboarded")?.value;
     if (!onboarded) {
-      const onboardingUrl = new URL("/onboarding", req.url);
-      return NextResponse.redirect(onboardingUrl);
+      return NextResponse.redirect(new URL("/onboarding", request.url));
     }
   }
-});
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and static files
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
-    "/(api|trpc)(.*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
