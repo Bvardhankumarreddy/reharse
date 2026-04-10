@@ -24,7 +24,8 @@ COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 USER nestjs
 EXPOSE 3001
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:3001/api/v1/health 2>/dev/null || exit 1
+# Use ${PORT:-3001} so the healthcheck works whether Railway sets PORT or not
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=5 \
+  CMD wget -qO- http://localhost:${PORT:-3001}/api/v1/health 2>/dev/null || exit 1
 
 CMD ["node", "dist/main"]
