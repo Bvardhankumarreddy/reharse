@@ -24,7 +24,7 @@ function isOnboardingExempt(pathname: string): boolean {
 }
 
 export function middleware(request: NextRequest) {
-  const { pathname, method } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
     return NextResponse.next();

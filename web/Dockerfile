@@ -10,11 +10,13 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build-time env vars needed by Next.js (non-secret public values only)
+# Build-time env vars needed by Next.js
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ARG API_URL=http://localhost:3001
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+ENV API_URL=${API_URL}
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build

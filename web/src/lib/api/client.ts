@@ -1,4 +1,5 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3003/api/v1";
+// Uses Next.js rewrites to proxy to the NestJS API — always same-origin, no CORS.
+const BASE = "/api/v1";
 
 export class ApiError extends Error {
   constructor(
