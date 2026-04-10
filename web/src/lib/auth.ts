@@ -10,6 +10,17 @@ export const auth = betterAuth({
     minPasswordLength: 8,
   },
 
+  socialProviders: {
+    google: {
+      clientId:     process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
+    github: {
+      clientId:     process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    },
+  },
+
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge:  60 * 60 * 24,     // refresh session token daily
