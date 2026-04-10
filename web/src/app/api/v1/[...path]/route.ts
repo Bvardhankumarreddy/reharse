@@ -1,37 +1,74 @@
 /**
- * Catch-all proxy: forwards /api/v1/* requests to the NestJS backend.
- * Runs server-side — no CORS, no build-time baking of the API URL.
+ * Server-side reverse proxy for all /api/v1/* requests.
+ *
+ * Why this exists:
+ *   Next.js standalone output converts rewrites to external URLs into 307 redirects
+ *   instead of transparent proxies. This route handler proxies server-to-server,
+ *   so the browser always sees same-origin responses — no CORS, no redirects.
+ *
+ * API_URL is a runtime env var (not baked at build time).
+ * Falls back to NEXT_PUBLIC_API_URL (build-time) if API_URL is absent.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 
-const API_BASE = (process.env.API_URL ?? "http://localhost:3001").replace(/\/$/, "");
+function getApiBase(): string {
+  // Prefer runtime var so Railway doesn't need a rebuild to change the API host
+  if (process.env.API_URL) {
+    return process.env.API_URL.replace(/\/$/, "");
+  }
+  // Fallback: strip /api/v1 suffix from the baked build-time var
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, "");
+  }
+  return "http://localhost:3001";
+}
+
+// Headers that must NOT be forwarded to the upstream server
+const HOP_BY_HOP = new Set(["host", "connection", "transfer-encoding", "keep-alive"]);
 
 async function proxy(req: NextRequest): Promise<NextResponse> {
+  const apiBase = getApiBase();
   const { pathname, search } = req.nextUrl;
-  const target = `${API_BASE}${pathname}${search}`;
+  const target = `${apiBase}${pathname}${search}`;
 
-  // Forward all headers except ones that confuse the upstream server
-  const headers = new Headers();
+  // ── Forward request headers ────────────────────────────────────────────────
+  const upstreamHeaders = new Headers();
   req.headers.forEach((value, key) => {
-    if (!["host", "connection", "transfer-encoding"].includes(key.toLowerCase())) {
-      headers.set(key, value);
+    if (!HOP_BY_HOP.has(key.toLowerCase())) {
+      upstreamHeaders.set(key, value);
     }
   });
 
-  const hasBody = req.method !== "GET" && req.method !== "HEAD";
-  const body = hasBody ? await req.arrayBuffer() : undefined;
+  // ── Read body once as ArrayBuffer (safe to pass to fetch, avoids Buffer type issues) ──
+  let body: ArrayBuffer | undefined;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    body = await req.arrayBuffer();
+  }
 
-  const upstream = await fetch(target, {
-    method:  req.method,
-    headers,
-    body:    body ? Buffer.from(body) : undefined,
-  });
+  // ── Call upstream ──────────────────────────────────────────────────────────
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method:   req.method,
+      headers:  upstreamHeaders,
+      body,
+      // Follow any HTTP→HTTPS redirects from the upstream; never forward
+      // a 3xx to the browser (that would trigger cross-origin issues).
+      redirect: "follow",
+    });
+  } catch (err) {
+    console.error(`[api-proxy] ${req.method} ${target} →`, err);
+    return NextResponse.json(
+      { error: "upstream_unavailable", detail: String(err) },
+      { status: 502 },
+    );
+  }
 
-  // Forward response headers, drop hop-by-hop headers
+  // ── Forward response headers ───────────────────────────────────────────────
   const resHeaders = new Headers();
   upstream.headers.forEach((value, key) => {
-    if (!["connection", "transfer-encoding", "keep-alive"].includes(key.toLowerCase())) {
+    if (!HOP_BY_HOP.has(key.toLowerCase())) {
       resHeaders.set(key, value);
     }
   });
@@ -47,3 +84,6 @@ export const POST   = proxy;
 export const PATCH  = proxy;
 export const PUT    = proxy;
 export const DELETE = proxy;
+
+// Allow large file uploads (resume PDFs etc.)
+export const config = { api: { bodyParser: false } };
