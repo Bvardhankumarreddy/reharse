@@ -20,13 +20,15 @@ function SignInForm() {
     setError(null);
     setLoading(true);
     try {
-      const { error: authError } = await authClient.signIn.email({ email, password });
-      if (authError) {
-        setError(authError.message ?? "Sign in failed. Please check your credentials.");
+      const { data, error: authError } = await authClient.signIn.email({ email, password });
+      if (authError || !data) {
+        setError(authError?.message ?? "Invalid email or password.");
       } else {
         router.push(redirect);
         router.refresh();
       }
+    } catch {
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

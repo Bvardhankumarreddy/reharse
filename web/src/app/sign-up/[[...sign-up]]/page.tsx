@@ -32,18 +32,19 @@ function SignUpForm() {
 
     setLoading(true);
     try {
-      const { error: authError } = await authClient.signUp.email({
+      const { data, error: authError } = await authClient.signUp.email({
         email,
         password,
         name,
-        callbackURL: redirect,
       });
-      if (authError) {
-        setError(authError.message ?? "Sign up failed. Please try again.");
+      if (authError || !data) {
+        setError(authError?.message ?? "Sign up failed. Please try again.");
       } else {
         router.push(redirect);
         router.refresh();
       }
+    } catch {
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
