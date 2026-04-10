@@ -3,7 +3,7 @@
 // Spec § Screen 9: Settings + Profile
 // "Clean settings page. Linear/Notion-inspired. Feels like a professional tool."
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { clsx } from "clsx";
@@ -1546,7 +1546,7 @@ function FeedbackPanel() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function SettingsPage() {
+function SettingsPageInner() {
   const { api, ready } = useApiClient();
   const params = useSearchParams();
   const initialTab = (params.get("tab") as SettingId | null) ?? "preferences";
@@ -1630,5 +1630,13 @@ export default function SettingsPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense>
+      <SettingsPageInner />
+    </Suspense>
   );
 }
