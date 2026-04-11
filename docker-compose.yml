@@ -18,15 +18,13 @@ services:
     restart: unless-stopped
     networks: [rehearse]
     environment:
-      POSTGRES_USER:     rehearse
-      POSTGRES_PASSWORD: rehearse
-      POSTGRES_DB:       rehearse
+      POSTGRES_USER:     ${POSTGRES_USER:-rehearse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB:-rehearse}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
-      test:         ["CMD-SHELL", "pg_isready -U rehearse -d rehearse"]
+      test:         ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rehearse}"]
       interval:     10s
       timeout:      5s
       retries:      5
@@ -48,8 +46,6 @@ services:
       --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
     healthcheck:
       test:         ["CMD", "redis-cli", "ping"]
       interval:     10s
@@ -61,40 +57,6 @@ services:
         limits:
           memory: 320m
 
-  # ── NestJS API ─────────────────────────────────────────────────────────────────
-  api:
-    build:
-      context:    ./api
-      dockerfile: Dockerfile
-    image: rehearse-api:latest
-    restart: unless-stopped
-    networks: [rehearse]
-    env_file: ./api/.env
-    environment:
-      NODE_ENV:     production
-      DATABASE_URL: postgresql://rehearse:rehearse@postgres:5432/rehearse
-      REDIS_URL:    redis://redis:6379
-      AI_ENGINE_URL: http://ai-engine:8000
-      CORS_ORIGIN:  http://localhost:3000
-      PORT:         "3001"
-    ports:
-      - "3001:3001"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test:         ["CMD-SHELL", "wget -qO- http://localhost:3001/api/v1/health || exit 1"]
-      interval:     15s
-      timeout:      5s
-      retries:      4
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 512m
-
   # ── Python AI Engine ───────────────────────────────────────────────────────────
   ai-engine:
     build:
@@ -103,48 +65,86 @@ services:
     image: rehearse-ai-engine:latest
     restart: unless-stopped
     networks: [rehearse]
-    env_file: ./ai-engine/.env
     environment:
-      REDIS_URL: redis://redis:6379
-      PORT:      "8000"
-    ports:
-      - "8000:8000"
+      REDIS_URL:      redis://redis:6379
+      PORT:           "8000"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     depends_on:
       redis:
         condition: service_healthy
     healthcheck:
-      test:         ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      test:         ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval:     15s
       timeout:      5s
       retries:      4
-      start_period: 20s
+      start_period: 30s
     deploy:
       resources:
         limits:
-          memory: 1g   # LLM calls can be memory-hungry
+          memory: 1g
 
-  # ── Next.js Web ────────────────────────────────────────────────────────────────
+  # ── NestJS API ────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context:    ./api
+      dockerfile: Dockerfile
+    image: rehearse-api:latest
+    restart: unless-stopped
+    networks: [rehearse]
+    environment:
+      NODE_ENV:           production
+      PORT:               "3001"
+      DATABASE_URL:       postgresql://${POSTGRES_USER:-rehearse}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rehearse}
+      REDIS_URL:          redis://redis:6379
+      AI_ENGINE_URL:      http://ai-engine:8000
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      CORS_ORIGIN:        ${APP_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ai-engine:
+        condition: service_healthy
+    healthcheck:
+      test:         ["CMD-SHELL", "wget -qO- http://localhost:3001/api/v1/health || exit 1"]
+      interval:     15s
+      timeout:      5s
+      retries:      5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  # ── Next.js Web ───────────────────────────────────────────────────────────────
   web:
     build:
       context:    ./web
       dockerfile: Dockerfile
       args:
-        # NEXT_PUBLIC_* are baked in at build time — set the browser-visible API URL
-        NEXT_PUBLIC_API_URL:               http://localhost:3001/api/v1
-        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        # Baked at build time — browser-visible public values
+        NEXT_PUBLIC_API_URL: ${APP_URL}/api/v1
+        NEXT_PUBLIC_APP_URL: ${APP_URL}
     image: rehearse-web:latest
     restart: unless-stopped
     networks: [rehearse]
     environment:
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
-      PORT:             "3000"
-    ports:
-      - "3000:3000"
+      PORT:                 "3000"
+      # Runtime vars — read by server-side code only (not baked into bundle)
+      API_URL:              http://api:3001
+      DATABASE_URL:         postgresql://${POSTGRES_USER:-rehearse}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rehearse}
+      BETTER_AUTH_SECRET:   ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL:      ${APP_URL}
+      GOOGLE_CLIENT_ID:     ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GITHUB_CLIENT_ID:     ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test:         ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"]
+      test:         ["CMD-SHELL", "wget -qO- http://localhost:3000/pricing || exit 1"]
       interval:     20s
       timeout:      5s
       retries:      3
@@ -153,3 +153,22 @@ services:
       resources:
         limits:
           memory: 512m
+
+  # ── Nginx reverse proxy ───────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    networks: [rehearse]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - web
+      - api
+    deploy:
+      resources:
+        limits:
+          memory: 64m
