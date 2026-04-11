@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rehearse-config
+  namespace: rehearse
+data:
+  NODE_ENV:         production
+  POSTGRES_USER:    rehearse
+  POSTGRES_DB:      rehearse
+  DATABASE_URL:     postgresql://rehearse:$(POSTGRES_PASSWORD)@postgres-svc:5432/rehearse
+  REDIS_URL:        redis://redis-svc:6379
+  AI_ENGINE_URL:    http://ai-engine-svc:8000
+  APP_URL:          https://yourdomain.com       # ← replace with your domain
+  CORS_ORIGIN:      https://yourdomain.com       # ← replace with your domain
+  BETTER_AUTH_URL:  https://yourdomain.com       # ← replace with your domain
