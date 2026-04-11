@@ -13,15 +13,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
 function getApiBase(): string {
-  // Prefer runtime var so Railway doesn't need a rebuild to change the API host
+  // Prefer runtime var (set in Railway / .env.local as API_URL)
   if (process.env.API_URL) {
     return process.env.API_URL.replace(/\/$/, "");
   }
-  // Fallback: strip /api/v1 suffix from the baked build-time var
+  // Fallback: strip /api/v1 suffix from the public var
   if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, "");
+    const base = process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, "");
+    // Guard against self-loop: if base resolves to the same origin as this
+    // server, we'd loop forever. Fall through to the hard-coded default instead.
+    const port = process.env.PORT ?? "3000";
+    if (!base.includes(`:${port}`)) return base;
   }
-  return "http://localhost:3001";
+  // Hard-coded local NestJS default — never the same port as Next.js
+  return "http://localhost:3003";
 }
 
 // Headers that must NOT be forwarded to the upstream server
