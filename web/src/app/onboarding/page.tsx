@@ -411,10 +411,10 @@ export default function OnboardingPage() {
 
       document.cookie = "rehearse_onboarded=1; path=/; max-age=31536000; SameSite=Lax";
 
+      // Sample interview — no targetCompany so free-tier users aren't gated
       const session = await api.createSession({
         interviewType:   "behavioral",
         targetRole,
-        targetCompany:   targetCompany || undefined,
         experienceLevel,
         mode:            "text",
         durationMinutes: 5,
