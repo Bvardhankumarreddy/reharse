@@ -86,4 +86,4 @@ export const PUT    = proxy;
 export const DELETE = proxy;
 
 // Allow large file uploads (resume PDFs etc.)
-export const config = { api: { bodyParser: false } };
+export const maxDuration = 60;
