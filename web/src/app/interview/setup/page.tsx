@@ -53,6 +53,7 @@ function InterviewSetupPageInner() {
   const [loading, setLoading]       = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [proNudge,   setProNudge]   = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Recent sessions for quick-restart
   const [recentSessions, setRecentSessions] = useState<Array<{
@@ -154,8 +155,14 @@ function InterviewSetupPageInner() {
         `${dest}?sessionId=${session.id}&type=${selectedType}&role=${encodeURIComponent(effectiveRole)}&mode=${mode}`
       );
     } catch (err) {
-      setStartError(err instanceof Error ? err.message : "Failed to create session");
       setLoading(false);
+      const msg = err instanceof Error ? err.message : "Failed to create session";
+      // Show upgrade modal for Pro-gated features instead of a raw error
+      if (msg.toLowerCase().includes("pro subscription")) {
+        setShowUpgradeModal(true);
+      } else {
+        setStartError(msg);
+      }
     }
   }
 
@@ -526,6 +533,56 @@ function InterviewSetupPageInner() {
           )}
         </div>
       </div>
+
+      {/* ── Pro upgrade modal ─────────────────────────────────────────────────── */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-surface border border-border rounded-2xl p-8 shadow-2xl space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-amber-600 text-[22px]"
+                  style={{ fontVariationSettings: "'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24" }}>
+                  workspace_premium
+                </span>
+              </div>
+              <div>
+                <h3 className="text-[16px] font-bold text-text-pri">Pro Feature</h3>
+                <p className="text-[13px] text-text-sec">Unlock company-specific interviews</p>
+              </div>
+            </div>
+
+            <p className="text-[14px] text-text-sec leading-relaxed">
+              Company-specific interview prep is available on the <span className="font-semibold text-text-pri">Rehearse Pro</span> plan.
+              Upgrade to practice with real questions from Google, Microsoft, Amazon, and more.
+            </p>
+
+            <div className="space-y-2">
+              {["Company-specific question banks", "Coding & System Design interviews", "Voice & Mixed modes", "Unlimited sessions"].map((f) => (
+                <div key={f} className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-blue"
+                    style={{ fontVariationSettings: "'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24" }}>check_circle</span>
+                  <span className="text-[13px] text-text-sec">{f}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="flex-1 py-2.5 border border-border rounded-xl text-[14px] font-medium text-text-sec hover:bg-bg-app transition-colors"
+              >
+                Maybe later
+              </button>
+              <a
+                href="/settings?tab=billing"
+                className="flex-1 py-2.5 btn-gradient text-white rounded-xl text-[14px] font-semibold text-center shadow-blue-glow"
+              >
+                Upgrade to Pro →
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
