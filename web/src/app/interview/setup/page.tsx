@@ -85,16 +85,18 @@ function InterviewSetupPageInner() {
           else { setRole("__other__"); setCustomRole(u.targetRole); }
         }
         if (u.experienceLevel) setLevel(u.experienceLevel);
-        if (u.targetCompany) {
+        const proUser = u.subscriptionTier === "pro" &&
+          (u.subscriptionStatus === "active" ||
+            (u.subscriptionStatus === "day_pass" &&
+              (!u.subscriptionEndsAt || new Date(u.subscriptionEndsAt) > new Date())));
+        setIsPro(proUser);
+        // Only pre-fill company for Pro users — free users would hit the Pro gate
+        if (u.targetCompany && proUser) {
           const knownCompanies = ["Google","Amazon","Meta","Apple","Microsoft","Stripe","Airbnb","Netflix","Uber","LinkedIn","Twitter/X","Salesforce","Adobe","Atlassian","Shopify"];
           if (knownCompanies.includes(u.targetCompany)) { setCompany(u.targetCompany); }
           else { setCompany("__other__"); setCustomCompany(u.targetCompany); }
         }
-        if (u.resumeText)      setHasResume(true);
-        setIsPro(u.subscriptionTier === "pro" &&
-          (u.subscriptionStatus === "active" ||
-            (u.subscriptionStatus === "day_pass" &&
-              (!u.subscriptionEndsAt || new Date(u.subscriptionEndsAt) > new Date()))));
+        if (u.resumeText) setHasResume(true);
       })
       .catch(() => {});
     api.getSessions()
