@@ -1,13 +1,84 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+const APP_URL = "https://reharse.inferix.in";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_URL),
+
   title: {
     default: "Rehearse — AI Mock Interview Coach",
     template: "%s | Rehearse",
   },
   description:
-    "Rehearse — Practice real interviews with an AI that listens, adapts, and gives you honest feedback — anytime.",
+    "Ace your next interview with Rehearse — an AI coach that conducts realistic mock interviews, gives honest feedback, tracks your weak areas, and adapts to your level. Practice behavioral, technical, and system design interviews anytime.",
+
+  keywords: [
+    "AI mock interview",
+    "interview practice",
+    "interview coach",
+    "behavioral interview prep",
+    "technical interview practice",
+    "system design interview",
+    "job interview preparation",
+    "AI interview feedback",
+    "mock interview platform",
+    "software engineer interview",
+    "product manager interview",
+    "data science interview prep",
+    "FAANG interview prep",
+    "interview simulator",
+    "career coaching AI",
+  ],
+
+  authors: [{ name: "Rehearse", url: APP_URL }],
+  creator: "Rehearse",
+  publisher: "Rehearse",
+
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: APP_URL,
+    siteName: "Rehearse",
+    title: "Rehearse — AI Mock Interview Coach",
+    description:
+      "Practice real interviews with an AI that listens, adapts, and gives you honest feedback. Improve faster with personalized coaching on behavioral, technical, and system design rounds.",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Rehearse — AI Mock Interview Coach",
+      },
+    ],
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "Rehearse — AI Mock Interview Coach",
+    description:
+      "Practice real interviews with an AI that listens, adapts, and gives you honest feedback. Ace your next interview.",
+    images: ["/opengraph-image"],
+    creator: "@rehearseai",
+  },
+
+  alternates: {
+    canonical: APP_URL,
+  },
+
+  category: "technology",
 };
 
 export default function RootLayout({
