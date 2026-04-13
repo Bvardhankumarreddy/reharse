@@ -69,17 +69,18 @@ export class FeedbackService {
    * that the AI engine uses to personalise question generation and evaluation.
    */
   async getUserAIHistory(userId: string): Promise<{
-    recentScores:      number[];
-    weakAreas:         string[];
-    recurringFeedback: string[];
-    sessionsCompleted: number;
-    averageScore:      number | null;
+    recentScores:             number[];
+    weakAreas:                string[];
+    recurringFeedback:        string[];
+    sessionsCompleted:        number;
+    averageScore:             number | null;
+    previouslyAskedQuestions: string[];
   }> {
     const recent = await this.repo
       .createQueryBuilder('f')
       .innerJoin('f.session', 's', 's.userId = :userId', { userId })
       .orderBy('f.createdAt', 'DESC')
-      .take(5)
+      .take(10)
       .select(['f.overallScore', 'f.weakAreas', 'f.questionFeedback'])
       .getMany();
 
@@ -123,7 +124,21 @@ export class FeedbackService {
       ? Math.round(recentScores.reduce((a, b) => a + b, 0) / recentScores.length)
       : null;
 
-    return { recentScores, weakAreas, recurringFeedback, sessionsCompleted: recent.length, averageScore };
+    // Collect unique question texts asked across the last 10 sessions (capped at 50)
+    const seen = new Set<string>();
+    const previouslyAskedQuestions: string[] = [];
+    for (const f of recent) {
+      for (const q of f.questionFeedback ?? []) {
+        if (q.question && !seen.has(q.question)) {
+          seen.add(q.question);
+          previouslyAskedQuestions.push(q.question);
+          if (previouslyAskedQuestions.length >= 50) break;
+        }
+      }
+      if (previouslyAskedQuestions.length >= 50) break;
+    }
+
+    return { recentScores, weakAreas, recurringFeedback, sessionsCompleted: recent.length, averageScore, previouslyAskedQuestions };
   }
 
   async findById(id: string, userId: string): Promise<Feedback> {

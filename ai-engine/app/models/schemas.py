@@ -48,7 +48,7 @@ class GenerateQuestionsRequest(BaseModel):
     )
     user_history:     dict | None = Field(
         default=None,
-        description="Aggregated candidate history: recentScores, weakAreas, recurringFeedback",
+        description="Aggregated candidate history: recentScores, weakAreas, recurringFeedback, previouslyAskedQuestions",
     )
 
 

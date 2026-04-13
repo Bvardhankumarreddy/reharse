@@ -1,0 +1,128 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: rehearse
+
+# Pull in the shared base manifests
+resources:
+  - ../../base
+
+# Patch image tags for this cluster
+images:
+  - name: rehearse-api
+    newName: bhopathivardhan1/rehearse-api
+    newTag: latest
+  - name: rehearse-web
+    newName: bhopathivardhan1/rehearse-web
+    newTag: latest
+  - name: rehearse-ai-engine
+    newName: bhopathivardhan1/rehearse-ai-engine
+    newTag: latest
+
+# Cluster-specific overrides
+patches:
+  # Domain config
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: rehearse-config
+        namespace: rehearse
+      data:
+        APP_URL:             https://reharse.inferix.in
+        CORS_ORIGIN:         https://reharse.inferix.in
+        FRONTEND_URL:        https://reharse.inferix.in
+        BETTER_AUTH_URL:     https://reharse.inferix.in
+        GOOGLE_REDIRECT_URI: https://reharse.inferix.in/api/v1/calendar/callback
+
+  # t3.medium: scale down to 1 replica minimum to save RAM
+  - patch: |-
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api-hpa
+        namespace: rehearse
+      spec:
+        minReplicas: 1
+        maxReplicas: 2
+
+  - patch: |-
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web-hpa
+        namespace: rehearse
+      spec:
+        minReplicas: 1
+        maxReplicas: 2
+
+  - patch: |-
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: ai-engine-hpa
+        namespace: rehearse
+      spec:
+        minReplicas: 1
+        maxReplicas: 1
+
+  # t3.medium: tighten resource limits
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: rehearse
+      spec:
+        replicas: 1
+        template:
+          spec:
+            containers:
+              - name: api
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 256Mi
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: rehearse
+      spec:
+        replicas: 1
+        template:
+          spec:
+            containers:
+              - name: web
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 256Mi
+
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ai-engine
+        namespace: rehearse
+      spec:
+        replicas: 1
+        template:
+          spec:
+            containers:
+              - name: ai-engine
+                resources:
+                  requests:
+                    cpu: 200m
+                    memory: 256Mi
+                  limits:
+                    cpu: 800m
+                    memory: 512Mi

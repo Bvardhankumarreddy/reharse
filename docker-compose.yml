@@ -66,9 +66,10 @@ services:
     restart: unless-stopped
     networks: [rehearse]
     environment:
-      REDIS_URL:      redis://redis:6379
-      PORT:           "8000"
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      REDIS_URL:          redis://redis:6379
+      PORT:               "8000"
+      ANTHROPIC_API_KEY:  ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY:     ${OPENAI_API_KEY:-}
     depends_on:
       redis:
         condition: service_healthy
@@ -83,6 +84,23 @@ services:
         limits:
           memory: 1g
 
+  # ── DB migrate (runs once, exits 0) ──────────────────────────────────────────
+  migrate:
+    build:
+      context:    ./web
+      dockerfile: Dockerfile
+    image: rehearse-web:latest
+    networks: [rehearse]
+    restart: "no"
+    environment:
+      DATABASE_URL:       postgresql://${POSTGRES_USER:-rehearse}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rehearse}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL:    ${APP_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["npx", "@better-auth/cli", "migrate", "--yes"]
+
   # ── NestJS API ────────────────────────────────────────────────────────────────
   api:
     build:
@@ -92,13 +110,31 @@ services:
     restart: unless-stopped
     networks: [rehearse]
     environment:
-      NODE_ENV:           production
-      PORT:               "3001"
-      DATABASE_URL:       postgresql://${POSTGRES_USER:-rehearse}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rehearse}
-      REDIS_URL:          redis://redis:6379
-      AI_ENGINE_URL:      http://ai-engine:8000
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      CORS_ORIGIN:        ${APP_URL}
+      NODE_ENV:                 production
+      PORT:                     "3001"
+      DATABASE_URL:             postgresql://${POSTGRES_USER:-rehearse}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rehearse}
+      REDIS_URL:                redis://redis:6379
+      AI_ENGINE_URL:            http://ai-engine:8000
+      BETTER_AUTH_SECRET:       ${BETTER_AUTH_SECRET}
+      CORS_ORIGIN:              ${APP_URL}
+      FRONTEND_URL:             ${APP_URL}
+      # Razorpay billing
+      RAZORPAY_KEY_ID:          ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET:      ${RAZORPAY_KEY_SECRET}
+      RAZORPAY_PLAN_WEEKLY:     ${RAZORPAY_PLAN_WEEKLY}
+      RAZORPAY_PLAN_MONTHLY:    ${RAZORPAY_PLAN_MONTHLY}
+      RAZORPAY_PLAN_YEARLY:     ${RAZORPAY_PLAN_YEARLY}
+      RAZORPAY_DAYPASS_AMOUNT:  ${RAZORPAY_DAYPASS_AMOUNT:-9900}
+      RAZORPAY_WEBHOOK_SECRET:  ${RAZORPAY_WEBHOOK_SECRET}
+      # Google Calendar OAuth
+      GOOGLE_CLIENT_ID:         ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET:     ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI:      ${APP_URL}/api/v1/calendar/callback
+      GOOGLE_STATE_SECRET:      ${GOOGLE_STATE_SECRET}
+      # Storage
+      STORAGE_LAMBDA_URL:       ${STORAGE_LAMBDA_URL}
+      STORAGE_LAMBDA_SECRET:    ${STORAGE_LAMBDA_SECRET}
+      ADMIN_EMAIL:              ${ADMIN_EMAIL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -106,6 +142,8 @@ services:
         condition: service_healthy
       ai-engine:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:         ["CMD-SHELL", "wget -qO- http://localhost:3001/api/v1/health || exit 1"]
       interval:     15s
@@ -140,6 +178,9 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GITHUB_CLIENT_ID:     ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      # Storage Lambda — also used for sending OTP emails
+      STORAGE_LAMBDA_URL:    ${STORAGE_LAMBDA_URL}
+      STORAGE_LAMBDA_SECRET: ${STORAGE_LAMBDA_SECRET}
     depends_on:
       api:
         condition: service_healthy
@@ -162,8 +203,11 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # nginx:alpine processes *.conf.template files via envsubst automatically
+      - ./nginx/nginx.conf:/etc/nginx/templates/rehearse.conf.template:ro
       - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
       - web

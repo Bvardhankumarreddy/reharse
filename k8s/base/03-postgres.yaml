@@ -8,7 +8,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: gp2   # AWS EBS — change to 'standard' for local/minikube
+  storageClassName: local-path   # k3s default — data stored on EC2 root EBS volume
 ---
 apiVersion: apps/v1
 kind: StatefulSet

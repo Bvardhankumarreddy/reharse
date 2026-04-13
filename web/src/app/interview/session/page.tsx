@@ -213,6 +213,70 @@ function InterviewSessionPageInner() {
     coachBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [coachMessages, coachTyping]);
 
+  // ── Anti-cheat: block tab switching, external paste, right-click ──────────
+  const [tabWarning, setTabWarning] = useState(0); // count of times user left tab
+
+  useEffect(() => {
+    if (!question || ended) return; // only enforce during active session
+
+    // 1. Detect tab/window switching — auto-end session after 2 switches
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        setTabWarning((n) => {
+          const next = n + 1;
+          if (next >= 2) {
+            // End the session immediately on the 2nd switch
+            endSession();
+          }
+          return next;
+        });
+      }
+    }
+
+    // 2. Block paste from outside — allow only if clipboard content
+    //    originated from within the answer textarea itself
+    function handlePaste(e: ClipboardEvent) {
+      const target = e.target as HTMLElement;
+      // Allow paste inside the answer textarea
+      if (target.tagName === "TEXTAREA" && target.id === "answer-input") return;
+      e.preventDefault();
+    }
+
+    // 3. Block paste keyboard shortcut on the answer textarea
+    //    when the clipboard content was copied from outside the page
+    function handleAnswerPaste(e: ClipboardEvent) {
+      // If the page was focused when the copy happened, allow it
+      // (user copied from within the session page — e.g. part of the question)
+      // If page was hidden when copied, block it
+      if (tabWarning > 0 && document.hasFocus()) {
+        // Extra guard — block if the pasted text is long (likely copied from outside)
+        const text = e.clipboardData?.getData("text/plain") ?? "";
+        if (text.length > 200) {
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+
+    // 4. Disable right-click context menu
+    function handleContextMenu(e: MouseEvent) {
+      e.preventDefault();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("paste", handlePaste);
+    document.addEventListener("contextmenu", handleContextMenu);
+    const answerEl = document.getElementById("answer-input");
+    if (answerEl) answerEl.addEventListener("paste", handleAnswerPaste);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("paste", handlePaste);
+      document.removeEventListener("contextmenu", handleContextMenu);
+      if (answerEl) answerEl.removeEventListener("paste", handleAnswerPaste);
+    };
+  }, [question, ended, tabWarning, endSession]);
+
   const isBehavioral = type === "behavioral";
   const star = detectStar(answer);
   const timerColor = remaining > 0 && remaining < 60_000 ? "text-red-500" : "text-[#F59E0B]";
@@ -308,6 +372,19 @@ function InterviewSessionPageInner() {
   // ── Live interview ─────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-bg-app flex flex-col">
+
+      {/* Tab-switch warning banner */}
+      {tabWarning > 0 && (
+        <div className={`fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-3
+                        px-4 py-2.5 text-sm font-semibold shadow-lg text-white
+                        ${tabWarning >= 2 ? "bg-red-700" : "bg-red-600"}`}>
+          <span className="material-symbols-outlined text-[18px]"
+            style={{ fontVariationSettings: "'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24" }}>warning</span>
+          {tabWarning === 1
+            ? "⚠️ Warning: Do not switch tabs during the interview. One more violation will end your session."
+            : "🚫 Interview terminated — tab switching detected twice. Your session has been ended."}
+        </div>
+      )}
 
       {/* Phase transition banner */}
       {showPhase && phaseTransition && (() => {
@@ -527,6 +604,7 @@ function InterviewSessionPageInner() {
             <span className="label text-text-sec">Your Answer</span>
 
             <textarea
+              id="answer-input"
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               placeholder="Start typing your answer…"

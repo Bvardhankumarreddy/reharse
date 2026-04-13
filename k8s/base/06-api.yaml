@@ -24,6 +24,7 @@ spec:
               value: production
             - name: PORT
               value: "3001"
+            # ── ConfigMap ──────────────────────────────────────────────────────
             - name: REDIS_URL
               valueFrom:
                 configMapKeyRef:
@@ -39,6 +40,32 @@ spec:
                 configMapKeyRef:
                   name: rehearse-config
                   key: CORS_ORIGIN
+            - name: FRONTEND_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rehearse-config
+                  key: FRONTEND_URL
+            - name: ADMIN_EMAIL
+              valueFrom:
+                configMapKeyRef:
+                  name: rehearse-config
+                  key: ADMIN_EMAIL
+            - name: RAZORPAY_DAYPASS_AMOUNT
+              valueFrom:
+                configMapKeyRef:
+                  name: rehearse-config
+                  key: RAZORPAY_DAYPASS_AMOUNT
+            - name: GOOGLE_REDIRECT_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: rehearse-config
+                  key: GOOGLE_REDIRECT_URI
+            - name: STORAGE_LAMBDA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rehearse-config
+                  key: STORAGE_LAMBDA_URL
+            # ── DATABASE_URL (secret + configmap combined) ─────────────────────
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -46,11 +73,62 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: DATABASE_URL
               value: postgresql://rehearse:$(POSTGRES_PASSWORD)@postgres-svc:5432/rehearse
+            # ── Secrets ────────────────────────────────────────────────────────
             - name: BETTER_AUTH_SECRET
               valueFrom:
                 secretKeyRef:
                   name: rehearse-secrets
                   key: BETTER_AUTH_SECRET
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: GOOGLE_CLIENT_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: GOOGLE_CLIENT_SECRET
+            - name: GOOGLE_STATE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: GOOGLE_STATE_SECRET
+            - name: RAZORPAY_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: RAZORPAY_KEY_ID
+            - name: RAZORPAY_KEY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: RAZORPAY_KEY_SECRET
+            - name: RAZORPAY_PLAN_WEEKLY
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: RAZORPAY_PLAN_WEEKLY
+            - name: RAZORPAY_PLAN_MONTHLY
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: RAZORPAY_PLAN_MONTHLY
+            - name: RAZORPAY_PLAN_YEARLY
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: RAZORPAY_PLAN_YEARLY
+            - name: RAZORPAY_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: RAZORPAY_WEBHOOK_SECRET
+            - name: STORAGE_LAMBDA_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: STORAGE_LAMBDA_SECRET
           resources:
             requests:
               cpu: 250m

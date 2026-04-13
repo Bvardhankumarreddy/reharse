@@ -44,7 +44,7 @@ export class UserFeedbackService {
   }
 
   private async sendAdminEmail(userId: string, dto: SubmitFeedbackDto): Promise<void> {
-    const adminEmail = this.config.get<string>('ADMIN_EMAIL') ?? 'feedback@rehearse.ai';
+    const adminEmail = this.config.get<string>('ADMIN_EMAIL') ?? 'reharse@inferix.in';
 
     const emoji    = CATEGORY_EMOJI[dto.category ?? ''] ?? '📝';
     const stars    = dto.rating ? '⭐'.repeat(dto.rating) : 'No rating';

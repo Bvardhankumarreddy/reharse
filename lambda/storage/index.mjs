@@ -107,23 +107,28 @@ async function remove(event) {
 async function sendEmail(event) {
   const { to, subject, html, text } = parseBody(event);
   if (!to || !subject || !html) return err(400, 'to, subject, html required');
+  if (!process.env.SES_FROM_EMAIL) return err(500, 'SES_FROM_EMAIL env not set');
 
   const ses = new SESClient({ region: process.env.AWS_REGION ?? 'ap-south-1' });
 
-  const cmd = new SendEmailCommand({
-    Destination: { ToAddresses: [to] },
-    Message: {
-      Subject: { Data: subject, Charset: 'UTF-8' },
-      Body: {
-        Html: { Data: html,  Charset: 'UTF-8' },
-        Text: { Data: text ?? '', Charset: 'UTF-8' },
+  try {
+    const cmd = new SendEmailCommand({
+      Destination: { ToAddresses: [to] },
+      Message: {
+        Subject: { Data: subject, Charset: 'UTF-8' },
+        Body: {
+          Html: { Data: html,  Charset: 'UTF-8' },
+          Text: { Data: text ?? '', Charset: 'UTF-8' },
+        },
       },
-    },
-    Source: process.env.SES_FROM_EMAIL,
-  });
+      Source: process.env.SES_FROM_EMAIL,
+    });
 
-  const res = await ses.send(cmd);
-  return ok({ messageId: res.MessageId });
+    const res = await ses.send(cmd);
+    return ok({ messageId: res.MessageId });
+  } catch (e) {
+    return err(502, `SES error: ${e.name} — ${e.message}`);
+  }
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────

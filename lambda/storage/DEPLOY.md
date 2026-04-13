@@ -80,7 +80,7 @@ echo "Your secret: $SECRET"
 
 aws lambda create-function \
   --function-name rehearse-storage \
-  --runtime nodejs20.x \
+  --runtime nodejs22.x \
   --handler index.handler \
   --role arn:aws:iam::{ACCOUNT_ID}:role/rehearse-storage-lambda-role \
   --zip-file fileb://storage.zip \

@@ -4,12 +4,16 @@ metadata:
   name: rehearse-config
   namespace: rehearse
 data:
-  NODE_ENV:         production
-  POSTGRES_USER:    rehearse
-  POSTGRES_DB:      rehearse
-  DATABASE_URL:     postgresql://rehearse:$(POSTGRES_PASSWORD)@postgres-svc:5432/rehearse
-  REDIS_URL:        redis://redis-svc:6379
-  AI_ENGINE_URL:    http://ai-engine-svc:8000
-  APP_URL:          https://yourdomain.com       # ← replace with your domain
-  CORS_ORIGIN:      https://yourdomain.com       # ← replace with your domain
-  BETTER_AUTH_URL:  https://yourdomain.com       # ← replace with your domain
+  NODE_ENV:                production
+  POSTGRES_USER:           rehearse
+  POSTGRES_DB:             rehearse
+  REDIS_URL:               redis://redis-svc:6379
+  AI_ENGINE_URL:           http://ai-engine-svc:8000
+  APP_URL:                 https://reharse.inferix.in
+  CORS_ORIGIN:             https://reharse.inferix.in
+  FRONTEND_URL:            https://reharse.inferix.in
+  BETTER_AUTH_URL:         https://reharse.inferix.in
+  ADMIN_EMAIL:             reharse@reharse.inferix.in
+  RAZORPAY_DAYPASS_AMOUNT: "9900"
+  GOOGLE_REDIRECT_URI:     https://reharse.inferix.in/api/v1/calendar/callback
+  STORAGE_LAMBDA_URL:      https://6e6s4mffmw2wdunqrwf77qqusm0bruic.lambda-url.ap-south-1.on.aws

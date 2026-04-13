@@ -9,7 +9,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: you@yourdomain.com        # ← replace
+    email: reharse@inferix.in
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
@@ -29,19 +29,24 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     # Enable WebSocket upgrades for Socket.IO
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection "upgrade";
 spec:
   tls:
     - hosts:
-        - yourdomain.com             # ← replace
+        - reharse.inferix.in
       secretName: rehearse-tls
   rules:
-    - host: yourdomain.com           # ← replace
+    - host: reharse.inferix.in
       http:
         paths:
-          # WebSocket — must come before the catch-all
+          # API routes → NestJS
+          - path: /api/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: api-svc
+                port:
+                  number: 3001
+          # WebSocket
           - path: /socket.io
             pathType: Prefix
             backend:

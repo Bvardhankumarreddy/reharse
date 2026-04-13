@@ -1,0 +1,109 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # ── Detect which services changed ─────────────────────────────────────────
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api:        ${{ steps.filter.outputs.api }}
+      web:        ${{ steps.filter.outputs.web }}
+      ai-engine:  ${{ steps.filter.outputs.ai-engine }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+            web:
+              - 'web/**'
+            ai-engine:
+              - 'ai-engine/**'
+
+  # ── Build & push changed images ───────────────────────────────────────────
+  build:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push API
+        if: needs.changes.outputs.api == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          platforms: linux/amd64
+          push: true
+          tags: bhopathivardhan1/rehearse-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push AI Engine
+        if: needs.changes.outputs.ai-engine == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-engine
+          platforms: linux/amd64
+          push: true
+          tags: bhopathivardhan1/rehearse-ai-engine:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push Web
+        if: needs.changes.outputs.web == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          platforms: linux/amd64
+          push: true
+          tags: bhopathivardhan1/rehearse-web:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://reharse.inferix.in/api/v1
+            NEXT_PUBLIC_APP_URL=https://reharse.inferix.in
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Deploy to EC2 ─────────────────────────────────────────────────────────
+  deploy:
+    needs: [changes, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 13.235.23.187
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Restart only changed deployments
+            CHANGED=""
+            if [ "${{ needs.changes.outputs.api }}" = "true" ]; then
+              CHANGED="$CHANGED deployment/api"
+            fi
+            if [ "${{ needs.changes.outputs.web }}" = "true" ]; then
+              CHANGED="$CHANGED deployment/web"
+            fi
+            if [ "${{ needs.changes.outputs['ai-engine'] }}" = "true" ]; then
+              CHANGED="$CHANGED deployment/ai-engine"
+            fi
+
+            if [ -n "$CHANGED" ]; then
+              kubectl rollout restart $CHANGED -n rehearse
+              kubectl rollout status $CHANGED -n rehearse --timeout=120s
+            else
+              echo "No deployments to restart"
+            fi

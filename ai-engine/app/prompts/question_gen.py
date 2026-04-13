@@ -1,4 +1,56 @@
 from __future__ import annotations
+import random
+
+# Topic seeds per interview type — randomly selected when no previous_qa exists
+# so Q1 varies meaningfully across sessions with the same parameters.
+_TOPIC_SEEDS: dict[str, list[str]] = {
+    "behavioral": [
+        "leadership and influence on a team",
+        "conflict resolution with a colleague or stakeholder",
+        "handling failure or a significant setback",
+        "delivering results under a tight deadline",
+        "taking initiative or ownership on a project",
+        "cross-functional collaboration and communication",
+        "navigating ambiguity without a clear roadmap",
+        "giving or receiving constructive feedback",
+        "mentoring or growing others",
+        "adapting to unexpected change",
+    ],
+    "coding": [
+        "arrays or string manipulation",
+        "tree or graph traversal",
+        "dynamic programming or memoization",
+        "recursion and backtracking",
+        "hash maps and frequency counting",
+        "sliding window or two-pointer approach",
+        "sorting, searching, or binary search",
+        "stack or queue-based problems",
+    ],
+    "system-design": [
+        "horizontal scaling and load balancing",
+        "database design and indexing strategy",
+        "caching layers and cache invalidation",
+        "REST or GraphQL API design",
+        "microservices decomposition and trade-offs",
+        "real-time event-driven or pub-sub architecture",
+        "message queues and async job processing",
+        "authentication, authorisation, and token management at scale",
+    ],
+    "hr": [
+        "long-term career goals and motivation",
+        "greatest professional strength and how you apply it",
+        "an area for growth and how you address it",
+        "what you look for in a team or company culture",
+        "how you handle competing priorities",
+    ],
+    "case-study": [
+        "market sizing and estimation",
+        "product prioritisation and trade-offs",
+        "go-to-market strategy for a new feature",
+        "diagnosing a drop in a key metric",
+        "competitive positioning",
+    ],
+}
 
 SYSTEM = """\
 You are an expert technical interviewer with 15+ years of experience at top tech companies (Google, Meta, Amazon, Apple, Microsoft).
@@ -31,6 +83,7 @@ def build_user_prompt(
 
     # Build candidate history block from aggregated past sessions
     history_block = ""
+    past_questions_block = ""
     if user_history:
         parts: list[str] = []
         scores = user_history.get("recentScores") or []
@@ -47,25 +100,41 @@ def build_user_prompt(
                 + "\n".join(f"- {p}" for p in parts)
                 + "\nTarget questions at the weak areas above and avoid topics the candidate has already mastered.\n"
             )
+        # Cross-session question deduplication
+        prev_qs = user_history.get("previouslyAskedQuestions") or []
+        if prev_qs:
+            listed = "\n".join(f"- {q}" for q in prev_qs[:50])
+            past_questions_block = (
+                f"\nQuestions already asked in previous sessions (do NOT repeat or paraphrase any of these):\n"
+                + listed
+                + "\n"
+            )
 
     # Build the conversation history section for adaptive generation
     if previous_qa:
         history_lines = "\n".join(
-            f"Q{i+1}: {qa['question']}\nA{i+1}: {qa['answer'][:400]}{'...' if len(qa['answer']) > 400 else ''}"
+            f"Q{i+1}: {qa['question']}\n"
+            + (
+                f"A{i+1}: [candidate is currently answering — choose a DIFFERENT topic/competency]"
+                if qa["answer"] in ("[ANSWERING]", "[PASSED]")
+                else f"A{i+1}: {qa['answer'][:400]}{'...' if len(qa['answer']) > 400 else ''}"
+            )
             for i, qa in enumerate(previous_qa)
         )
         history_section = f"""
 Interview so far (do NOT repeat these questions or topics already covered):
 {history_lines}
 
-Based on the candidate's answers above, generate {num} adaptive follow-up question(s) that:
-- Probe areas where the answer was vague, shallow, or could be expanded
-- Explore related behavioural competencies not yet covered
+Based on the candidate's responses above, generate {num} adaptive follow-up question(s) that:
+- Cover a DIFFERENT competency or topic area than any question already asked
+- Probe areas where the answer was vague, shallow, or could be expanded (if an answer was given)
 - Feel natural as the next question a real interviewer would ask
 - Are NOT repetitions of anything above
 """
     else:
-        history_section = f"Generate {num} {interview_type} interview question(s) to start the session."
+        seeds = _TOPIC_SEEDS.get(interview_type, [])
+        topic_hint = f" Focus this opening question specifically on: **{random.choice(seeds)}**." if seeds else ""
+        history_section = f"Generate {num} {interview_type} interview question(s) to start the session.{topic_hint}"
 
     return f"""\
 {history_section}
@@ -73,8 +142,7 @@ Based on the candidate's answers above, generate {num} adaptive follow-up questi
 Role: {role}
 Experience level: {level}
 {company_line}
-Difficulty: {difficulty}{resume_line}{history_block}
-
+Difficulty: {difficulty}{resume_line}{history_block}{past_questions_block}
 Return a JSON object with this exact shape:
 {{
   "questions": [

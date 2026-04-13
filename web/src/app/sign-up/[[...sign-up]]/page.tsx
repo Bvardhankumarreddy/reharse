@@ -1,15 +1,187 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
+// ── OTP input — 6 auto-advancing boxes ───────────────────────────────────────
+function OtpInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const refs = Array.from({ length: 6 }, () => useRef<HTMLInputElement>(null)); // eslint-disable-line react-hooks/rules-of-hooks
+
+  function handleChange(idx: number, char: string) {
+    const digit = char.replace(/\D/g, "").slice(-1);
+    const next  = value.split("");
+    next[idx]   = digit;
+    const joined = next.join("").padEnd(6, "").slice(0, 6);
+    onChange(joined.trimEnd());
+    if (digit && idx < 5) refs[idx + 1].current?.focus();
+  }
+
+  function handleKeyDown(idx: number, e: React.KeyboardEvent) {
+    if (e.key === "Backspace" && !value[idx] && idx > 0) {
+      refs[idx - 1].current?.focus();
+    }
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    onChange(pasted);
+    refs[Math.min(pasted.length, 5)].current?.focus();
+    e.preventDefault();
+  }
+
+  return (
+    <div className="flex gap-2 justify-center">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <input
+          key={i}
+          ref={refs[i]}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={value[i] ?? ""}
+          onChange={(e) => handleChange(i, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          onPaste={handlePaste}
+          className="w-11 h-13 text-center text-[20px] font-bold bg-bg-app border border-border
+                     rounded-xl text-text-pri focus:outline-none focus:ring-2 focus:ring-blue/30
+                     focus:border-blue/50 transition caret-transparent"
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── OTP verification screen ───────────────────────────────────────────────────
+function OtpStep({
+  email,
+  redirect,
+  onBack,
+}: {
+  email: string;
+  redirect: string;
+  onBack: () => void;
+}) {
+  const router              = useRouter();
+  const [otp, setOtp]       = useState("");
+  const [error, setError]   = useState<string | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent]   = useState(false);
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    if (otp.length < 6) { setError("Please enter the full 6-digit code."); return; }
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: err } = await authClient.emailOtp.verifyEmail({ email, otp });
+      if (err) {
+        setError(err.message ?? "Invalid or expired code. Please try again.");
+      } else {
+        router.push(redirect);
+        router.refresh();
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    setResending(true);
+    setError(null);
+    setResent(false);
+    try {
+      await authClient.emailOtp.sendVerificationOtp({ email, type: "email-verification" });
+      setResent(true);
+      setOtp("");
+    } catch {
+      setError("Failed to resend. Please try again.");
+    } finally {
+      setResending(false);
+    }
+  }
+
+  return (
+    <div className="w-full max-w-sm bg-surface border border-border shadow-xl rounded-2xl p-8 space-y-6">
+      {/* Back */}
+      <button
+        type="button"
+        onClick={onBack}
+        className="flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text-sec transition"
+      >
+        <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+        Back
+      </button>
+
+      {/* Header */}
+      <div className="space-y-1 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-blue/10 flex items-center justify-center mx-auto mb-3">
+          <span
+            className="material-symbols-outlined text-blue text-[24px]"
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            mark_email_read
+          </span>
+        </div>
+        <h1 className="text-[22px] font-bold text-text-pri">Check your email</h1>
+        <p className="text-text-sec text-[13px]">
+          We sent a 6-digit code to<br />
+          <span className="font-medium text-text-pri">{email}</span>
+        </p>
+      </div>
+
+      <form onSubmit={handleVerify} className="space-y-5">
+        <OtpInput value={otp} onChange={setOtp} />
+
+        {error && (
+          <p className="text-[13px] text-red-500 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5 text-center">
+            {error}
+          </p>
+        )}
+        {resent && (
+          <p className="text-[13px] text-green-600 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-2.5 text-center">
+            New code sent — check your inbox.
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading || otp.length < 6}
+          className="w-full h-11 btn-gradient text-white font-semibold rounded-xl
+                     disabled:opacity-60 transition-opacity"
+        >
+          {loading ? "Verifying…" : "Verify email"}
+        </button>
+      </form>
+
+      <p className="text-center text-[13px] text-text-sec">
+        Didn&apos;t receive it?{" "}
+        <button
+          type="button"
+          onClick={handleResend}
+          disabled={resending}
+          className="text-blue hover:text-blue/80 font-medium disabled:opacity-50"
+        >
+          {resending ? "Sending…" : "Resend code"}
+        </button>
+      </p>
+
+      <p className="text-center text-[12px] text-text-muted">Code expires in 10 minutes.</p>
+    </div>
+  );
+}
+
+// ── Sign-up form ──────────────────────────────────────────────────────────────
 function SignUpForm() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const redirect     = searchParams.get("redirect_url") ?? "/onboarding";
 
+  const [step,     setStep]     = useState<"form" | "otp">("form");
   const [name,     setName]     = useState("");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
@@ -22,28 +194,19 @@ function SignUpForm() {
     e.preventDefault();
     setError(null);
 
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
+    if (password !== confirm) { setError("Passwords do not match."); return; }
+    if (password.length < 8)  { setError("Password must be at least 8 characters."); return; }
 
     setLoading(true);
     try {
-      const { data, error: authError } = await authClient.signUp.email({
-        email,
-        password,
-        name,
-      });
-      if (authError || !data) {
-        setError(authError?.message ?? "Sign up failed. Please try again.");
-      } else {
-        router.push(redirect);
-        router.refresh();
+      const { error: authError } = await authClient.signUp.email({ email, password, name });
+      if (authError) {
+        setError(authError.message ?? "Sign up failed. Please try again.");
+        return;
       }
+      // Account created — send OTP
+      await authClient.emailOtp.sendVerificationOtp({ email, type: "email-verification" });
+      setStep("otp");
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -55,14 +218,21 @@ function SignUpForm() {
     setOauthLoading(provider);
     setError(null);
     try {
-      await authClient.signIn.social({
-        provider,
-        callbackURL: redirect,
-      });
+      await authClient.signIn.social({ provider, callbackURL: redirect });
     } catch {
       setError("OAuth sign-in failed. Please try again.");
       setOauthLoading(null);
     }
+  }
+
+  if (step === "otp") {
+    return (
+      <OtpStep
+        email={email}
+        redirect={redirect}
+        onBack={() => { setStep("form"); setError(null); }}
+      />
+    );
   }
 
   const busy = loading || !!oauthLoading;
