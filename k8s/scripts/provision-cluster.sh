@@ -6,7 +6,6 @@
 #
 # Example:
 #   ./provision-cluster.sh rehearse 13.233.x.x ~/.ssh/my-key.pem
-#   ./provision-cluster.sh karigari 15.206.x.x ~/.ssh/my-key.pem
 #
 # What it does:
 #   1. SSHs into the EC2 instance

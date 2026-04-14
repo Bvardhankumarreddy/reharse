@@ -6,7 +6,6 @@
 #
 # Example:
 #   ./deploy.sh rehearse
-#   ./deploy.sh karigari
 #
 # Requires: ~/.kube/<project>.yaml to exist (created by provision-cluster.sh)
 # ─────────────────────────────────────────────────────────────────────────────
