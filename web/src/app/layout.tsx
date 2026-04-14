@@ -57,10 +57,11 @@ export const metadata: Metadata = {
       "Practice real interviews with an AI that listens, adapts, and gives you honest feedback. Improve faster with personalized coaching on behavioral, technical, and system design rounds.",
     images: [
       {
-        url: "/opengraph-image",
+        url: `${APP_URL}/opengraph-image`,
         width: 1200,
         height: 630,
         alt: "Rehearse — AI Mock Interview Coach",
+        type: "image/png",
       },
     ],
   },
@@ -70,7 +71,7 @@ export const metadata: Metadata = {
     title: "Rehearse — AI Mock Interview Coach",
     description:
       "Practice real interviews with an AI that listens, adapts, and gives you honest feedback. Ace your next interview.",
-    images: ["/opengraph-image"],
+    images: [`${APP_URL}/opengraph-image`],
     creator: "@rehearseai",
   },
 
