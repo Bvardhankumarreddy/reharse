@@ -107,10 +107,10 @@ jobs:
               # Wait for rollout and rollback automatically if unhealthy
               for DEPLOYMENT in $CHANGED; do
                 echo "Waiting for $DEPLOYMENT..."
-                if ! kubectl rollout status $DEPLOYMENT -n rehearse --timeout=120s; then
+                if ! kubectl rollout status $DEPLOYMENT -n rehearse --timeout=300s; then
                   echo "❌ $DEPLOYMENT rollout failed — rolling back"
                   kubectl rollout undo $DEPLOYMENT -n rehearse
-                  kubectl rollout status $DEPLOYMENT -n rehearse --timeout=60s
+                  kubectl rollout status $DEPLOYMENT -n rehearse --timeout=120s
                   exit 1
                 fi
                 echo "✅ $DEPLOYMENT is healthy"
