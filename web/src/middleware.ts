@@ -20,7 +20,8 @@ function isOnboardingExempt(pathname: string): boolean {
     pathname.startsWith("/sign-in") ||
     pathname.startsWith("/sign-up") ||
     pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/api/auth")
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/admin")
   );
 }
 
