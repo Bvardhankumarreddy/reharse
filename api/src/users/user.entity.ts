@@ -143,6 +143,9 @@ export class User {
   @Column({ nullable: true, type: 'simple-array' })
   targetCompanies: string[];
 
+  @Column({ default: false })
+  isAdmin: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

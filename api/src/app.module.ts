@@ -17,6 +17,7 @@ import { CalendarModule } from './calendar/calendar.module';
 import { BillingModule } from './billing/billing.module';
 import { UserFeedbackModule } from './user-feedback/user-feedback.module';
 import { StorageModule } from './storage/storage.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { StorageModule } from './storage/storage.module';
     BillingModule,
     UserFeedbackModule,
     StorageModule,
+    AdminModule,
   ],
   controllers: [HealthController],
 })
