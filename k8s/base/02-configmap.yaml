@@ -13,7 +13,7 @@ data:
   CORS_ORIGIN:             https://reharse.inferix.in
   FRONTEND_URL:            https://reharse.inferix.in
   BETTER_AUTH_URL:         https://reharse.inferix.in
-  ADMIN_EMAIL:             reharse@reharse.inferix.in
+  ADMIN_EMAIL:             rehearse@inferix.in
   RAZORPAY_DAYPASS_AMOUNT: "9900"
   GOOGLE_REDIRECT_URI:     https://reharse.inferix.in/api/v1/calendar/callback
   STORAGE_LAMBDA_URL:      https://6e6s4mffmw2wdunqrwf77qqusm0bruic.lambda-url.ap-south-1.on.aws
