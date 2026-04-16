@@ -7,8 +7,12 @@ import { authClient } from "@/lib/auth-client";
 
 const NAV = [
   { href: "/admin", label: "Overview", icon: "dashboard" },
+  { href: "/admin/analytics", label: "Analytics", icon: "insights" },
   { href: "/admin/users", label: "Users", icon: "group" },
+  { href: "/admin/sessions", label: "Sessions", icon: "mic" },
+  { href: "/admin/questions", label: "Questions", icon: "quiz" },
   { href: "/admin/feedback", label: "Feedback", icon: "reviews" },
+  { href: "/admin/feedback-audit", label: "AI Audit", icon: "fact_check" },
   { href: "/admin/revenue", label: "Revenue", icon: "payments" },
 ];
 
@@ -20,7 +24,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     authClient.getSession().then(({ data }) => {
       if (!data?.user) { router.replace("/sign-in"); return; }
-      // isAdmin check happens via API — 403 will surface naturally
       setChecking(false);
     });
   }, [router]);
@@ -33,6 +36,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  const activeNav = NAV.find((n) =>
+    n.href === "/admin"
+      ? pathname === "/admin"
+      : pathname.startsWith(n.href),
+  );
+
   return (
     <div className="min-h-screen bg-[#0f172a] flex">
       {/* Sidebar */}
@@ -41,9 +50,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span className="text-white font-bold text-lg tracking-tight">Rehearse</span>
           <span className="ml-2 text-[10px] font-semibold bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full uppercase tracking-wide">Admin</span>
         </div>
-        <nav className="flex-1 p-3 space-y-0.5">
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           {NAV.map((item) => {
-            const active = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+            const active = item.href === "/admin"
+              ? pathname === "/admin"
+              : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
@@ -60,7 +71,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             );
           })}
         </nav>
-        <div className="p-3 border-t border-white/5">
+        <div className="p-3 border-t border-white/5 space-y-0.5">
+          <a
+            href="/api/v1/admin/users/export"
+            target="_blank"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            Export CSV
+          </a>
           <Link href="/" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors">
             <span className="material-symbols-outlined text-[18px]">arrow_back</span>
             Back to App
@@ -72,7 +91,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 bg-[#1e293b]/50 border-b border-white/5 flex items-center px-6">
           <h1 className="text-white font-semibold text-sm">
-            {NAV.find((n) => n.href === pathname || (n.href !== "/admin" && pathname.startsWith(n.href)))?.label ?? "Admin"}
+            {activeNav?.label ?? "Admin"}
           </h1>
         </header>
         <main className="flex-1 p-6 overflow-auto">{children}</main>
