@@ -524,7 +524,7 @@ export class AdminService {
       question: body.question,
       type: body.type as Question['type'],
       difficulty: body.difficulty as Question['difficulty'],
-      modelAnswer: body.modelAnswer ?? null,
+      modelAnswer: body.modelAnswer ?? undefined,
       tags: body.tags ?? [],
       companies: body.companies ?? [],
       roles: body.roles ?? [],
