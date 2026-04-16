@@ -119,6 +119,18 @@ export function createApiClient(getToken: GetToken) {
     fetchJDFromUrl:   (url: string)                                            => post<{ text: string }>("/tools/jd-fetch", { url }),
     analyzeJD:        (dto: { jobDescription: string; resumeText?: string })  => post<JDMatchResponse>("/tools/jd-match", dto),
     getJDMatchUsage:  ()                                                       => get<{ usesThisWeek: number; weekLimit: number; isPro: boolean }>("/tools/jd-match/usage"),
+    reviewResume:     ()                                                       => post<ResumeReviewResponse>("/tools/resume-review", {}),
+
+    // ── Referrals ───────────────────────────────────────────────────────
+    getMyReferrals:   ()                    => get<ReferralData>("/referrals"),
+    applyReferral:    (code: string)        => post<{ success: boolean; message: string }>("/referrals/apply", { code }),
+
+    // ── Teams ─────────────────────────────────────────────────────────
+    getMyTeam:        ()                    => get<TeamData | null>("/teams/me"),
+    createTeam:       (name: string, maxSeats?: number) => post<TeamData>("/teams", { name, maxSeats }),
+    inviteToTeam:     (teamId: string, email: string) => post<TeamData>(`/teams/${teamId}/invite`, { email }),
+    removeFromTeam:   (teamId: string, memberId: string) => del<TeamData>(`/teams/${teamId}/members/${memberId}`),
+    acceptTeamInvite: (teamId: string)      => post<TeamData>(`/teams/${teamId}/accept`, {}),
   };
 }
 
@@ -291,4 +303,55 @@ export interface JDMatchResponse {
   gaps:              string[];
   recommendations:   string[];
   summary:           string;
+}
+
+export interface ResumeReviewSection {
+  name:        string;
+  score:       number;
+  feedback:    string;
+  suggestions: string[];
+}
+
+export interface ResumeReviewResponse {
+  overall_score:    number;
+  sections:         ResumeReviewSection[];
+  strengths:        string[];
+  improvements:     string[];
+  ats_score:        number;
+  ats_feedback:     string;
+  summary:          string;
+  target_role_fit:  string | null;
+}
+
+export interface ReferralData {
+  code:          string;
+  totalReferred: number;
+  totalRewarded: number;
+  referrals:     Array<{
+    id:              string;
+    referredEmail:   string | null;
+    referredName:    string | null;
+    status:          string;
+    referrerRewarded: boolean;
+    createdAt:       string;
+  }>;
+}
+
+export interface TeamData {
+  id:        string;
+  name:      string;
+  plan:      string;
+  maxSeats:  number;
+  ownerId:   string;
+  ownerEmail: string;
+  createdAt: string;
+  members:   Array<{
+    id:        string;
+    email:     string;
+    role:      string;
+    status:    string;
+    userId:    string | null;
+    name:      string | null;
+    createdAt: string;
+  }>;
 }

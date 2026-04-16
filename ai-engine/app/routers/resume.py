@@ -4,9 +4,9 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pypdf import PdfReader
 
 from ..config import settings
-from ..models.schemas import ResumeParseResponse
+from ..models.schemas import ResumeParseResponse, ResumeReviewRequest, ResumeReviewResponse
 from ..services.claude import complete_json
-from ..prompts.coach import RESUME_PARSE_SYSTEM, RESUME_PARSE_PROMPT
+from ..prompts.coach import RESUME_PARSE_SYSTEM, RESUME_PARSE_PROMPT, RESUME_REVIEW_SYSTEM, RESUME_REVIEW_PROMPT
 
 router = APIRouter()
 
@@ -52,4 +52,48 @@ async def parse_resume(file: UploadFile = File(...)) -> ResumeParseResponse:
         skills=data.get("skills", []),
         companies=data.get("companies", []),
         summary=data.get("summary", ""),
+    )
+
+
+@router.post("/review", response_model=ResumeReviewResponse)
+async def review_resume(req: ResumeReviewRequest) -> ResumeReviewResponse:
+    if not req.resume_text or len(req.resume_text.strip()) < 50:
+        raise HTTPException(status_code=422, detail="Resume text too short for review")
+
+    truncated = req.resume_text[:10000]
+    role_context = f"Target role: {req.target_role}" if req.target_role else ""
+
+    try:
+        data = await complete_json(
+            model=settings.model_coach,
+            system=RESUME_REVIEW_SYSTEM,
+            messages=[{
+                "role": "user",
+                "content": RESUME_REVIEW_PROMPT.format(
+                    resume_text=truncated,
+                    role_context=role_context,
+                ),
+            }],
+            max_tokens=4096,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Claude error: {e}") from e
+
+    return ResumeReviewResponse(
+        overall_score=data.get("overallScore", 50),
+        sections=[
+            ResumeReviewSection(
+                name=s.get("name", ""),
+                score=s.get("score", 50),
+                feedback=s.get("feedback", ""),
+                suggestions=s.get("suggestions", []),
+            )
+            for s in data.get("sections", [])
+        ],
+        strengths=data.get("strengths", []),
+        improvements=data.get("improvements", []),
+        ats_score=data.get("atsScore", 50),
+        ats_feedback=data.get("atsFeedback", ""),
+        summary=data.get("summary", ""),
+        target_role_fit=data.get("targetRoleFit"),
     )

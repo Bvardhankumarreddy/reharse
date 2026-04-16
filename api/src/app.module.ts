@@ -18,6 +18,8 @@ import { BillingModule } from './billing/billing.module';
 import { UserFeedbackModule } from './user-feedback/user-feedback.module';
 import { StorageModule } from './storage/storage.module';
 import { AdminModule } from './admin/admin.module';
+import { ReferralModule } from './referral/referral.module';
+import { TeamModule } from './team/team.module';
 
 @Module({
   imports: [
@@ -60,6 +62,8 @@ import { AdminModule } from './admin/admin.module';
     UserFeedbackModule,
     StorageModule,
     AdminModule,
+    ReferralModule,
+    TeamModule,
   ],
   controllers: [HealthController],
 })

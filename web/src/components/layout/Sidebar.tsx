@@ -15,10 +15,16 @@ const NAV_ITEMS = [
 ] as const;
 
 const TOOLS_ITEMS = [
-  { href: "/tools/jd-match",     label: "JD Match",      icon: "document_scanner" },
-  { href: "/tools/star-builder", label: "STAR Builder",   icon: "format_list_bulleted" },
-  { href: "/tools/debrief",      label: "Interview Log",  icon: "work_history" },
-  { href: "/tools/pair",         label: "Peer Practice",  icon: "group" },
+  { href: "/tools/jd-match",       label: "JD Match",       icon: "document_scanner" },
+  { href: "/tools/star-builder",   label: "STAR Builder",   icon: "format_list_bulleted" },
+  { href: "/tools/resume-review",  label: "Resume Review",  icon: "description" },
+  { href: "/tools/debrief",        label: "Interview Log",  icon: "work_history" },
+  { href: "/tools/pair",           label: "Peer Practice",  icon: "group" },
+] as const;
+
+const COMMUNITY_ITEMS = [
+  { href: "/referrals", label: "Referrals",  icon: "share" },
+  { href: "/team",      label: "Team",       icon: "groups" },
 ] as const;
 
 const BOTTOM_ITEMS = [
@@ -183,6 +189,29 @@ export default function Sidebar({ onCoachOpen }: Props) {
           <div className="pt-3 mt-3 border-t border-border space-y-0.5">
             <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">Tools</p>
             {TOOLS_ITEMS.map(({ href, label, icon }) => {
+              const active = isActive(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={clsx(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] font-medium transition-colors",
+                    active
+                      ? "bg-blue text-white font-semibold"
+                      : "text-text-sec hover:bg-bg-app hover:text-text-pri"
+                  )}
+                >
+                  <NavIcon name={icon} filled={active} />
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* ── Community section ── */}
+          <div className="pt-3 mt-3 border-t border-border space-y-0.5">
+            <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">Community</p>
+            {COMMUNITY_ITEMS.map(({ href, label, icon }) => {
               const active = isActive(href);
               return (
                 <Link

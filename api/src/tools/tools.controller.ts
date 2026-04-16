@@ -125,4 +125,32 @@ export class ToolsController {
 
     return res.json();
   }
+
+  /** POST /api/v1/tools/resume-review — get AI feedback on user's resume */
+  @Post('resume-review')
+  async reviewResume(@CurrentUser() clerkUser: ClerkUser) {
+    const user = await this.users.findById(clerkUser.sub);
+    if (!user.resumeText) {
+      throw new BadRequestException('No resume found. Please upload a resume first in Settings.');
+    }
+
+    const aiUrl = this.config.get<string>('AI_ENGINE_URL') ?? 'http://localhost:8000';
+
+    const res = await fetch(`${aiUrl}/resume/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resume_text: user.resumeText,
+        target_role: user.targetRole ?? null,
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => 'AI engine error');
+      throw new Error(`Resume review failed (${res.status}): ${body}`);
+    }
+
+    return res.json();
+  }
 }

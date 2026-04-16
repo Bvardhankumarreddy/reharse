@@ -161,6 +161,29 @@ class ResumeParseResponse(BaseModel):
 
 # ── JD Match ──────────────────────────────────────────────────────────────────
 
+class ResumeReviewRequest(BaseModel):
+    resume_text: str
+    target_role: str | None = None
+
+
+class ResumeReviewSection(BaseModel):
+    name: str
+    score: int = Field(ge=0, le=100)
+    feedback: str
+    suggestions: list[str] = []
+
+
+class ResumeReviewResponse(BaseModel):
+    overall_score: int = Field(ge=0, le=100)
+    sections: list[ResumeReviewSection]
+    strengths: list[str]
+    improvements: list[str]
+    ats_score: int = Field(ge=0, le=100)
+    ats_feedback: str
+    summary: str
+    target_role_fit: str | None = None
+
+
 class JDMatchRequest(BaseModel):
     job_description: str
     resume_text:     str | None = None
