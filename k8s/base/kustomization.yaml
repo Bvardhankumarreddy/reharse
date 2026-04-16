@@ -13,3 +13,4 @@ resources:
   - 06-api.yaml
   - 07-web.yaml
   - 08-ingress.yaml
+  - 09-vpa.yaml
