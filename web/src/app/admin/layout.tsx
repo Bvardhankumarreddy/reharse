@@ -72,14 +72,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           })}
         </nav>
         <div className="p-3 border-t border-white/5 space-y-0.5">
-          <a
-            href="/api/v1/admin/users/export"
-            target="_blank"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+          <button
+            onClick={async () => {
+              const res = await fetch("/api/auth/token");
+              const { token } = (await res.json()) as { token?: string };
+              if (!token) return;
+              const csv = await fetch("/api/v1/admin/users/export", {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const blob = await csv.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "users.csv";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">download</span>
             Export CSV
-          </a>
+          </button>
           <Link href="/" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors">
             <span className="material-symbols-outlined text-[18px]">arrow_back</span>
             Back to App
