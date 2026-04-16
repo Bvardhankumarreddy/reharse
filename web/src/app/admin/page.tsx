@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { authClient } from "@/lib/auth-client";
 
 interface Stats {
   totalUsers: number;
@@ -47,15 +46,18 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    authClient.getSession().then(async ({ data }) => {
-      if (!data?.session?.token) return;
+    (async () => {
       try {
-        const s = await fetchStats(data.session.token);
+        const res = await fetch("/api/auth/token");
+        if (!res.ok) return;
+        const { token } = (await res.json()) as { token?: string };
+        if (!token) return;
+        const s = await fetchStats(token);
         setStats(s);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load stats");
       }
-    });
+    })();
   }, []);
 
   if (error) return (

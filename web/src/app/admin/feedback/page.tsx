@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { authClient } from "@/lib/auth-client";
 
 interface FeedbackItem {
   id: string; userId: string; userEmail: string | null;
@@ -26,7 +25,9 @@ export default function AdminFeedbackPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    authClient.getSession().then(({ data }) => { if (data?.session?.token) setToken(data.session.token); });
+    fetch("/api/auth/token")
+      .then((r) => r.json())
+      .then((d: { token?: string }) => { if (d.token) setToken(d.token); });
   }, []);
 
   const load = useCallback(async () => {

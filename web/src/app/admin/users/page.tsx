@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 
 interface AdminUser {
   id: string;
@@ -44,9 +43,9 @@ export default function AdminUsersPage() {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    authClient.getSession().then(({ data }) => {
-      if (data?.session?.token) setToken(data.session.token);
-    });
+    fetch("/api/auth/token")
+      .then((r) => r.json())
+      .then((d: { token?: string }) => { if (d.token) setToken(d.token); });
   }, []);
 
   const load = useCallback(async () => {

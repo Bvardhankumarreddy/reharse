@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { authClient } from "@/lib/auth-client";
 
 interface RevenueData {
   plans: { tier: string; status: string; count: string }[];
@@ -23,7 +22,9 @@ export default function AdminRevenuePage() {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    authClient.getSession().then(({ data: s }) => { if (s?.session?.token) setToken(s.session.token); });
+    fetch("/api/auth/token")
+      .then((r) => r.json())
+      .then((d: { token?: string }) => { if (d.token) setToken(d.token); });
   }, []);
 
   useEffect(() => {

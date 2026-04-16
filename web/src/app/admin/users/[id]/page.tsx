@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 
 interface UserDetail {
   user: {
@@ -58,9 +57,9 @@ export default function UserDetailPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    authClient.getSession().then(({ data: s }) => {
-      if (s?.session?.token) setToken(s.session.token);
-    });
+    fetch("/api/auth/token")
+      .then((r) => r.json())
+      .then((d: { token?: string }) => { if (d.token) setToken(d.token); });
   }, []);
 
   useEffect(() => {
