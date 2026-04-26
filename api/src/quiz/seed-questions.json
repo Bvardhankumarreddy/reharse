@@ -1,0 +1,62 @@
+[
+  {
+    "question_text": "Which of these is the BIGGEST umbrella term?",
+    "option_a": "Machine Learning",
+    "option_b": "Deep Learning",
+    "option_c": "Artificial Intelligence",
+    "option_d": "Neural Network",
+    "correct_answer": "C",
+    "points": 1,
+    "difficulty": "easy",
+    "category": "Lesson 1 — AI vs ML vs DL",
+    "quiz_week": 1
+  },
+  {
+    "question_text": "What technology does Deep Learning use?",
+    "option_a": "Decision trees",
+    "option_b": "Neural networks with multiple layers",
+    "option_c": "If-then rules",
+    "option_d": "Spreadsheets",
+    "correct_answer": "B",
+    "points": 2,
+    "difficulty": "medium",
+    "category": "Lesson 1 — AI vs ML vs DL",
+    "quiz_week": 1
+  },
+  {
+    "question_text": "What is 'training data' in AI?",
+    "option_a": "Test data for users",
+    "option_b": "Labeled examples used to teach the AI",
+    "option_c": "Backup files",
+    "option_d": "The AI's output",
+    "correct_answer": "B",
+    "points": 2,
+    "difficulty": "medium",
+    "category": "Lesson 2 — How AI Learns",
+    "quiz_week": 1
+  },
+  {
+    "question_text": "What is 'overfitting'?",
+    "option_a": "When the AI is too big to fit on a server",
+    "option_b": "When the AI memorizes training data but fails on new data",
+    "option_c": "When training takes too long",
+    "option_d": "When data is corrupted",
+    "correct_answer": "B",
+    "points": 3,
+    "difficulty": "hard",
+    "category": "Lesson 2 — How AI Learns",
+    "quiz_week": 1
+  },
+  {
+    "question_text": "Why can ChatGPT write essays even though it doesn't 'understand' language like humans?",
+    "option_a": "It has a hidden human writing for it",
+    "option_b": "It learned statistical patterns of language so deeply, output is indistinguishable from understanding",
+    "option_c": "It memorized every essay ever written",
+    "option_d": "It uses Google Translate internally",
+    "correct_answer": "B",
+    "points": 3,
+    "difficulty": "hard",
+    "category": "Concepts & Applications",
+    "quiz_week": 1
+  }
+]

@@ -8,6 +8,7 @@ function isPublicPath(pathname: string): boolean {
     pathname.startsWith("/sign-up") ||
     pathname.startsWith("/pricing") ||
     pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/quiz") ||  // public weekly quiz/contest
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/v1") ||  // proxied to NestJS which has its own auth guard
     /\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|woff2?|ttf)$/.test(pathname)

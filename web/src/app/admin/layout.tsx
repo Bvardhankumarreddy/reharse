@@ -14,6 +14,9 @@ const NAV = [
   { href: "/admin/feedback", label: "Feedback", icon: "reviews" },
   { href: "/admin/feedback-audit", label: "AI Audit", icon: "fact_check" },
   { href: "/admin/revenue", label: "Revenue", icon: "payments" },
+  { href: "/admin/quiz", label: "Quiz Submissions", icon: "leaderboard" },
+  { href: "/admin/quiz/questions", label: "Quiz Questions", icon: "psychology" },
+  { href: "/admin/quiz/import", label: "Quiz Import", icon: "upload_file" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -36,11 +39,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  const activeNav = NAV.find((n) =>
-    n.href === "/admin"
-      ? pathname === "/admin"
-      : pathname.startsWith(n.href),
-  );
+  // Find the longest matching href so /admin/quiz/questions wins over /admin/quiz
+  const activeHref = NAV
+    .filter((n) => (n.href === "/admin" ? pathname === "/admin" : pathname === n.href || pathname.startsWith(n.href + "/")))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  const activeNav = NAV.find((n) => n.href === activeHref);
 
   return (
     <div className="min-h-screen bg-[#0f172a] flex">
@@ -52,9 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           {NAV.map((item) => {
-            const active = item.href === "/admin"
-              ? pathname === "/admin"
-              : pathname.startsWith(item.href);
+            const active = item.href === activeHref;
             return (
               <Link
                 key={item.href}

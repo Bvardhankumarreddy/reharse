@@ -16,5 +16,6 @@ import { AdminNote } from './admin-note.entity';
   ],
   controllers: [AdminController],
   providers: [AdminService, AdminGuard],
+  exports: [AdminGuard, TypeOrmModule],
 })
 export class AdminModule {}

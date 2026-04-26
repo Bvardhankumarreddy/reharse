@@ -20,6 +20,7 @@ import { StorageModule } from './storage/storage.module';
 import { AdminModule } from './admin/admin.module';
 import { ReferralModule } from './referral/referral.module';
 import { TeamModule } from './team/team.module';
+import { QuizModule } from './quiz/quiz.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { TeamModule } from './team/team.module';
     AdminModule,
     ReferralModule,
     TeamModule,
+    QuizModule,
   ],
   controllers: [HealthController],
 })
