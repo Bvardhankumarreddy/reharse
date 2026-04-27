@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 // Routes that don't require authentication.
 // /quiz/* must remain public — weekly contest is open to anyone.
+// /api/v1/* is proxied to NestJS which has its own auth guard.
 function isPublicPath(pathname: string): boolean {
   return (
     pathname.startsWith("/sign-in") ||
