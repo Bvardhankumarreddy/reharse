@@ -3,14 +3,22 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 
+type QType = "mcq" | "true_false" | "multi_select" | "numeric";
+type Letter = "A" | "B" | "C" | "D";
+
 interface Question {
   id: string;
+  questionType: QType;
   questionText: string;
   optionA: string;
   optionB: string;
   optionC: string;
   optionD: string;
-  correctAnswer: "A" | "B" | "C" | "D";
+  correctAnswer: Letter | null;
+  correctAnswers: Letter[] | null;
+  correctNumber: number | string | null;
+  numericTolerance: number | string | null;
+  numericUnit: string | null;
   points: number;
   difficulty: "easy" | "medium" | "hard";
   category: string;
@@ -20,10 +28,25 @@ interface Question {
 }
 
 const emptyForm = {
-  questionText: "", optionA: "", optionB: "", optionC: "", optionD: "",
-  correctAnswer: "A" as "A" | "B" | "C" | "D",
-  points: 1, difficulty: "easy" as "easy" | "medium" | "hard",
-  category: "", quizWeek: 1,
+  questionType: "mcq" as QType,
+  questionText: "",
+  optionA: "", optionB: "", optionC: "", optionD: "",
+  correctAnswer: "A" as Letter,
+  correctAnswers: [] as Letter[],
+  correctNumber: "",
+  numericTolerance: "0",
+  numericUnit: "",
+  points: 1,
+  difficulty: "easy" as "easy" | "medium" | "hard",
+  category: "",
+  quizWeek: 1,
+};
+
+const TYPE_LABELS: Record<QType, string> = {
+  mcq: "Multiple Choice",
+  true_false: "True / False",
+  multi_select: "Multi-Select",
+  numeric: "Numeric Answer",
 };
 
 const diffColor: Record<string, string> = {
@@ -91,12 +114,17 @@ export default function AdminQuizQuestionsPage() {
   function openEdit(q: Question) {
     setEditing(q);
     setForm({
+      questionType: q.questionType ?? "mcq",
       questionText: q.questionText,
-      optionA: q.optionA,
-      optionB: q.optionB,
-      optionC: q.optionC,
-      optionD: q.optionD,
-      correctAnswer: q.correctAnswer,
+      optionA: q.optionA ?? "",
+      optionB: q.optionB ?? "",
+      optionC: q.optionC ?? "",
+      optionD: q.optionD ?? "",
+      correctAnswer: (q.correctAnswer ?? "A") as Letter,
+      correctAnswers: (q.correctAnswers ?? []) as Letter[],
+      correctNumber: q.correctNumber != null ? String(q.correctNumber) : "",
+      numericTolerance: q.numericTolerance != null ? String(q.numericTolerance) : "0",
+      numericUnit: q.numericUnit ?? "",
       points: q.points,
       difficulty: q.difficulty,
       category: q.category,
@@ -112,34 +140,61 @@ export default function AdminQuizQuestionsPage() {
       const url = editing
         ? `/api/v1/admin/quiz/questions/${editing.id}`
         : "/api/v1/admin/quiz/questions";
+
+      // Build a payload tailored to the question type
+      const payload: Record<string, unknown> = {
+        questionType: form.questionType,
+        questionText: form.questionText,
+        points: form.points,
+        difficulty: form.difficulty,
+        category: form.category,
+        quizWeek: form.quizWeek,
+      };
+
+      if (form.questionType === "mcq") {
+        payload.optionA = form.optionA;
+        payload.optionB = form.optionB;
+        payload.optionC = form.optionC;
+        payload.optionD = form.optionD;
+        payload.correctAnswer = form.correctAnswer;
+      } else if (form.questionType === "true_false") {
+        payload.optionA = form.optionA || "True";
+        payload.optionB = form.optionB || "False";
+        payload.correctAnswer = form.correctAnswer === "B" ? "B" : "A";
+      } else if (form.questionType === "multi_select") {
+        payload.optionA = form.optionA;
+        payload.optionB = form.optionB;
+        payload.optionC = form.optionC;
+        payload.optionD = form.optionD;
+        payload.correctAnswers = form.correctAnswers;
+      } else if (form.questionType === "numeric") {
+        payload.correctNumber = parseFloat(form.correctNumber || "0");
+        payload.numericTolerance = parseFloat(form.numericTolerance || "0");
+        payload.numericUnit = form.numericUnit || null;
+      }
+
       await fetch(url, {
         method: editing ? "PATCH" : "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question_text: form.questionText,
-          option_a: form.optionA,
-          option_b: form.optionB,
-          option_c: form.optionC,
-          option_d: form.optionD,
-          correct_answer: form.correctAnswer,
-          points: form.points,
-          difficulty: form.difficulty,
-          category: form.category,
-          quiz_week: form.quizWeek,
-          questionText: form.questionText,
-          optionA: form.optionA,
-          optionB: form.optionB,
-          optionC: form.optionC,
-          optionD: form.optionD,
-          correctAnswer: form.correctAnswer,
-          quizWeek: form.quizWeek,
-        }),
+        body: JSON.stringify(payload),
       });
       setShowModal(false);
       void load();
     } finally {
       setSaving(false);
     }
+  }
+
+  function toggleMultiAnswer(letter: Letter) {
+    setForm((f) => {
+      const has = f.correctAnswers.includes(letter);
+      return {
+        ...f,
+        correctAnswers: has
+          ? f.correctAnswers.filter((l) => l !== letter)
+          : [...f.correctAnswers, letter].sort() as Letter[],
+      };
+    });
   }
 
   async function deleteOne(id: string) {
@@ -306,8 +361,19 @@ export default function AdminQuizQuestionsPage() {
                       <input type="checkbox" checked={selected.has(q.id)} onChange={() => toggleSelect(q.id)} />
                     </td>
                     <td className="px-2 py-3">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 capitalize">
+                          {TYPE_LABELS[q.questionType ?? "mcq"]}
+                        </span>
+                      </div>
                       <div className="text-white text-sm line-clamp-2 max-w-md">{q.questionText}</div>
-                      <div className="text-slate-500 text-[10px] mt-0.5">{q.category} · ✓ {q.correctAnswer}</div>
+                      <div className="text-slate-500 text-[10px] mt-0.5">
+                        {q.category} · ✓ {
+                          q.questionType === "multi_select" ? (q.correctAnswers ?? []).join(",") :
+                          q.questionType === "numeric" ? `${q.correctNumber ?? "?"} ${q.numericUnit ?? ""}` :
+                          q.correctAnswer ?? "?"
+                        }
+                      </div>
                     </td>
                     <td className="px-3 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${diffColor[q.difficulty]}`}>
@@ -351,6 +417,20 @@ export default function AdminQuizQuestionsPage() {
           <div className="bg-[#1e293b] rounded-2xl border border-white/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
             <h2 className="text-white font-bold text-lg mb-4">{editing ? "Edit Question" : "Add Question"}</h2>
             <div className="space-y-3">
+              {/* Question type selector */}
+              <div>
+                <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Question Type</label>
+                <select
+                  value={form.questionType}
+                  onChange={(e) => setForm({ ...form, questionType: e.target.value as QType })}
+                  className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                >
+                  {(Object.keys(TYPE_LABELS) as QType[]).map((t) => (
+                    <option key={t} value={t}>{TYPE_LABELS[t]}</option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Question</label>
                 <textarea
@@ -360,27 +440,124 @@ export default function AdminQuizQuestionsPage() {
                   className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
                 />
               </div>
-              {(["A", "B", "C", "D"] as const).map((letter) => (
-                <div key={letter}>
-                  <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Option {letter}</label>
-                  <input
-                    value={form[`option${letter}` as keyof typeof form] as string}
-                    onChange={(e) => setForm({ ...form, [`option${letter}`]: e.target.value })}
-                    className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
-                  />
+
+              {/* MCQ — 4 options + 1 correct */}
+              {form.questionType === "mcq" && (
+                <>
+                  {(["A", "B", "C", "D"] as const).map((letter) => (
+                    <div key={letter}>
+                      <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Option {letter}</label>
+                      <input
+                        value={form[`option${letter}` as keyof typeof form] as string}
+                        onChange={(e) => setForm({ ...form, [`option${letter}`]: e.target.value })}
+                        className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                      />
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* True/False — auto-labeled */}
+              {form.questionType === "true_false" && (
+                <div className="bg-[#0f172a] border border-white/10 rounded-xl p-3 text-slate-400 text-xs">
+                  Options A=True / B=False are auto-set. Just pick the correct one below.
                 </div>
-              ))}
+              )}
+
+              {/* Multi-select — 4 options + checkboxes for correct */}
+              {form.questionType === "multi_select" && (
+                <>
+                  {(["A", "B", "C", "D"] as const).map((letter) => (
+                    <div key={letter}>
+                      <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Option {letter}</label>
+                      <input
+                        value={form[`option${letter}` as keyof typeof form] as string}
+                        onChange={(e) => setForm({ ...form, [`option${letter}`]: e.target.value })}
+                        className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                      />
+                    </div>
+                  ))}
+                  <div>
+                    <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Correct Answers (pick all)</label>
+                    <div className="flex gap-2">
+                      {(["A", "B", "C", "D"] as Letter[]).map((l) => {
+                        const on = form.correctAnswers.includes(l);
+                        return (
+                          <button
+                            key={l}
+                            type="button"
+                            onClick={() => toggleMultiAnswer(l)}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold transition border ${
+                              on
+                                ? "bg-emerald-500/20 border-emerald-500 text-emerald-300"
+                                : "bg-[#0f172a] border-white/10 text-slate-400 hover:border-white/20"
+                            }`}
+                          >
+                            {l}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Numeric — single number + tolerance + unit */}
+              {form.questionType === "numeric" && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Correct Number</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={form.correctNumber}
+                      onChange={(e) => setForm({ ...form, correctNumber: e.target.value })}
+                      className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Tolerance ±</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min={0}
+                      value={form.numericTolerance}
+                      onChange={(e) => setForm({ ...form, numericTolerance: e.target.value })}
+                      className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Unit</label>
+                    <input
+                      value={form.numericUnit}
+                      onChange={(e) => setForm({ ...form, numericUnit: e.target.value })}
+                      placeholder="billion, %, ms..."
+                      className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Correct</label>
-                  <select
-                    value={form.correctAnswer}
-                    onChange={(e) => setForm({ ...form, correctAnswer: e.target.value as "A" | "B" | "C" | "D" })}
-                    className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
-                  >
-                    {(["A", "B", "C", "D"] as const).map((l) => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                </div>
+                {(form.questionType === "mcq" || form.questionType === "true_false") && (
+                  <div>
+                    <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Correct</label>
+                    <select
+                      value={form.correctAnswer}
+                      onChange={(e) => setForm({ ...form, correctAnswer: e.target.value as Letter })}
+                      className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                    >
+                      {(form.questionType === "true_false"
+                        ? (["A", "B"] as const)
+                        : (["A", "B", "C", "D"] as const)
+                      ).map((l) => (
+                        <option key={l} value={l}>
+                          {form.questionType === "true_false" ? (l === "A" ? "A — True" : "B — False") : l}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Points</label>
                   <select

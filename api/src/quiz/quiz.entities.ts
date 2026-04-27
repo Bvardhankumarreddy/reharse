@@ -47,28 +47,51 @@ export class QuizConfig {
   updatedAt: Date;
 }
 
+export type QuizQuestionType = 'mcq' | 'true_false' | 'multi_select' | 'numeric';
+
 @Entity('quiz_questions')
 export class QuizQuestion {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({ type: 'varchar', length: 16, default: 'mcq' })
+  questionType: QuizQuestionType;
+
   @Column({ type: 'text' })
   questionText: string;
 
-  @Column({ type: 'text' })
+  // ── For mcq, true_false, multi_select ──
+  @Column({ type: 'text', default: '' })
   optionA: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text', default: '' })
   optionB: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text', default: '' })
   optionC: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text', default: '' })
   optionD: string;
 
-  @Column({ type: 'varchar', length: 1 })
-  correctAnswer: 'A' | 'B' | 'C' | 'D';
+  /** Single-letter answer for mcq + true_false (true_false: A=True, B=False) */
+  @Column({ type: 'varchar', length: 1, nullable: true })
+  correctAnswer: 'A' | 'B' | 'C' | 'D' | null;
+
+  /** Comma-separated for multi_select (e.g. "A,C,D") */
+  @Column({ type: 'simple-array', nullable: true })
+  correctAnswers: string[] | null;
+
+  // ── For numeric ──
+  @Column({ type: 'numeric', precision: 18, scale: 6, nullable: true })
+  correctNumber: number | null;
+
+  /** Acceptable absolute tolerance, e.g. 5 means within ±5 of correctNumber */
+  @Column({ type: 'numeric', precision: 18, scale: 6, default: 0 })
+  numericTolerance: number;
+
+  /** Display label for numeric (e.g. "billion parameters", "%", "million") */
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  numericUnit: string | null;
 
   @Column({ type: 'int', default: 1 })
   points: number;
@@ -158,8 +181,13 @@ export class QuizSubmissionAnswer {
   @JoinColumn({ name: 'questionId' })
   question: QuizQuestion;
 
-  @Column({ type: 'varchar', length: 1 })
-  selectedAnswer: 'A' | 'B' | 'C' | 'D';
+  /** Single-letter for mcq/true_false; comma-separated for multi_select; "n/a" for numeric */
+  @Column({ type: 'varchar', length: 50 })
+  selectedAnswer: string;
+
+  /** Numeric answer (only when questionType=numeric) */
+  @Column({ type: 'numeric', precision: 18, scale: 6, nullable: true })
+  selectedNumber: number | null;
 
   @Column({ type: 'boolean' })
   isCorrect: boolean;
@@ -205,11 +233,12 @@ export class QuizSession {
   @Column({ type: 'int', default: 0 })
   currentIndex: number;
 
-  /** Answers so far: array of { questionId, selectedAnswer, isCorrect, pointsEarned, timeTakenSeconds } */
+  /** Answers so far — one entry per answered question */
   @Column({ type: 'jsonb', default: [] })
   answers: Array<{
     questionId: string;
-    selectedAnswer: 'A' | 'B' | 'C' | 'D';
+    selectedAnswer: string; // 'A' / 'B,C' / 'n/a'
+    selectedNumber?: number | null;
     isCorrect: boolean;
     pointsEarned: number;
     timeTakenSeconds: number;

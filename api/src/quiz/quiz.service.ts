@@ -10,6 +10,7 @@ import { Repository, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import {
   QuizQuestion,
+  QuizQuestionType,
   QuizSubmission,
   QuizSubmissionAnswer,
   QuizSession,
@@ -23,12 +24,14 @@ const RATE_LIMIT_MAX = 3;
 
 export interface PublicQuestion {
   id: string;
+  questionType: 'mcq' | 'true_false' | 'multi_select' | 'numeric';
   questionText: string;
   optionA: string;
   optionB: string;
   optionC: string;
   optionD: string;
-  // correctAnswer NEVER included
+  numericUnit: string | null;
+  // correctAnswer/correctNumber NEVER included
 }
 
 @Injectable()
@@ -230,15 +233,14 @@ export class QuizService {
 
   async submitAnswer(opts: {
     sessionId: string;
-    selectedAnswer: 'A' | 'B' | 'C' | 'D';
+    selectedAnswer?: string; // 'A' for mcq/t-f
+    selectedAnswers?: string[]; // ['A', 'C'] for multi_select
+    selectedNumber?: number; // for numeric
   }): Promise<
     | { done: false; questionNumber: number; totalQuestions: number; question: PublicQuestion; expiresAt?: string }
     | { done: true; needsTiebreaker: boolean; expired?: boolean }
   > {
-    const { sessionId, selectedAnswer } = opts;
-    if (!['A', 'B', 'C', 'D'].includes(selectedAnswer)) {
-      throw new BadRequestException('Invalid answer');
-    }
+    const { sessionId } = opts;
 
     const session = await this.sessions.findOne({ where: { id: sessionId } });
     if (!session) throw new NotFoundException('Session not found');
@@ -258,8 +260,10 @@ export class QuizService {
     const question = await this.questions.findOne({ where: { id: currentQuestionId } });
     if (!question) throw new NotFoundException('Question not found');
 
-    const isCorrect = selectedAnswer === question.correctAnswer;
+    // Score based on question type
+    const { isCorrect, recordedAnswer, recordedNumber } = this.gradeAnswer(question, opts);
     const pointsEarned = isCorrect ? question.points : 0;
+
     const now = new Date();
     const startedAt = session.questionStartedAt ?? session.startedAt;
     const timeTakenSeconds = Math.max(
@@ -269,7 +273,14 @@ export class QuizService {
 
     session.answers = [
       ...session.answers,
-      { questionId: question.id, selectedAnswer, isCorrect, pointsEarned, timeTakenSeconds },
+      {
+        questionId: question.id,
+        selectedAnswer: recordedAnswer,
+        selectedNumber: recordedNumber,
+        isCorrect,
+        pointsEarned,
+        timeTakenSeconds,
+      },
     ];
     session.currentIndex += 1;
     session.questionStartedAt = now;
@@ -291,6 +302,62 @@ export class QuizService {
       question: this.toPublicQuestion(nextQuestion),
       expiresAt: session.expiresAt ? new Date(session.expiresAt).toISOString() : undefined,
     };
+  }
+
+  /** Grade a single answer based on question type */
+  private gradeAnswer(
+    question: QuizQuestion,
+    opts: { selectedAnswer?: string; selectedAnswers?: string[]; selectedNumber?: number },
+  ): { isCorrect: boolean; recordedAnswer: string; recordedNumber: number | null } {
+    const type = question.questionType ?? 'mcq';
+
+    if (type === 'mcq' || type === 'true_false') {
+      const ans = opts.selectedAnswer;
+      const allowed = type === 'true_false' ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+      if (!ans || !allowed.includes(ans)) {
+        throw new BadRequestException(`Invalid answer. Expected one of: ${allowed.join(', ')}`);
+      }
+      return {
+        isCorrect: ans === question.correctAnswer,
+        recordedAnswer: ans,
+        recordedNumber: null,
+      };
+    }
+
+    if (type === 'multi_select') {
+      const ans = opts.selectedAnswers ?? [];
+      if (!Array.isArray(ans) || ans.some((a) => !['A', 'B', 'C', 'D'].includes(a))) {
+        throw new BadRequestException('Invalid multi-select answer');
+      }
+      const correct = (question.correctAnswers ?? []).slice().sort();
+      const submitted = [...new Set(ans)].sort();
+      const isCorrect =
+        correct.length > 0 &&
+        correct.length === submitted.length &&
+        correct.every((c, i) => c === submitted[i]);
+      return {
+        isCorrect,
+        recordedAnswer: submitted.join(','),
+        recordedNumber: null,
+      };
+    }
+
+    if (type === 'numeric') {
+      const n = opts.selectedNumber;
+      if (typeof n !== 'number' || isNaN(n)) {
+        throw new BadRequestException('Numeric answer required');
+      }
+      const correct = Number(question.correctNumber ?? 0);
+      const tol = Number(question.numericTolerance ?? 0);
+      const isCorrect = Math.abs(n - correct) <= tol;
+      return {
+        isCorrect,
+        recordedAnswer: 'n/a',
+        recordedNumber: n,
+      };
+    }
+
+    throw new BadRequestException(`Unknown question type: ${type}`);
   }
 
   // ── Public: Complete Quiz ─────────────────────────────────────────────
@@ -350,6 +417,7 @@ export class QuizService {
         submissionId: saved.id,
         questionId: a.questionId,
         selectedAnswer: a.selectedAnswer,
+        selectedNumber: a.selectedNumber ?? null,
         isCorrect: a.isCorrect,
         pointsEarned: a.pointsEarned,
         timeTakenSeconds: a.timeTakenSeconds,
@@ -367,13 +435,17 @@ export class QuizService {
   // ── Helpers ───────────────────────────────────────────────────────────
 
   private toPublicQuestion(q: QuizQuestion): PublicQuestion {
+    // For true_false: coerce options to "True"/"False" so admins don't need to set them
+    const isTF = q.questionType === 'true_false';
     return {
       id: q.id,
+      questionType: q.questionType ?? 'mcq',
       questionText: q.questionText,
-      optionA: q.optionA,
-      optionB: q.optionB,
-      optionC: q.optionC,
-      optionD: q.optionD,
+      optionA: isTF ? (q.optionA || 'True') : q.optionA,
+      optionB: isTF ? (q.optionB || 'False') : q.optionB,
+      optionC: isTF ? '' : q.optionC,
+      optionD: isTF ? '' : q.optionD,
+      numericUnit: q.numericUnit ?? null,
     };
   }
 
@@ -648,13 +720,19 @@ export class QuizService {
 
   async adminCreateQuestion(body: Partial<QuizQuestion>) {
     this.validateQuestion(body);
+    const type = body.questionType ?? 'mcq';
     const q = this.questions.create({
+      questionType: type,
       questionText: body.questionText!,
-      optionA: body.optionA!,
-      optionB: body.optionB!,
-      optionC: body.optionC!,
-      optionD: body.optionD!,
-      correctAnswer: body.correctAnswer!,
+      optionA: body.optionA ?? (type === 'true_false' ? 'True' : ''),
+      optionB: body.optionB ?? (type === 'true_false' ? 'False' : ''),
+      optionC: body.optionC ?? '',
+      optionD: body.optionD ?? '',
+      correctAnswer: body.correctAnswer ?? null,
+      correctAnswers: body.correctAnswers ?? null,
+      correctNumber: body.correctNumber ?? null,
+      numericTolerance: body.numericTolerance ?? 0,
+      numericUnit: body.numericUnit ?? null,
       points: body.points ?? 1,
       difficulty: body.difficulty!,
       category: body.category!,
@@ -736,11 +814,18 @@ export class QuizService {
     if (filters.category) qb.andWhere('q.category = :category', { category: filters.category });
     const list = await qb.getMany();
 
-    const header = 'question_text,option_a,option_b,option_c,option_d,correct_answer,points,difficulty,category,quiz_week,is_active\n';
+    const header = 'question_type,question_text,option_a,option_b,option_c,option_d,correct_answer,correct_answers,correct_number,numeric_tolerance,numeric_unit,points,difficulty,category,quiz_week,is_active\n';
     const rows = list.map((q) =>
       [
-        q.questionText, q.optionA, q.optionB, q.optionC, q.optionD,
-        q.correctAnswer, q.points, q.difficulty, q.category, q.quizWeek, q.isActive,
+        q.questionType ?? 'mcq',
+        q.questionText,
+        q.optionA, q.optionB, q.optionC, q.optionD,
+        q.correctAnswer ?? '',
+        (q.correctAnswers ?? []).join(','),
+        q.correctNumber ?? '',
+        q.numericTolerance ?? '',
+        q.numericUnit ?? '',
+        q.points, q.difficulty, q.category, q.quizWeek, q.isActive,
       ]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
         .join(','),
@@ -754,13 +839,35 @@ export class QuizService {
       const v = row[key] ?? row[key.replace(/_/g, '')] ?? row[this.camelize(key)];
       return v == null ? '' : String(v).trim();
     };
+    const getNum = (key: string): number | null => {
+      const s = get(key);
+      if (s === '') return null;
+      const n = parseFloat(s);
+      return isNaN(n) ? null : n;
+    };
+    const rawType = get('question_type').toLowerCase();
+    const type: QuizQuestionType =
+      ['mcq', 'true_false', 'multi_select', 'numeric'].includes(rawType)
+        ? (rawType as QuizQuestionType)
+        : 'mcq';
+
+    const correctAnswersRaw = get('correct_answers');
+    const correctAnswers = correctAnswersRaw
+      ? correctAnswersRaw.split(/[,;|]/).map((s) => s.trim().toUpperCase()).filter(Boolean)
+      : null;
+
     return {
+      questionType: type,
       questionText: get('question_text'),
-      optionA: get('option_a'),
-      optionB: get('option_b'),
+      optionA: get('option_a') || (type === 'true_false' ? 'True' : ''),
+      optionB: get('option_b') || (type === 'true_false' ? 'False' : ''),
       optionC: get('option_c'),
       optionD: get('option_d'),
-      correctAnswer: get('correct_answer').toUpperCase() as 'A' | 'B' | 'C' | 'D',
+      correctAnswer: get('correct_answer').toUpperCase() as 'A' | 'B' | 'C' | 'D' | null || null,
+      correctAnswers: correctAnswers,
+      correctNumber: getNum('correct_number'),
+      numericTolerance: getNum('numeric_tolerance') ?? 0,
+      numericUnit: get('numeric_unit') || null,
       points: parseInt(get('points'), 10),
       difficulty: get('difficulty').toLowerCase() as 'easy' | 'medium' | 'hard',
       category: get('category'),
@@ -775,13 +882,39 @@ export class QuizService {
 
   private validateQuestion(q: Partial<QuizQuestion>) {
     if (!q.questionText?.trim()) throw new BadRequestException('question_text is required');
-    if (!q.optionA?.trim()) throw new BadRequestException('option_a is required');
-    if (!q.optionB?.trim()) throw new BadRequestException('option_b is required');
-    if (!q.optionC?.trim()) throw new BadRequestException('option_c is required');
-    if (!q.optionD?.trim()) throw new BadRequestException('option_d is required');
-    if (!['A', 'B', 'C', 'D'].includes(q.correctAnswer ?? '')) {
-      throw new BadRequestException('correct_answer must be A, B, C, or D');
+
+    const type = q.questionType ?? 'mcq';
+
+    if (type === 'mcq') {
+      if (!q.optionA?.trim()) throw new BadRequestException('option_a is required');
+      if (!q.optionB?.trim()) throw new BadRequestException('option_b is required');
+      if (!q.optionC?.trim()) throw new BadRequestException('option_c is required');
+      if (!q.optionD?.trim()) throw new BadRequestException('option_d is required');
+      if (!['A', 'B', 'C', 'D'].includes(q.correctAnswer ?? '')) {
+        throw new BadRequestException('correct_answer must be A, B, C, or D');
+      }
+    } else if (type === 'true_false') {
+      if (!['A', 'B'].includes(q.correctAnswer ?? '')) {
+        throw new BadRequestException('correct_answer must be A (True) or B (False)');
+      }
+    } else if (type === 'multi_select') {
+      if (!q.optionA?.trim() || !q.optionB?.trim()) {
+        throw new BadRequestException('option_a and option_b required for multi_select');
+      }
+      if (!q.correctAnswers || q.correctAnswers.length === 0) {
+        throw new BadRequestException('correct_answers required for multi_select (e.g. "A,C")');
+      }
+      const invalid = q.correctAnswers.filter((c) => !['A', 'B', 'C', 'D'].includes(c));
+      if (invalid.length) throw new BadRequestException(`correct_answers must contain only A/B/C/D. Got: ${invalid.join(',')}`);
+    } else if (type === 'numeric') {
+      if (q.correctNumber == null) throw new BadRequestException('correct_number is required for numeric');
+      if (q.numericTolerance != null && q.numericTolerance < 0) {
+        throw new BadRequestException('numeric_tolerance must be >= 0');
+      }
+    } else {
+      throw new BadRequestException(`Invalid question_type: ${type}`);
     }
+
     if (![1, 2, 3].includes(q.points ?? 0)) {
       throw new BadRequestException('points must be 1, 2, or 3');
     }

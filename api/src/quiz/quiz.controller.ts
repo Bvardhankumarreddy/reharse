@@ -34,7 +34,12 @@ export class QuizPublicController {
 
   /** POST /api/v1/quiz/answer — submit answer for current question */
   @Post('answer')
-  answer(@Body() body: { sessionId: string; selectedAnswer: 'A' | 'B' | 'C' | 'D' }) {
+  answer(@Body() body: {
+    sessionId: string;
+    selectedAnswer?: string;
+    selectedAnswers?: string[];
+    selectedNumber?: number;
+  }) {
     return this.quizService.submitAnswer(body);
   }
 
@@ -235,9 +240,11 @@ export class QuizAdminController {
   /** GET /api/v1/admin/quiz/questions/template — blank CSV template */
   @Get('questions/template')
   template(@Res() res: Response) {
-    const csv = `question_text,option_a,option_b,option_c,option_d,correct_answer,points,difficulty,category,quiz_week
-"Which of these is the BIGGEST umbrella term?","Machine Learning","Deep Learning","Artificial Intelligence","Neural Network",C,1,easy,"Lesson 1 — AI vs ML vs DL",1
-"What technology does Deep Learning use?","Decision trees","Neural networks with multiple layers","If-then rules","Spreadsheets",B,2,medium,"Lesson 1 — AI vs ML vs DL",1`;
+    const csv = `question_type,question_text,option_a,option_b,option_c,option_d,correct_answer,correct_answers,correct_number,numeric_tolerance,numeric_unit,points,difficulty,category,quiz_week
+mcq,"Which of these is the BIGGEST umbrella term?","Machine Learning","Deep Learning","Artificial Intelligence","Neural Network",C,,,,,1,easy,"Lesson 1 — AI vs ML vs DL",1
+true_false,"Deep Learning is a subset of Machine Learning.","True","False",,,A,,,,,1,easy,"Lesson 1 — AI vs ML vs DL",1
+multi_select,"Which of these are neural network types?","CNN","SVM","RNN","Transformer",,"A,C,D",,,,2,medium,"Architectures",1
+numeric,"How many parameters (in billions) does GPT-4 have approximately?",,,,,,,1760,200,billion,3,hard,"Models",1`;
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=quiz_questions_template.csv');
     res.send(csv);
