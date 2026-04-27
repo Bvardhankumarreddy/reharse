@@ -457,6 +457,12 @@ export class QuizService {
   }
 
   private async pickQuestionsForWeek(quizWeek: number, totalCount: number): Promise<QuizQuestion[]> {
+    // Pull percentages from config (default 40/40/20 if missing)
+    const config = await this.configs.findOne({ where: { quizWeek } });
+    const easyPct = (config?.easyPercent ?? 40) / 100;
+    const mediumPct = (config?.mediumPercent ?? 40) / 100;
+    // hardPct derived as remainder so totals always reach `remaining`
+
     // 1. Mandatory questions are always included
     const mandatory = await this.questions
       .createQueryBuilder('q')
@@ -474,8 +480,8 @@ export class QuizService {
 
     // 2. Fill remaining slots with non-mandatory random questions, weighted by difficulty
     const remaining = totalCount - mandatory.length;
-    const easyCount = Math.max(0, Math.round(remaining * 0.4));
-    const mediumCount = Math.max(0, Math.round(remaining * 0.4));
+    const easyCount = Math.max(0, Math.round(remaining * easyPct));
+    const mediumCount = Math.max(0, Math.round(remaining * mediumPct));
     const hardCount = Math.max(0, remaining - easyCount - mediumCount);
     const excludeIds = mandatory.map((m) => m.id);
 
@@ -609,6 +615,9 @@ export class QuizService {
     endsAt: string;
     durationMinutes?: number;
     questionsPerQuiz?: number;
+    easyPercent?: number;
+    mediumPercent?: number;
+    hardPercent?: number;
     tiebreakerQuestion?: string;
     isActive?: boolean;
   }) {
@@ -627,6 +636,23 @@ export class QuizService {
       throw new BadRequestException('endsAt must be after startsAt');
     }
 
+    // Validate difficulty percentages if any are provided
+    if (
+      body.easyPercent !== undefined ||
+      body.mediumPercent !== undefined ||
+      body.hardPercent !== undefined
+    ) {
+      const e = body.easyPercent ?? 40;
+      const m = body.mediumPercent ?? 40;
+      const h = body.hardPercent ?? 20;
+      if ([e, m, h].some((v) => v < 0 || v > 100)) {
+        throw new BadRequestException('Each percentage must be between 0 and 100');
+      }
+      if (e + m + h !== 100) {
+        throw new BadRequestException(`Difficulty percentages must sum to 100 (got ${e + m + h})`);
+      }
+    }
+
     const existing = await this.configs.findOne({ where: { quizWeek: body.quizWeek } });
     if (existing) {
       Object.assign(existing, {
@@ -636,6 +662,9 @@ export class QuizService {
         endsAt,
         durationMinutes: body.durationMinutes ?? existing.durationMinutes,
         questionsPerQuiz: body.questionsPerQuiz ?? existing.questionsPerQuiz,
+        easyPercent: body.easyPercent ?? existing.easyPercent,
+        mediumPercent: body.mediumPercent ?? existing.mediumPercent,
+        hardPercent: body.hardPercent ?? existing.hardPercent,
         tiebreakerQuestion: body.tiebreakerQuestion ?? existing.tiebreakerQuestion,
         isActive: body.isActive ?? existing.isActive,
       });
@@ -650,6 +679,9 @@ export class QuizService {
       endsAt,
       durationMinutes: body.durationMinutes ?? 5,
       questionsPerQuiz: body.questionsPerQuiz ?? DEFAULT_QUESTIONS_PER_QUIZ,
+      easyPercent: body.easyPercent ?? 40,
+      mediumPercent: body.mediumPercent ?? 40,
+      hardPercent: body.hardPercent ?? 20,
       tiebreakerQuestion: body.tiebreakerQuestion ?? '',
       isActive: body.isActive ?? true,
     });

@@ -11,6 +11,9 @@ interface QuizConfig {
   endsAt: string;
   durationMinutes: number;
   questionsPerQuiz: number;
+  easyPercent: number;
+  mediumPercent: number;
+  hardPercent: number;
   tiebreakerQuestion: string;
   isActive: boolean;
   createdAt: string;
@@ -24,6 +27,9 @@ const emptyForm = {
   endsAt: "",
   durationMinutes: 5,
   questionsPerQuiz: 5,
+  easyPercent: 40,
+  mediumPercent: 40,
+  hardPercent: 20,
   tiebreakerQuestion: "",
   isActive: true,
 };
@@ -89,6 +95,9 @@ export default function AdminQuizConfigPage() {
       endsAt: new Date(c.endsAt).toISOString().slice(0, 16),
       durationMinutes: c.durationMinutes,
       questionsPerQuiz: c.questionsPerQuiz ?? 5,
+      easyPercent: c.easyPercent ?? 40,
+      mediumPercent: c.mediumPercent ?? 40,
+      hardPercent: c.hardPercent ?? 20,
       tiebreakerQuestion: c.tiebreakerQuestion ?? "",
       isActive: c.isActive,
     });
@@ -169,7 +178,7 @@ export default function AdminQuizConfigPage() {
                     </div>
                     <h3 className="text-white font-semibold text-lg">{c.title}</h3>
                     {c.description && <p className="text-slate-400 text-sm mt-1">{c.description}</p>}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 text-sm">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-sm">
                       <div>
                         <div className="text-slate-500 text-xs uppercase tracking-wide mb-0.5">Window</div>
                         <div className="text-slate-300 text-xs">{formatRange(c.startsAt, c.endsAt)}</div>
@@ -177,6 +186,16 @@ export default function AdminQuizConfigPage() {
                       <div>
                         <div className="text-slate-500 text-xs uppercase tracking-wide mb-0.5">Questions</div>
                         <div className="text-slate-300">{c.questionsPerQuiz ?? 5} per attempt</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-500 text-xs uppercase tracking-wide mb-0.5">Difficulty Mix</div>
+                        <div className="text-slate-300 text-xs">
+                          <span className="text-emerald-400">{c.easyPercent ?? 40}%</span>
+                          {" / "}
+                          <span className="text-amber-400">{c.mediumPercent ?? 40}%</span>
+                          {" / "}
+                          <span className="text-red-400">{c.hardPercent ?? 20}%</span>
+                        </div>
                       </div>
                       <div>
                         <div className="text-slate-500 text-xs uppercase tracking-wide mb-0.5">Session Timer</div>
@@ -247,6 +266,53 @@ export default function AdminQuizConfigPage() {
                     className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
                   />
                 </div>
+              </div>
+              {/* Difficulty mix percentages */}
+              <div>
+                <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Difficulty Mix</label>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={form.easyPercent}
+                      onChange={(e) => setForm({ ...form, easyPercent: Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) })}
+                      className="w-full bg-[#0f172a] border border-emerald-500/30 rounded-xl px-3 py-2 text-sm text-white"
+                    />
+                    <div className="text-emerald-400 text-[10px] mt-1 text-center">Easy %</div>
+                  </div>
+                  <div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={form.mediumPercent}
+                      onChange={(e) => setForm({ ...form, mediumPercent: Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) })}
+                      className="w-full bg-[#0f172a] border border-amber-500/30 rounded-xl px-3 py-2 text-sm text-white"
+                    />
+                    <div className="text-amber-400 text-[10px] mt-1 text-center">Medium %</div>
+                  </div>
+                  <div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={form.hardPercent}
+                      onChange={(e) => setForm({ ...form, hardPercent: Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) })}
+                      className="w-full bg-[#0f172a] border border-red-500/30 rounded-xl px-3 py-2 text-sm text-white"
+                    />
+                    <div className="text-red-400 text-[10px] mt-1 text-center">Hard %</div>
+                  </div>
+                </div>
+                {(() => {
+                  const sum = form.easyPercent + form.mediumPercent + form.hardPercent;
+                  return (
+                    <p className={`text-[11px] mt-2 ${sum === 100 ? "text-emerald-400" : "text-red-400"}`}>
+                      Sum: {sum}% {sum === 100 ? "✓" : `(must be 100%)`}
+                    </p>
+                  );
+                })()}
               </div>
               <div>
                 <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Title</label>

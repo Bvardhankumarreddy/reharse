@@ -41,6 +41,16 @@ export class QuizConfig {
   @Column({ type: 'int', default: 5 })
   questionsPerQuiz: number;
 
+  /** Difficulty mix percentages — must sum to 100 */
+  @Column({ type: 'int', default: 40 })
+  easyPercent: number;
+
+  @Column({ type: 'int', default: 40 })
+  mediumPercent: number;
+
+  @Column({ type: 'int', default: 20 })
+  hardPercent: number;
+
   /** Optional tiebreaker question text shown at the end. Empty = skip tiebreaker. */
   @Column({ type: 'text', default: '' })
   tiebreakerQuestion: string;

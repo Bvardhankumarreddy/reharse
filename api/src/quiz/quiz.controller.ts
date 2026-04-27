@@ -76,6 +76,10 @@ export class QuizAdminController {
     endsAt: string;
     durationMinutes?: number;
     questionsPerQuiz?: number;
+    easyPercent?: number;
+    mediumPercent?: number;
+    hardPercent?: number;
+    tiebreakerQuestion?: string;
     isActive?: boolean;
   }) {
     return this.quizService.adminUpsertConfig(body);
