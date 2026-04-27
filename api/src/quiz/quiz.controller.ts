@@ -55,6 +55,31 @@ export class QuizPublicController {
 export class QuizAdminController {
   constructor(private readonly quizService: QuizService) {}
 
+  // ── Quiz Config (start/end times, duration) ──────────────────────────
+
+  @Get('config')
+  getConfigs() {
+    return this.quizService.adminGetConfigs();
+  }
+
+  @Post('config')
+  upsertConfig(@Body() body: {
+    quizWeek: number;
+    title?: string;
+    description?: string;
+    startsAt: string;
+    endsAt: string;
+    durationMinutes?: number;
+    isActive?: boolean;
+  }) {
+    return this.quizService.adminUpsertConfig(body);
+  }
+
+  @Delete('config/:id')
+  deleteConfig(@Param('id') id: string) {
+    return this.quizService.adminDeleteConfig(id);
+  }
+
   // ── Submissions ──────────────────────────────────────────────────────
 
   @Get('submissions')

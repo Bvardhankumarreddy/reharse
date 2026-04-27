@@ -38,6 +38,8 @@ export default function QuizStartPage() {
           questionNumber: data.questionNumber,
           totalQuestions: data.totalQuestions,
           question: data.question,
+          expiresAt: data.expiresAt,
+          durationMinutes: data.durationMinutes,
         }),
       );
       router.push("/quiz/play");

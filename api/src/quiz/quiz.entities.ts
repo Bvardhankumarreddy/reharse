@@ -6,9 +6,46 @@ import {
   OneToMany,
   JoinColumn,
   CreateDateColumn,
+  UpdateDateColumn,
   Index,
   Unique,
 } from 'typeorm';
+
+@Entity('quiz_configs')
+export class QuizConfig {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Index({ unique: true })
+  @Column({ type: 'int' })
+  quizWeek: number;
+
+  @Column({ type: 'varchar', length: 200, default: 'Weekly AI Quiz' })
+  title: string;
+
+  @Column({ type: 'text', default: '' })
+  description: string;
+
+  /** Quiz availability window — public can only start within this range */
+  @Column({ type: 'timestamptz' })
+  startsAt: Date;
+
+  @Column({ type: 'timestamptz' })
+  endsAt: Date;
+
+  /** Session timer in minutes — once user starts, they have this much time total */
+  @Column({ type: 'int', default: 5 })
+  durationMinutes: number;
+
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+}
 
 @Entity('quiz_questions')
 export class QuizQuestion {
@@ -180,6 +217,10 @@ export class QuizSession {
 
   @Column({ type: 'timestamp' })
   startedAt: Date;
+
+  /** Hard cutoff for the entire session (computed as startedAt + durationMinutes) */
+  @Column({ type: 'timestamp', nullable: true })
+  expiresAt: Date | null;
 
   /** Time when current question was shown — used to compute timeTaken */
   @Column({ type: 'timestamp', nullable: true })

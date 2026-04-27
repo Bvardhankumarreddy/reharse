@@ -13,6 +13,7 @@ import {
   QuizSubmission,
   QuizSubmissionAnswer,
   QuizSession,
+  QuizConfig,
 } from './quiz.entities';
 import Redis from 'ioredis';
 
@@ -39,6 +40,7 @@ export class QuizService {
     @InjectRepository(QuizSubmission) private readonly submissions: Repository<QuizSubmission>,
     @InjectRepository(QuizSubmissionAnswer) private readonly answers: Repository<QuizSubmissionAnswer>,
     @InjectRepository(QuizSession) private readonly sessions: Repository<QuizSession>,
+    @InjectRepository(QuizConfig) private readonly configs: Repository<QuizConfig>,
     private readonly config: ConfigService,
   ) {
     const url = this.config.get<string>('REDIS_URL');
@@ -51,27 +53,82 @@ export class QuizService {
   // ── Public: Quiz Info ─────────────────────────────────────────────────
 
   async getCurrentQuizInfo() {
-    // Find the most recent active quiz_week
-    const latest = await this.questions
-      .createQueryBuilder('q')
-      .select('MAX(q.quizWeek)', 'week')
-      .where('q.isActive = true')
-      .getRawOne<{ week: string }>();
+    const now = new Date();
 
-    const week = latest?.week ? parseInt(latest.week, 10) : 1;
+    // Prefer an active config: live now, or upcoming next, or last that ended
+    const activeConfig = await this.configs
+      .createQueryBuilder('c')
+      .where('c.isActive = true')
+      .andWhere(':now BETWEEN c.startsAt AND c.endsAt', { now })
+      .orderBy('c.startsAt', 'DESC')
+      .getOne();
 
+    const upcomingConfig = !activeConfig
+      ? await this.configs
+          .createQueryBuilder('c')
+          .where('c.isActive = true AND c.startsAt > :now', { now })
+          .orderBy('c.startsAt', 'ASC')
+          .getOne()
+      : null;
+
+    const lastConfig = !activeConfig && !upcomingConfig
+      ? await this.configs
+          .createQueryBuilder('c')
+          .where('c.isActive = true')
+          .orderBy('c.endsAt', 'DESC')
+          .getOne()
+      : null;
+
+    const config = activeConfig ?? upcomingConfig ?? lastConfig;
+
+    let status: 'live' | 'upcoming' | 'closed' | 'no-quiz' = 'no-quiz';
+    if (activeConfig) status = 'live';
+    else if (upcomingConfig) status = 'upcoming';
+    else if (lastConfig) status = 'closed';
+
+    if (!config) {
+      // Legacy fallback — pick highest quizWeek
+      const latest = await this.questions
+        .createQueryBuilder('q')
+        .select('MAX(q.quizWeek)', 'week')
+        .where('q.isActive = true')
+        .getRawOne<{ week: string }>();
+      const week = latest?.week ? parseInt(latest.week, 10) : 1;
+      const totalQuestions = await this.questions.count({ where: { quizWeek: week, isActive: true } });
+      const totalSubmissions = await this.submissions.count({ where: { quizWeek: week } });
+      return {
+        status: 'no-quiz' as const,
+        quizWeek: week,
+        title: 'Weekly AI Quiz',
+        description: '',
+        startsAt: null,
+        endsAt: null,
+        durationMinutes: 5,
+        questionsPerQuiz: QUESTIONS_PER_QUIZ,
+        totalQuestionsAvailable: totalQuestions,
+        totalSubmissions,
+        isOpen: false,
+      };
+    }
+
+    const week = config.quizWeek;
     const totalQuestions = await this.questions.count({
       where: { quizWeek: week, isActive: true },
     });
-
     const totalSubmissions = await this.submissions.count({ where: { quizWeek: week } });
 
     return {
+      status,
       quizWeek: week,
+      title: config.title,
+      description: config.description,
+      startsAt: config.startsAt,
+      endsAt: config.endsAt,
+      durationMinutes: config.durationMinutes,
       questionsPerQuiz: QUESTIONS_PER_QUIZ,
       totalQuestionsAvailable: totalQuestions,
       totalSubmissions,
-      isOpen: totalQuestions >= QUESTIONS_PER_QUIZ,
+      isOpen: status === 'live' && totalQuestions >= QUESTIONS_PER_QUIZ,
     };
   }
 
@@ -83,7 +140,15 @@ export class QuizService {
     upiId: string;
     youtubeHandle?: string;
     ipAddress?: string;
-  }): Promise<{ sessionId: string; quizWeek: number; questionNumber: number; totalQuestions: number; question: PublicQuestion }> {
+  }): Promise<{
+    sessionId: string;
+    quizWeek: number;
+    questionNumber: number;
+    totalQuestions: number;
+    question: PublicQuestion;
+    expiresAt: string;
+    durationMinutes: number;
+  }> {
     const { fullName, email, upiId, youtubeHandle, ipAddress } = opts;
 
     // Validate inputs
@@ -93,16 +158,34 @@ export class QuizService {
     }
     if (!upiId?.trim()) throw new BadRequestException('UPI ID or Amazon email is required');
 
-    // Determine current week
+    // Determine current week + check time window
     const info = await this.getCurrentQuizInfo();
-    if (!info.isOpen) throw new BadRequestException('No active quiz available right now');
+    if (info.status === 'upcoming') {
+      throw new BadRequestException('Quiz has not started yet. Come back at the start time.');
+    }
+    if (info.status === 'closed') {
+      throw new BadRequestException('Quiz has ended. Better luck next week!');
+    }
+    if (info.status === 'no-quiz' || !info.isOpen) {
+      throw new BadRequestException('No active quiz available right now');
+    }
     const quizWeek = info.quizWeek;
+    const normalizedEmail = email.toLowerCase().trim();
 
-    // Check email uniqueness for this week
+    // One submission per email per week
     const existing = await this.submissions.findOne({
-      where: { email: email.toLowerCase().trim(), quizWeek },
+      where: { email: normalizedEmail, quizWeek },
     });
-    if (existing) throw new ConflictException('You have already submitted this week\'s quiz');
+    if (existing) throw new ConflictException("You have already submitted this week's quiz");
+
+    // One attempt total — also block if there's an existing in-progress or expired session
+    const priorSession = await this.sessions
+      .createQueryBuilder('s')
+      .where('s.email = :email AND s.quizWeek = :week', { email: normalizedEmail, week: quizWeek })
+      .getOne();
+    if (priorSession) {
+      throw new ConflictException('You have already started this quiz. Only one attempt is allowed.');
+    }
 
     // Rate limit by IP (max 3 attempts/hour)
     if (ipAddress) await this.checkRateLimit(ipAddress);
@@ -113,17 +196,21 @@ export class QuizService {
       throw new BadRequestException('Not enough active questions in the bank');
     }
 
+    const startedAt = new Date();
+    const expiresAt = new Date(startedAt.getTime() + info.durationMinutes * 60 * 1000);
+
     const session = this.sessions.create({
       fullName: fullName.trim(),
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       upiId: upiId.trim(),
       youtubeHandle: youtubeHandle?.trim() || null,
       quizWeek,
       questionIds: picked.map((q) => q.id),
       currentIndex: 0,
       answers: [],
-      startedAt: new Date(),
-      questionStartedAt: new Date(),
+      startedAt,
+      expiresAt,
+      questionStartedAt: startedAt,
       ipAddress: ipAddress ?? null,
     });
     await this.sessions.save(session);
@@ -134,6 +221,8 @@ export class QuizService {
       questionNumber: 1,
       totalQuestions: QUESTIONS_PER_QUIZ,
       question: this.toPublicQuestion(picked[0]),
+      expiresAt: expiresAt.toISOString(),
+      durationMinutes: info.durationMinutes,
     };
   }
 
@@ -143,8 +232,8 @@ export class QuizService {
     sessionId: string;
     selectedAnswer: 'A' | 'B' | 'C' | 'D';
   }): Promise<
-    | { done: false; questionNumber: number; totalQuestions: number; question: PublicQuestion }
-    | { done: true; needsTiebreaker: boolean }
+    | { done: false; questionNumber: number; totalQuestions: number; question: PublicQuestion; expiresAt?: string }
+    | { done: true; needsTiebreaker: boolean; expired?: boolean }
   > {
     const { sessionId, selectedAnswer } = opts;
     if (!['A', 'B', 'C', 'D'].includes(selectedAnswer)) {
@@ -156,6 +245,13 @@ export class QuizService {
     if (session.completed) throw new ForbiddenException('Quiz already completed');
     if (session.currentIndex >= session.questionIds.length) {
       throw new ForbiddenException('All questions already answered');
+    }
+
+    // Session timer expired — auto-finish, ignore this answer
+    if (session.expiresAt && new Date() > new Date(session.expiresAt)) {
+      session.currentIndex = session.questionIds.length;
+      await this.sessions.save(session);
+      return { done: true, needsTiebreaker: false, expired: true };
     }
 
     const currentQuestionId = session.questionIds[session.currentIndex];
@@ -193,6 +289,7 @@ export class QuizService {
       questionNumber: session.currentIndex + 1,
       totalQuestions: session.questionIds.length,
       question: this.toPublicQuestion(nextQuestion),
+      expiresAt: session.expiresAt ? new Date(session.expiresAt).toISOString() : undefined,
     };
   }
 
@@ -223,7 +320,9 @@ export class QuizService {
       }
       throw new ForbiddenException('Session already completed');
     }
-    if (session.currentIndex < session.questionIds.length) {
+    // If timer expired, auto-fast-forward through remaining questions (no points)
+    const isExpired = session.expiresAt && new Date() > new Date(session.expiresAt);
+    if (session.currentIndex < session.questionIds.length && !isExpired) {
       throw new BadRequestException('Quiz not finished — answer all questions first');
     }
 
@@ -385,6 +484,68 @@ export class QuizService {
       rank: better + 1,
       totalSubmissions,
     };
+  }
+
+  // ── Admin: Quiz Config ────────────────────────────────────────────────
+
+  async adminGetConfigs() {
+    return this.configs.find({ order: { quizWeek: 'DESC' } });
+  }
+
+  async adminUpsertConfig(body: {
+    quizWeek: number;
+    title?: string;
+    description?: string;
+    startsAt: string;
+    endsAt: string;
+    durationMinutes?: number;
+    isActive?: boolean;
+  }) {
+    if (!body.quizWeek || body.quizWeek < 1) {
+      throw new BadRequestException('quizWeek must be a positive integer');
+    }
+    if (!body.startsAt || !body.endsAt) {
+      throw new BadRequestException('startsAt and endsAt are required');
+    }
+    const startsAt = new Date(body.startsAt);
+    const endsAt = new Date(body.endsAt);
+    if (isNaN(startsAt.getTime()) || isNaN(endsAt.getTime())) {
+      throw new BadRequestException('Invalid date format');
+    }
+    if (endsAt <= startsAt) {
+      throw new BadRequestException('endsAt must be after startsAt');
+    }
+
+    const existing = await this.configs.findOne({ where: { quizWeek: body.quizWeek } });
+    if (existing) {
+      Object.assign(existing, {
+        title: body.title ?? existing.title,
+        description: body.description ?? existing.description,
+        startsAt,
+        endsAt,
+        durationMinutes: body.durationMinutes ?? existing.durationMinutes,
+        isActive: body.isActive ?? existing.isActive,
+      });
+      return this.configs.save(existing);
+    }
+
+    const created = this.configs.create({
+      quizWeek: body.quizWeek,
+      title: body.title ?? 'Weekly AI Quiz',
+      description: body.description ?? '',
+      startsAt,
+      endsAt,
+      durationMinutes: body.durationMinutes ?? 5,
+      isActive: body.isActive ?? true,
+    });
+    return this.configs.save(created);
+  }
+
+  async adminDeleteConfig(id: string) {
+    const c = await this.configs.findOne({ where: { id } });
+    if (!c) throw new NotFoundException('Config not found');
+    await this.configs.remove(c);
+    return { deleted: true };
   }
 
   // ── Admin ─────────────────────────────────────────────────────────────

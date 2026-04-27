@@ -7,6 +7,7 @@ import {
   QuizSubmission,
   QuizSubmissionAnswer,
   QuizSession,
+  QuizConfig,
 } from './quiz.entities';
 import { AdminModule } from '../admin/admin.module';
 
@@ -17,6 +18,7 @@ import { AdminModule } from '../admin/admin.module';
       QuizSubmission,
       QuizSubmissionAnswer,
       QuizSession,
+      QuizConfig,
     ]),
     AdminModule, // for AdminGuard
   ],

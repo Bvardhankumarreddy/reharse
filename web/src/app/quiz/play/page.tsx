@@ -18,22 +18,30 @@ interface SessionState {
   questionNumber: number;
   totalQuestions: number;
   question: PublicQuestion;
+  expiresAt: string;
+  durationMinutes: number;
 }
 
-const TIMER_SECONDS = 30;
+function formatMMSS(seconds: number) {
+  if (seconds < 0) seconds = 0;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 export default function QuizPlayPage() {
   const router = useRouter();
   const [state, setState] = useState<SessionState | null>(null);
   const [selected, setSelected] = useState<"A" | "B" | "C" | "D" | null>(null);
-  const [timeLeft, setTimeLeft] = useState(TIMER_SECONDS);
+  const [secondsLeft, setSecondsLeft] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [showTiebreaker, setShowTiebreaker] = useState(false);
   const [tiebreaker, setTiebreaker] = useState("");
   const [error, setError] = useState<string | null>(null);
   const submittingRef = useRef(false);
+  const expiredHandledRef = useRef(false);
 
-  // Restore session from sessionStorage on mount
+  // Restore session
   useEffect(() => {
     const raw = sessionStorage.getItem("quiz-session");
     if (!raw) {
@@ -46,6 +54,29 @@ export default function QuizPlayPage() {
       router.replace("/quiz/start");
     }
   }, [router]);
+
+  const handleComplete = useCallback(async (autoTiebreaker?: string) => {
+    if (!state) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const tbStr = autoTiebreaker !== undefined ? autoTiebreaker : tiebreaker;
+      const tb = tbStr.trim() ? parseInt(tbStr.trim(), 10) : undefined;
+      const res = await fetch("/api/v1/quiz/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: state.sessionId, tiebreakerAnswer: tb }),
+      });
+      if (!res.ok) throw new Error((await res.json()).message ?? "Complete failed");
+      const result = await res.json();
+      sessionStorage.setItem("quiz-result", JSON.stringify(result));
+      sessionStorage.removeItem("quiz-session");
+      router.push("/quiz/results");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+      setSubmitting(false);
+    }
+  }, [state, tiebreaker, router]);
 
   const submitAnswer = useCallback(async (answer: "A" | "B" | "C" | "D") => {
     if (!state || submittingRef.current) return;
@@ -63,14 +94,23 @@ export default function QuizPlayPage() {
       const data = await res.json();
 
       if (data.done) {
+        if (data.expired) {
+          // Server says we're out of time — auto-complete with no tiebreaker
+          await handleComplete("");
+          return;
+        }
         setShowTiebreaker(true);
-        sessionStorage.setItem("quiz-session", JSON.stringify({ ...state, done: true }));
       } else {
-        const next = { ...state, questionNumber: data.questionNumber, totalQuestions: data.totalQuestions, question: data.question };
+        const next: SessionState = {
+          ...state,
+          questionNumber: data.questionNumber,
+          totalQuestions: data.totalQuestions,
+          question: data.question,
+          expiresAt: data.expiresAt ?? state.expiresAt,
+        };
         sessionStorage.setItem("quiz-session", JSON.stringify(next));
         setState(next);
         setSelected(null);
-        setTimeLeft(TIMER_SECONDS);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -78,41 +118,30 @@ export default function QuizPlayPage() {
       setSubmitting(false);
       submittingRef.current = false;
     }
-  }, [state]);
+  }, [state, handleComplete]);
 
-  // Timer countdown
+  // Global session countdown — ticks every second
   useEffect(() => {
-    if (!state || showTiebreaker || submitting) return;
-    if (timeLeft <= 0) {
-      // Auto-submit a default answer if time runs out (selecting whatever they picked, or A as fallback)
-      submitAnswer(selected ?? "A");
-      return;
-    }
-    const timer = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [timeLeft, state, showTiebreaker, submitting, selected, submitAnswer]);
-
-  async function handleComplete() {
-    if (!state) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const tb = tiebreaker.trim() ? parseInt(tiebreaker.trim(), 10) : undefined;
-      const res = await fetch("/api/v1/quiz/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: state.sessionId, tiebreakerAnswer: tb }),
-      });
-      if (!res.ok) throw new Error((await res.json()).message ?? "Complete failed");
-      const result = await res.json();
-      sessionStorage.setItem("quiz-result", JSON.stringify(result));
-      sessionStorage.removeItem("quiz-session");
-      router.push("/quiz/results");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-      setSubmitting(false);
-    }
-  }
+    if (!state?.expiresAt) return;
+    const tick = () => {
+      const ms = new Date(state.expiresAt).getTime() - Date.now();
+      const secs = Math.floor(ms / 1000);
+      setSecondsLeft(secs);
+      if (secs <= 0 && !expiredHandledRef.current) {
+        expiredHandledRef.current = true;
+        // Force-complete the quiz when time expires
+        if (showTiebreaker) {
+          void handleComplete("");
+        } else {
+          // Submit a placeholder answer to trigger server-side expiry handling
+          void submitAnswer(selected ?? "A");
+        }
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [state?.expiresAt, showTiebreaker, selected, submitAnswer, handleComplete]);
 
   if (!state) {
     return (
@@ -130,6 +159,9 @@ export default function QuizPlayPage() {
     { key: "D", text: state.question.optionD },
   ];
 
+  const lowTime = secondsLeft <= 30;
+  const veryLow = secondsLeft <= 10;
+
   // Tiebreaker view
   if (showTiebreaker) {
     return (
@@ -140,8 +172,13 @@ export default function QuizPlayPage() {
           </span>
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">Tiebreaker (Optional)</h1>
           <p className="text-[#B8C5E0]">
-            If multiple players tie, the closest answer to the truth wins.
+            If multiple players tie, the closest answer wins.
           </p>
+          {secondsLeft > 0 && (
+            <p className={`text-sm mt-2 ${lowTime ? "text-[#FFD700]" : "text-[#B8C5E0]"}`}>
+              ⏱ {formatMMSS(secondsLeft)} left
+            </p>
+          )}
         </div>
 
         <div className="bg-[#151B3D] border border-white/5 rounded-2xl p-6 sm:p-8 space-y-5">
@@ -164,14 +201,14 @@ export default function QuizPlayPage() {
 
           <div className="flex gap-3">
             <button
-              onClick={handleComplete}
+              onClick={() => handleComplete()}
               disabled={submitting}
               className="flex-1 bg-gradient-to-r from-[#FFD700] to-[#FFA500] text-[#0A0E27] font-bold py-3 rounded-xl hover:shadow-[0_0_30px_rgba(255,215,0,0.4)] transition disabled:opacity-50"
             >
               {submitting ? "Submitting..." : "Submit Final"}
             </button>
             <button
-              onClick={() => { setTiebreaker(""); handleComplete(); }}
+              onClick={() => { setTiebreaker(""); handleComplete(""); }}
               disabled={submitting}
               className="px-6 text-[#B8C5E0] hover:text-white text-sm transition"
             >
@@ -186,18 +223,20 @@ export default function QuizPlayPage() {
   // Question view
   return (
     <div className="max-w-2xl mx-auto px-5 py-8 sm:py-12">
-      {/* Progress bar */}
+      {/* Progress bar + global timer */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
           <span className="text-[11px] font-bold tracking-widest text-[#00D4FF] uppercase">
             Question {state.questionNumber} of {state.totalQuestions}
           </span>
           <div
-            className={`text-sm font-bold tabular-nums ${
-              timeLeft <= 5 ? "text-[#FF5C7C]" : timeLeft <= 10 ? "text-[#FFD700]" : "text-[#00F5A0]"
+            className={`text-base font-bold tabular-nums px-3 py-1 rounded-lg ${
+              veryLow ? "text-[#FF5C7C] bg-[#FF5C7C]/10 animate-pulse" :
+              lowTime ? "text-[#FFD700] bg-[#FFD700]/10" :
+              "text-[#00F5A0] bg-[#00F5A0]/10"
             }`}
           >
-            ⏱ {timeLeft}s
+            ⏱ {formatMMSS(secondsLeft)}
           </div>
         </div>
         <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -249,7 +288,6 @@ export default function QuizPlayPage() {
         </div>
       )}
 
-      {/* Submit */}
       <button
         onClick={() => selected && submitAnswer(selected)}
         disabled={!selected || submitting}

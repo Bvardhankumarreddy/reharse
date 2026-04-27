@@ -16,6 +16,7 @@ const NAV = [
   { href: "/admin/revenue", label: "Revenue", icon: "payments" },
   { href: "/admin/quiz", label: "Quiz Submissions", icon: "leaderboard" },
   { href: "/admin/quiz/questions", label: "Quiz Questions", icon: "psychology" },
+  { href: "/admin/quiz/config", label: "Quiz Schedule", icon: "schedule" },
   { href: "/admin/quiz/import", label: "Quiz Import", icon: "upload_file" },
 ];
 
