@@ -74,8 +74,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=https://reharse.inferix.in/api/v1
             NEXT_PUBLIC_APP_URL=https://reharse.inferix.in
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true
 
   # ── Deploy to EC2 ─────────────────────────────────────────────────────────
   deploy:
