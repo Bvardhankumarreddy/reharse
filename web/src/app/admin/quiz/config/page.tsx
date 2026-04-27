@@ -10,6 +10,7 @@ interface QuizConfig {
   startsAt: string;
   endsAt: string;
   durationMinutes: number;
+  questionsPerQuiz: number;
   isActive: boolean;
   createdAt: string;
 }
@@ -21,6 +22,7 @@ const emptyForm = {
   startsAt: "",
   endsAt: "",
   durationMinutes: 5,
+  questionsPerQuiz: 5,
   isActive: true,
 };
 
@@ -84,6 +86,7 @@ export default function AdminQuizConfigPage() {
       startsAt: new Date(c.startsAt).toISOString().slice(0, 16),
       endsAt: new Date(c.endsAt).toISOString().slice(0, 16),
       durationMinutes: c.durationMinutes,
+      questionsPerQuiz: c.questionsPerQuiz ?? 5,
       isActive: c.isActive,
     });
     setError(null);
@@ -169,6 +172,10 @@ export default function AdminQuizConfigPage() {
                         <div className="text-slate-300 text-xs">{formatRange(c.startsAt, c.endsAt)}</div>
                       </div>
                       <div>
+                        <div className="text-slate-500 text-xs uppercase tracking-wide mb-0.5">Questions</div>
+                        <div className="text-slate-300">{c.questionsPerQuiz ?? 5} per attempt</div>
+                      </div>
+                      <div>
                         <div className="text-slate-500 text-xs uppercase tracking-wide mb-0.5">Session Timer</div>
                         <div className="text-slate-300">{c.durationMinutes} min</div>
                       </div>
@@ -203,7 +210,7 @@ export default function AdminQuizConfigPage() {
               {editing ? `Edit Week ${editing.quizWeek} Schedule` : "Add Quiz Schedule"}
             </h2>
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Quiz Week</label>
                   <input
@@ -216,13 +223,24 @@ export default function AdminQuizConfigPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Session Timer (min)</label>
+                  <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1"># Questions</label>
                   <input
                     type="number"
                     min={1}
-                    max={60}
+                    max={50}
+                    value={form.questionsPerQuiz}
+                    onChange={(e) => setForm({ ...form, questionsPerQuiz: Math.max(1, parseInt(e.target.value, 10) || 5) })}
+                    className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Timer (min)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={120}
                     value={form.durationMinutes}
-                    onChange={(e) => setForm({ ...form, durationMinutes: parseInt(e.target.value, 10) || 5 })}
+                    onChange={(e) => setForm({ ...form, durationMinutes: Math.max(1, parseInt(e.target.value, 10) || 5) })}
                     className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
                   />
                 </div>

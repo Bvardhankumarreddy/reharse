@@ -18,7 +18,7 @@ import {
 } from './quiz.entities';
 import Redis from 'ioredis';
 
-const QUESTIONS_PER_QUIZ = 5;
+const DEFAULT_QUESTIONS_PER_QUIZ = 5;
 const RATE_LIMIT_WINDOW_SEC = 3600;
 const RATE_LIMIT_MAX = 3;
 
@@ -107,7 +107,7 @@ export class QuizService {
         startsAt: null,
         endsAt: null,
         durationMinutes: 5,
-        questionsPerQuiz: QUESTIONS_PER_QUIZ,
+        questionsPerQuiz: DEFAULT_QUESTIONS_PER_QUIZ,
         totalQuestionsAvailable: totalQuestions,
         totalSubmissions,
         isOpen: false,
@@ -119,6 +119,7 @@ export class QuizService {
       where: { quizWeek: week, isActive: true },
     });
     const totalSubmissions = await this.submissions.count({ where: { quizWeek: week } });
+    const questionsPerQuiz = config.questionsPerQuiz ?? DEFAULT_QUESTIONS_PER_QUIZ;
 
     return {
       status,
@@ -128,10 +129,10 @@ export class QuizService {
       startsAt: config.startsAt,
       endsAt: config.endsAt,
       durationMinutes: config.durationMinutes,
-      questionsPerQuiz: QUESTIONS_PER_QUIZ,
+      questionsPerQuiz,
       totalQuestionsAvailable: totalQuestions,
       totalSubmissions,
-      isOpen: status === 'live' && totalQuestions >= QUESTIONS_PER_QUIZ,
+      isOpen: status === 'live' && totalQuestions >= questionsPerQuiz,
     };
   }
 
@@ -193,9 +194,9 @@ export class QuizService {
     // Rate limit by IP (max 3 attempts/hour)
     if (ipAddress) await this.checkRateLimit(ipAddress);
 
-    // Pick 5 random questions weighted by difficulty: 2 easy, 2 medium, 1 hard (if available)
-    const picked = await this.pickQuestionsForWeek(quizWeek);
-    if (picked.length < QUESTIONS_PER_QUIZ) {
+    // Pick questions per config — mandatory first, then random fillers
+    const picked = await this.pickQuestionsForWeek(quizWeek, info.questionsPerQuiz);
+    if (picked.length < info.questionsPerQuiz) {
       throw new BadRequestException('Not enough active questions in the bank');
     }
 
@@ -222,7 +223,7 @@ export class QuizService {
       sessionId: session.id,
       quizWeek,
       questionNumber: 1,
-      totalQuestions: QUESTIONS_PER_QUIZ,
+      totalQuestions: picked.length,
       question: this.toPublicQuestion(picked[0]),
       expiresAt: expiresAt.toISOString(),
       durationMinutes: info.durationMinutes,
@@ -449,46 +450,76 @@ export class QuizService {
     };
   }
 
-  private async pickQuestionsForWeek(quizWeek: number): Promise<QuizQuestion[]> {
-    // Try weighted: 2 easy, 2 medium, 1 hard
+  private async pickQuestionsForWeek(quizWeek: number, totalCount: number): Promise<QuizQuestion[]> {
+    // 1. Mandatory questions are always included
+    const mandatory = await this.questions
+      .createQueryBuilder('q')
+      .where('q.quizWeek = :week AND q.isActive = true AND q.isMandatory = true', { week: quizWeek })
+      .getMany();
+
+    // If mandatory >= totalCount, use the first `totalCount` mandatory (shuffled)
+    if (mandatory.length >= totalCount) {
+      for (let i = mandatory.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [mandatory[i], mandatory[j]] = [mandatory[j], mandatory[i]];
+      }
+      return mandatory.slice(0, totalCount);
+    }
+
+    // 2. Fill remaining slots with non-mandatory random questions, weighted by difficulty
+    const remaining = totalCount - mandatory.length;
+    const easyCount = Math.max(0, Math.round(remaining * 0.4));
+    const mediumCount = Math.max(0, Math.round(remaining * 0.4));
+    const hardCount = Math.max(0, remaining - easyCount - mediumCount);
+    const excludeIds = mandatory.map((m) => m.id);
+
     const [easy, medium, hard] = await Promise.all([
-      this.fetchRandomByDifficulty(quizWeek, 'easy', 2),
-      this.fetchRandomByDifficulty(quizWeek, 'medium', 2),
-      this.fetchRandomByDifficulty(quizWeek, 'hard', 1),
+      this.fetchRandomByDifficulty(quizWeek, 'easy', easyCount, excludeIds),
+      this.fetchRandomByDifficulty(quizWeek, 'medium', mediumCount, excludeIds),
+      this.fetchRandomByDifficulty(quizWeek, 'hard', hardCount, excludeIds),
     ]);
 
-    let picked = [...easy, ...medium, ...hard];
-    if (picked.length < QUESTIONS_PER_QUIZ) {
-      // Fall back to any active question
+    let picked = [...mandatory, ...easy, ...medium, ...hard];
+
+    // 3. Fill any remaining gap with any non-mandatory active question
+    if (picked.length < totalCount) {
+      const usedIds = picked.map((p) => p.id);
       const fallback = await this.questions
         .createQueryBuilder('q')
-        .where('q.quizWeek = :week AND q.isActive = true', { week: quizWeek })
-        .andWhere('q.id NOT IN (:...ids)', { ids: picked.length ? picked.map((p) => p.id) : ['00000000-0000-0000-0000-000000000000'] })
+        .where('q.quizWeek = :week AND q.isActive = true AND q.isMandatory = false', { week: quizWeek })
+        .andWhere(usedIds.length ? 'q.id NOT IN (:...ids)' : '1=1', { ids: usedIds.length ? usedIds : [''] })
         .orderBy('RANDOM()')
-        .limit(QUESTIONS_PER_QUIZ - picked.length)
+        .limit(totalCount - picked.length)
         .getMany();
       picked = [...picked, ...fallback];
     }
 
-    // Shuffle to avoid difficulty pattern
-    for (let i = picked.length - 1; i > 0; i--) {
+    // 4. Shuffle non-mandatory portion to randomize order
+    const mandatoryPart = picked.filter((q) => q.isMandatory);
+    const restPart = picked.filter((q) => !q.isMandatory);
+    for (let i = restPart.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [picked[i], picked[j]] = [picked[j], picked[i]];
+      [restPart[i], restPart[j]] = [restPart[j], restPart[i]];
     }
-    return picked.slice(0, QUESTIONS_PER_QUIZ);
+
+    return [...mandatoryPart, ...restPart].slice(0, totalCount);
   }
 
   private async fetchRandomByDifficulty(
     quizWeek: number,
     difficulty: 'easy' | 'medium' | 'hard',
     limit: number,
+    excludeIds: string[] = [],
   ): Promise<QuizQuestion[]> {
-    return this.questions
+    if (limit <= 0) return [];
+    const qb = this.questions
       .createQueryBuilder('q')
-      .where('q.quizWeek = :week AND q.isActive = true AND q.difficulty = :difficulty', {
+      .where('q.quizWeek = :week AND q.isActive = true AND q.difficulty = :difficulty AND q.isMandatory = false', {
         week: quizWeek,
         difficulty,
-      })
+      });
+    if (excludeIds.length) qb.andWhere('q.id NOT IN (:...ids)', { ids: excludeIds });
+    return qb
       .orderBy('RANDOM()')
       .limit(limit)
       .getMany();
@@ -571,6 +602,7 @@ export class QuizService {
     startsAt: string;
     endsAt: string;
     durationMinutes?: number;
+    questionsPerQuiz?: number;
     isActive?: boolean;
   }) {
     if (!body.quizWeek || body.quizWeek < 1) {
@@ -596,6 +628,7 @@ export class QuizService {
         startsAt,
         endsAt,
         durationMinutes: body.durationMinutes ?? existing.durationMinutes,
+        questionsPerQuiz: body.questionsPerQuiz ?? existing.questionsPerQuiz,
         isActive: body.isActive ?? existing.isActive,
       });
       return this.configs.save(existing);
@@ -608,6 +641,7 @@ export class QuizService {
       startsAt,
       endsAt,
       durationMinutes: body.durationMinutes ?? 5,
+      questionsPerQuiz: body.questionsPerQuiz ?? DEFAULT_QUESTIONS_PER_QUIZ,
       isActive: body.isActive ?? true,
     });
     return this.configs.save(created);
@@ -737,6 +771,7 @@ export class QuizService {
       difficulty: body.difficulty!,
       category: body.category!,
       quizWeek: body.quizWeek!,
+      isMandatory: body.isMandatory ?? false,
       isActive: body.isActive ?? true,
     });
     return this.questions.save(q);
@@ -814,7 +849,7 @@ export class QuizService {
     if (filters.category) qb.andWhere('q.category = :category', { category: filters.category });
     const list = await qb.getMany();
 
-    const header = 'question_type,question_text,option_a,option_b,option_c,option_d,correct_answer,correct_answers,correct_number,numeric_tolerance,numeric_unit,points,difficulty,category,quiz_week,is_active\n';
+    const header = 'question_type,question_text,option_a,option_b,option_c,option_d,correct_answer,correct_answers,correct_number,numeric_tolerance,numeric_unit,points,difficulty,category,quiz_week,is_mandatory,is_active\n';
     const rows = list.map((q) =>
       [
         q.questionType ?? 'mcq',
@@ -825,7 +860,7 @@ export class QuizService {
         q.correctNumber ?? '',
         q.numericTolerance ?? '',
         q.numericUnit ?? '',
-        q.points, q.difficulty, q.category, q.quizWeek, q.isActive,
+        q.points, q.difficulty, q.category, q.quizWeek, q.isMandatory, q.isActive,
       ]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
         .join(','),
@@ -872,6 +907,7 @@ export class QuizService {
       difficulty: get('difficulty').toLowerCase() as 'easy' | 'medium' | 'hard',
       category: get('category'),
       quizWeek: parseInt(get('quiz_week'), 10),
+      isMandatory: ['true', '1', 'yes', 'y'].includes(get('is_mandatory').toLowerCase()),
       isActive: true,
     };
   }
@@ -915,8 +951,8 @@ export class QuizService {
       throw new BadRequestException(`Invalid question_type: ${type}`);
     }
 
-    if (![1, 2, 3].includes(q.points ?? 0)) {
-      throw new BadRequestException('points must be 1, 2, or 3');
+    if (!q.points || q.points < 1 || !Number.isInteger(q.points)) {
+      throw new BadRequestException('points must be a positive integer (1 or higher)');
     }
     if (!['easy', 'medium', 'hard'].includes(q.difficulty ?? '')) {
       throw new BadRequestException('difficulty must be easy, medium, or hard');

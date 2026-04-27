@@ -37,6 +37,10 @@ export class QuizConfig {
   @Column({ type: 'int', default: 5 })
   durationMinutes: number;
 
+  /** How many questions to ask per quiz attempt (mix of mandatory + random) */
+  @Column({ type: 'int', default: 5 })
+  questionsPerQuiz: number;
+
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
@@ -109,6 +113,10 @@ export class QuizQuestion {
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
+
+  /** If true, this question is always included in every quiz attempt for its week */
+  @Column({ type: 'boolean', default: false })
+  isMandatory: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

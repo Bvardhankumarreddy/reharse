@@ -24,6 +24,7 @@ interface Question {
   category: string;
   quizWeek: number;
   isActive: boolean;
+  isMandatory: boolean;
   createdAt: string;
 }
 
@@ -40,6 +41,7 @@ const emptyForm = {
   difficulty: "easy" as "easy" | "medium" | "hard",
   category: "",
   quizWeek: 1,
+  isMandatory: false,
 };
 
 const TYPE_LABELS: Record<QType, string> = {
@@ -129,6 +131,7 @@ export default function AdminQuizQuestionsPage() {
       difficulty: q.difficulty,
       category: q.category,
       quizWeek: q.quizWeek,
+      isMandatory: q.isMandatory ?? false,
     });
     setShowModal(true);
   }
@@ -149,6 +152,7 @@ export default function AdminQuizQuestionsPage() {
         difficulty: form.difficulty,
         category: form.category,
         quizWeek: form.quizWeek,
+        isMandatory: form.isMandatory,
       };
 
       if (form.questionType === "mcq") {
@@ -365,6 +369,11 @@ export default function AdminQuizQuestionsPage() {
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 capitalize">
                           {TYPE_LABELS[q.questionType ?? "mcq"]}
                         </span>
+                        {q.isMandatory && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                            ★ Mandatory
+                          </span>
+                        )}
                       </div>
                       <div className="text-white text-sm line-clamp-2 max-w-md">{q.questionText}</div>
                       <div className="text-slate-500 text-[10px] mt-0.5">
@@ -560,13 +569,14 @@ export default function AdminQuizQuestionsPage() {
                 )}
                 <div>
                   <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Points</label>
-                  <select
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
                     value={form.points}
-                    onChange={(e) => setForm({ ...form, points: parseInt(e.target.value, 10) })}
+                    onChange={(e) => setForm({ ...form, points: Math.max(1, parseInt(e.target.value, 10) || 1) })}
                     className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
-                  >
-                    {[1, 2, 3].map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                  />
                 </div>
                 <div>
                   <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">Difficulty</label>
@@ -598,6 +608,17 @@ export default function AdminQuizQuestionsPage() {
                   className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
                 />
               </div>
+              <label className="flex items-center gap-2 cursor-pointer mt-2 bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2.5">
+                <input
+                  type="checkbox"
+                  checked={form.isMandatory}
+                  onChange={(e) => setForm({ ...form, isMandatory: e.target.checked })}
+                />
+                <div className="flex-1">
+                  <div className="text-sm text-white font-medium">Mandatory Question</div>
+                  <div className="text-xs text-slate-500">Always included in every quiz attempt for this week</div>
+                </div>
+              </label>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm transition">Cancel</button>
