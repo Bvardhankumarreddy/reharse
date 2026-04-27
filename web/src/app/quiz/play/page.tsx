@@ -25,6 +25,7 @@ interface SessionState {
   question: PublicQuestion;
   expiresAt: string;
   durationMinutes: number;
+  tiebreakerQuestion?: string;
 }
 
 function formatMMSS(seconds: number) {
@@ -113,7 +114,14 @@ export default function QuizPlayPage() {
           await handleComplete("");
           return;
         }
-        setShowTiebreaker(true);
+        // Only show tiebreaker if backend says we need one (config has text set)
+        if (data.needsTiebreaker) {
+          setState((prev) => prev ? { ...prev, tiebreakerQuestion: data.tiebreakerQuestion ?? prev.tiebreakerQuestion } : prev);
+          setShowTiebreaker(true);
+        } else {
+          await handleComplete("");
+          return;
+        }
       } else {
         const next: SessionState = {
           ...state,
@@ -221,7 +229,7 @@ export default function QuizPlayPage() {
 
         <div className="bg-[#151B3D] border border-white/5 rounded-2xl p-6 sm:p-8 space-y-5">
           <p className="text-white text-lg sm:text-xl font-medium">
-            How many parameters (in billions) does GPT-4 have?
+            {state?.tiebreakerQuestion?.trim() || "How many participants will submit this week?"}
           </p>
           <input
             type="number"

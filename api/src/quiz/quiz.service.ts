@@ -108,6 +108,7 @@ export class QuizService {
         endsAt: null,
         durationMinutes: 5,
         questionsPerQuiz: DEFAULT_QUESTIONS_PER_QUIZ,
+        tiebreakerQuestion: '',
         totalQuestionsAvailable: totalQuestions,
         totalSubmissions,
         isOpen: false,
@@ -130,6 +131,7 @@ export class QuizService {
       endsAt: config.endsAt,
       durationMinutes: config.durationMinutes,
       questionsPerQuiz,
+      tiebreakerQuestion: config.tiebreakerQuestion ?? '',
       totalQuestionsAvailable: totalQuestions,
       totalSubmissions,
       isOpen: status === 'live' && totalQuestions >= questionsPerQuiz,
@@ -152,6 +154,7 @@ export class QuizService {
     question: PublicQuestion;
     expiresAt: string;
     durationMinutes: number;
+    tiebreakerQuestion: string;
   }> {
     const { fullName, email, upiId, youtubeHandle, ipAddress } = opts;
 
@@ -227,6 +230,7 @@ export class QuizService {
       question: this.toPublicQuestion(picked[0]),
       expiresAt: expiresAt.toISOString(),
       durationMinutes: info.durationMinutes,
+      tiebreakerQuestion: info.tiebreakerQuestion ?? '',
     };
   }
 
@@ -239,7 +243,7 @@ export class QuizService {
     selectedNumber?: number; // for numeric
   }): Promise<
     | { done: false; questionNumber: number; totalQuestions: number; question: PublicQuestion; expiresAt?: string }
-    | { done: true; needsTiebreaker: boolean; expired?: boolean }
+    | { done: true; needsTiebreaker: boolean; tiebreakerQuestion?: string; expired?: boolean }
   > {
     const { sessionId } = opts;
 
@@ -288,7 +292,9 @@ export class QuizService {
     await this.sessions.save(session);
 
     if (session.currentIndex >= session.questionIds.length) {
-      return { done: true, needsTiebreaker: true };
+      const tbConfig = await this.configs.findOne({ where: { quizWeek: session.quizWeek } });
+      const tbText = (tbConfig?.tiebreakerQuestion ?? '').trim();
+      return { done: true, needsTiebreaker: tbText.length > 0, tiebreakerQuestion: tbText };
     }
 
     const nextQuestion = await this.questions.findOne({
@@ -603,6 +609,7 @@ export class QuizService {
     endsAt: string;
     durationMinutes?: number;
     questionsPerQuiz?: number;
+    tiebreakerQuestion?: string;
     isActive?: boolean;
   }) {
     if (!body.quizWeek || body.quizWeek < 1) {
@@ -629,6 +636,7 @@ export class QuizService {
         endsAt,
         durationMinutes: body.durationMinutes ?? existing.durationMinutes,
         questionsPerQuiz: body.questionsPerQuiz ?? existing.questionsPerQuiz,
+        tiebreakerQuestion: body.tiebreakerQuestion ?? existing.tiebreakerQuestion,
         isActive: body.isActive ?? existing.isActive,
       });
       return this.configs.save(existing);
@@ -642,6 +650,7 @@ export class QuizService {
       endsAt,
       durationMinutes: body.durationMinutes ?? 5,
       questionsPerQuiz: body.questionsPerQuiz ?? DEFAULT_QUESTIONS_PER_QUIZ,
+      tiebreakerQuestion: body.tiebreakerQuestion ?? '',
       isActive: body.isActive ?? true,
     });
     return this.configs.save(created);

@@ -11,6 +11,7 @@ interface QuizConfig {
   endsAt: string;
   durationMinutes: number;
   questionsPerQuiz: number;
+  tiebreakerQuestion: string;
   isActive: boolean;
   createdAt: string;
 }
@@ -23,6 +24,7 @@ const emptyForm = {
   endsAt: "",
   durationMinutes: 5,
   questionsPerQuiz: 5,
+  tiebreakerQuestion: "",
   isActive: true,
 };
 
@@ -87,6 +89,7 @@ export default function AdminQuizConfigPage() {
       endsAt: new Date(c.endsAt).toISOString().slice(0, 16),
       durationMinutes: c.durationMinutes,
       questionsPerQuiz: c.questionsPerQuiz ?? 5,
+      tiebreakerQuestion: c.tiebreakerQuestion ?? "",
       isActive: c.isActive,
     });
     setError(null);
@@ -261,6 +264,21 @@ export default function AdminQuizConfigPage() {
                   rows={2}
                   className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
                 />
+              </div>
+              <div>
+                <label className="text-slate-400 text-xs uppercase tracking-wide block mb-1">
+                  Tiebreaker Question <span className="text-slate-500 normal-case font-normal">(optional, asks for a number)</span>
+                </label>
+                <textarea
+                  value={form.tiebreakerQuestion}
+                  onChange={(e) => setForm({ ...form, tiebreakerQuestion: e.target.value })}
+                  rows={2}
+                  placeholder="e.g., How many parameters (in billions) does GPT-4 have?"
+                  className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                />
+                <p className="text-slate-500 text-[11px] mt-1">
+                  Shown after the last question. User enters a number — closest guess breaks score ties. Leave empty to skip.
+                </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

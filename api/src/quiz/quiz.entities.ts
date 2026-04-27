@@ -41,6 +41,10 @@ export class QuizConfig {
   @Column({ type: 'int', default: 5 })
   questionsPerQuiz: number;
 
+  /** Optional tiebreaker question text shown at the end. Empty = skip tiebreaker. */
+  @Column({ type: 'text', default: '' })
+  tiebreakerQuestion: string;
+
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
