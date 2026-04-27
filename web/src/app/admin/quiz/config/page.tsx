@@ -174,9 +174,19 @@ export default function AdminQuizConfigPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <button onClick={() => openEdit(c)} className="text-indigo-400 hover:text-indigo-300 text-xs">Edit</button>
-                    <button onClick={() => remove(c.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => openEdit(c)}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 hover:text-indigo-200 text-xs font-medium transition border border-indigo-500/20"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => remove(c.id)}
+                      className="px-3 py-1.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:text-red-200 text-xs font-medium transition border border-red-500/20"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               </div>
@@ -241,7 +251,7 @@ export default function AdminQuizConfigPage() {
                     type="datetime-local"
                     value={form.startsAt}
                     onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
-                    className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                    className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white [color-scheme:dark]"
                   />
                 </div>
                 <div>
@@ -250,7 +260,7 @@ export default function AdminQuizConfigPage() {
                     type="datetime-local"
                     value={form.endsAt}
                     onChange={(e) => setForm({ ...form, endsAt: e.target.value })}
-                    className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white"
+                    className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2 text-sm text-white [color-scheme:dark]"
                   />
                 </div>
               </div>
