@@ -15,11 +15,12 @@ const NAV_ITEMS = [
 ] as const;
 
 const TOOLS_ITEMS = [
-  { href: "/tools/jd-match",       label: "JD Match",       icon: "document_scanner" },
-  { href: "/tools/star-builder",   label: "STAR Builder",   icon: "format_list_bulleted" },
-  { href: "/tools/resume-review",  label: "Resume Review",  icon: "description" },
-  { href: "/tools/debrief",        label: "Interview Log",  icon: "work_history" },
-  { href: "/tools/pair",           label: "Peer Practice",  icon: "group" },
+  { href: "/tools/jd-match",            label: "JD Match",       icon: "document_scanner" },
+  { href: "/tools/jd-interview-prep",   label: "JD Prep",        icon: "school" },
+  { href: "/tools/star-builder",        label: "STAR Builder",   icon: "format_list_bulleted" },
+  { href: "/tools/resume-review",       label: "Resume Review",  icon: "description" },
+  { href: "/tools/debrief",             label: "Interview Log",  icon: "work_history" },
+  { href: "/tools/pair",                label: "Peer Practice",  icon: "group" },
 ] as const;
 
 const COMMUNITY_ITEMS = [

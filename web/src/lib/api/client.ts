@@ -120,6 +120,8 @@ export function createApiClient(getToken: GetToken) {
     analyzeJD:        (dto: { jobDescription: string; resumeText?: string })  => post<JDMatchResponse>("/tools/jd-match", dto),
     getJDMatchUsage:  ()                                                       => get<{ usesThisWeek: number; weekLimit: number; isPro: boolean }>("/tools/jd-match/usage"),
     reviewResume:     ()                                                       => post<ResumeReviewResponse>("/tools/resume-review", {}),
+    jdInterviewPrep:  (dto: { jobDescription: string; interviewType?: string; numQuestions?: number }) =>
+                                                                                    post<JDInterviewPrepResponse>("/tools/jd-interview-prep", dto),
 
     // ── Referrals ───────────────────────────────────────────────────────
     getMyReferrals:   ()                    => get<ReferralData>("/referrals"),
@@ -303,6 +305,23 @@ export interface JDMatchResponse {
   gaps:              string[];
   recommendations:   string[];
   summary:           string;
+}
+
+export interface JDInterviewQuestion {
+  question:    string;
+  type:        string;
+  difficulty:  string;
+  rationale:   string;
+  follow_ups:  string[];
+}
+
+export interface JDInterviewPrepResponse {
+  target_role:      string;
+  target_company:   string | null;
+  experience_level: string;
+  summary:          string;
+  focus_areas:      string[];
+  questions:        JDInterviewQuestion[];
 }
 
 export interface ResumeReviewSection {

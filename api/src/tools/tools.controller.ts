@@ -126,6 +126,44 @@ export class ToolsController {
     return res.json();
   }
 
+  /** POST /api/v1/tools/jd-interview-prep — generate interview questions from a JD + user's resume */
+  @Post('jd-interview-prep')
+  async jdInterviewPrep(
+    @CurrentUser() clerkUser: ClerkUser,
+    @Body() dto: { jobDescription: string; interviewType?: string; numQuestions?: number },
+  ) {
+    if (!dto.jobDescription || dto.jobDescription.trim().length < 100) {
+      throw new BadRequestException('Job description must be at least 100 characters');
+    }
+
+    const aiUrl = this.config.get<string>('AI_ENGINE_URL') ?? 'http://localhost:8000';
+
+    let resumeText: string | null = null;
+    try {
+      const user = await this.users.findById(clerkUser.sub);
+      resumeText = user.resumeText ?? null;
+    } catch { /* non-fatal */ }
+
+    const res = await fetch(`${aiUrl}/jd-interview-prep`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_description: dto.jobDescription,
+        resume_text: resumeText,
+        interview_type: dto.interviewType ?? 'mixed',
+        num_questions: dto.numQuestions ?? 5,
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => 'AI engine error');
+      throw new Error(`JD interview prep failed (${res.status}): ${body}`);
+    }
+
+    return res.json();
+  }
+
   /** POST /api/v1/tools/resume-review — get AI feedback on user's resume */
   @Post('resume-review')
   async reviewResume(@CurrentUser() clerkUser: ClerkUser) {
