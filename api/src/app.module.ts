@@ -21,6 +21,7 @@ import { AdminModule } from './admin/admin.module';
 import { ReferralModule } from './referral/referral.module';
 import { TeamModule } from './team/team.module';
 import { QuizModule } from './quiz/quiz.module';
+import { SocialAgentModule } from './social-agent/social-agent.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { QuizModule } from './quiz/quiz.module';
     ReferralModule,
     TeamModule,
     QuizModule,
+    SocialAgentModule,
   ],
   controllers: [HealthController],
 })
