@@ -739,29 +739,109 @@ export class QuizService {
   async adminExportSubmissionsCSV(quizWeek?: number): Promise<string> {
     const qb = this.submissions
       .createQueryBuilder('s')
+      .leftJoinAndSelect('s.answers', 'a')
+      .leftJoinAndSelect('a.question', 'q')
       .orderBy('s.totalScore', 'DESC')
       .addOrderBy('s.totalTimeSeconds', 'ASC');
     if (quizWeek !== undefined) qb.andWhere('s.quizWeek = :week', { week: quizWeek });
     const subs = await qb.getMany();
 
-    const header = 'rank,fullName,email,upiId,youtubeHandle,quizWeek,totalScore,totalTimeSeconds,tiebreakerAnswer,winnerRank,submittedAt\n';
-    const rows = subs.map((s, i) =>
-      [
-        i + 1,
-        s.fullName,
-        s.email,
-        s.upiId,
-        s.youtubeHandle ?? '',
-        s.quizWeek,
-        s.totalScore,
-        s.totalTimeSeconds,
-        s.tiebreakerAnswer ?? '',
-        s.winnerRank ?? '',
-        s.submittedAt.toISOString(),
-      ]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(','),
-    ).join('\n');
+    // Determine the maximum number of questions any user got — drives the
+    // number of Q1.../QN... column groups in the wide-format export.
+    const maxQ = Math.max(0, ...subs.map((s) => s.answers?.length ?? 0));
+
+    // Build dynamic column headers: per-question groups
+    const qCols: string[] = [];
+    for (let i = 1; i <= maxQ; i++) {
+      qCols.push(
+        `q${i}_question`,
+        `q${i}_type`,
+        `q${i}_difficulty`,
+        `q${i}_correctAnswer`,
+        `q${i}_selectedAnswer`,
+        `q${i}_isCorrect`,
+        `q${i}_pointsEarned`,
+        `q${i}_timeSeconds`,
+      );
+    }
+
+    const baseCols = [
+      'rank', 'fullName', 'email', 'upiId', 'youtubeHandle', 'quizWeek',
+      'totalScore', 'totalTimeSeconds', 'tiebreakerAnswer', 'winnerRank',
+      'submittedAt', 'answersSummary',
+    ];
+    const header = [...baseCols, ...qCols].join(',') + '\n';
+
+    const escape = (v: unknown): string => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+    const rows = subs.map((s, i) => {
+      const answers = s.answers ?? [];
+
+      // Compact human-readable summary across all answers — fits in one cell
+      const summary = answers
+        .map((a, idx) => {
+          const q = a.question;
+          const qType = q?.questionType ?? 'mcq';
+          const correct = qType === 'multi_select'
+            ? (q?.correctAnswers ?? []).join(',')
+            : qType === 'numeric'
+              ? `${q?.correctNumber ?? '?'}±${q?.numericTolerance ?? 0}`
+              : (q?.correctAnswer ?? '?');
+          const selected = qType === 'numeric'
+            ? String(a.selectedNumber ?? '?')
+            : a.selectedAnswer;
+          const mark = a.isCorrect ? '✓' : '✗';
+          const text = (q?.questionText ?? '(deleted)').slice(0, 80);
+          return `Q${idx + 1} [${qType}/${q?.difficulty ?? '?'}] "${text}" → ${selected} (correct: ${correct}) ${mark} +${a.pointsEarned}pts ${a.timeTakenSeconds}s`;
+        })
+        .join(' | ');
+
+      // Per-question wide-format columns (pad to maxQ with empty strings)
+      const perQ: string[] = [];
+      for (let j = 0; j < maxQ; j++) {
+        const a = answers[j];
+        if (!a) {
+          perQ.push('', '', '', '', '', '', '', '');
+          continue;
+        }
+        const q = a.question;
+        const qType = q?.questionType ?? 'mcq';
+        const correct = qType === 'multi_select'
+          ? (q?.correctAnswers ?? []).join(',')
+          : qType === 'numeric'
+            ? `${q?.correctNumber ?? ''}±${q?.numericTolerance ?? 0}`
+            : (q?.correctAnswer ?? '');
+        const selected = qType === 'numeric'
+          ? String(a.selectedNumber ?? '')
+          : a.selectedAnswer;
+        perQ.push(
+          escape(q?.questionText ?? '(deleted)'),
+          escape(qType),
+          escape(q?.difficulty ?? ''),
+          escape(correct),
+          escape(selected),
+          escape(a.isCorrect ? 'TRUE' : 'FALSE'),
+          escape(a.pointsEarned),
+          escape(a.timeTakenSeconds),
+        );
+      }
+
+      return [
+        escape(i + 1),
+        escape(s.fullName),
+        escape(s.email),
+        escape(s.upiId),
+        escape(s.youtubeHandle ?? ''),
+        escape(s.quizWeek),
+        escape(s.totalScore),
+        escape(s.totalTimeSeconds),
+        escape(s.tiebreakerAnswer ?? ''),
+        escape(s.winnerRank ?? ''),
+        escape(s.submittedAt.toISOString()),
+        escape(summary),
+        ...perQ,
+      ].join(',');
+    }).join('\n');
 
     return header + rows;
   }
