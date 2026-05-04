@@ -14,7 +14,9 @@ export type SocialContentType =
 
 export type SocialPostStatus =
   | 'draft' | 'pending_approval' | 'approved'
-  | 'published_manual' | 'rejected';
+  | 'publishing'
+  | 'published_manual' | 'published_auto'
+  | 'failed' | 'rejected';
 
 export type SocialGeneratedBy = 'manual' | 'claude';
 
@@ -49,6 +51,19 @@ export class SocialPost {
   /** External URL after publishing (e.g. LinkedIn post URL) */
   @Column({ type: 'text', nullable: true })
   externalUrl: string | null;
+
+  /** External post id (e.g. LinkedIn ugcPosts URN) — for future analytics */
+  @Column({ type: 'text', nullable: true })
+  externalPostId: string | null;
+
+  @Column({ type: 'int', default: 0 })
+  publishAttempts: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  lastPublishAttemptAt: Date | null;
+
+  @Column({ type: 'text', nullable: true })
+  failureReason: string | null;
 
   @Index()
   @Column({ type: 'varchar', length: 20, default: 'pending_approval' })

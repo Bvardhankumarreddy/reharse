@@ -52,6 +52,22 @@ export default function ScheduledPage() {
     } finally { setBusy(null); }
   }
 
+  async function publishNow(id: string) {
+    if (!confirm("Publish this LinkedIn post immediately?")) return;
+    setBusy(id);
+    const token = await fetchToken();
+    if (!token) return;
+    try {
+      const post = await api<SocialPost>(token, `/posts/${id}/publish-now`, { method: "POST" });
+      if (post.status === "failed" || post.failureReason) {
+        alert(`Publish failed: ${post.failureReason ?? "unknown error"}`);
+      }
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Publish failed");
+    } finally { setBusy(null); }
+  }
+
   async function reschedule(id: string, newAt: string) {
     setBusy(id);
     const token = await fetchToken();
@@ -106,6 +122,16 @@ export default function ScheduledPage() {
                         <span className="text-[#FFD700] font-mono">
                           {new Date(p.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </span>
+                        {(p.platform === "linkedin_page" || p.platform === "linkedin_personal") && (
+                          <span className="text-[10px] font-bold uppercase tracking-widest bg-[#00D4FF]/15 text-[#00D4FF] px-2 py-0.5 rounded">
+                            🤖 Auto-publish
+                          </span>
+                        )}
+                        {p.publishAttempts > 0 && (
+                          <span className="text-[10px] font-bold text-[#FF5C7C]">
+                            ⚠ {p.publishAttempts} failed attempt{p.publishAttempts > 1 ? "s" : ""}
+                          </span>
+                        )}
                       </div>
                       <p className="text-[#B8C5E0] text-sm mt-1.5 line-clamp-3 whitespace-pre-wrap">
                         {p.textContent.slice(0, 250)}{p.textContent.length > 250 ? "…" : ""}
@@ -119,6 +145,15 @@ export default function ScheduledPage() {
                     >
                       📋 Copy
                     </button>
+                    {(p.platform === "linkedin_page" || p.platform === "linkedin_personal") && (
+                      <button
+                        onClick={() => publishNow(p.id)}
+                        disabled={busy === p.id}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#00D4FF]/40 text-[#00D4FF] hover:bg-[#00D4FF]/10 disabled:opacity-50"
+                      >
+                        🚀 Publish Now
+                      </button>
+                    )}
                     <button
                       onClick={() => markPublished(p.id)}
                       disabled={busy === p.id}

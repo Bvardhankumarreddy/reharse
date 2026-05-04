@@ -7,11 +7,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
-  { href: "/admin/social-agent",            label: "Dashboard" },
-  { href: "/admin/social-agent/generate",   label: "+ Generate" },
-  { href: "/admin/social-agent/queue",      label: "Queue" },
-  { href: "/admin/social-agent/scheduled",  label: "Scheduled" },
-  { href: "/admin/social-agent/history",    label: "History" },
+  { href: "/admin/social-agent",              label: "Dashboard" },
+  { href: "/admin/social-agent/generate",     label: "+ Generate" },
+  { href: "/admin/social-agent/queue",        label: "Queue" },
+  { href: "/admin/social-agent/scheduled",    label: "Scheduled" },
+  { href: "/admin/social-agent/history",      label: "History" },
+  { href: "/admin/social-agent/connections",  label: "🔗 Connections" },
 ];
 
 export default function SocialAgentLayout({ children }: { children: React.ReactNode }) {

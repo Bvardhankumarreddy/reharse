@@ -12,7 +12,22 @@ export type SocialContentType =
 
 export type SocialPostStatus =
   | "draft" | "pending_approval" | "approved"
-  | "published_manual" | "rejected";
+  | "publishing"
+  | "published_manual" | "published_auto"
+  | "failed" | "rejected";
+
+export interface SocialConnection {
+  id: string;
+  platform: SocialPlatform;
+  accountId: string;
+  accountName: string | null;
+  tokenExpiresAt: string;
+  isActive: boolean;
+  lastUsedAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface SocialPost {
   id: string;
@@ -24,6 +39,10 @@ export interface SocialPost {
   scheduledAt: string;
   publishedAt: string | null;
   externalUrl: string | null;
+  externalPostId: string | null;
+  publishAttempts: number;
+  lastPublishAttemptAt: string | null;
+  failureReason: string | null;
   status: SocialPostStatus;
   generatedBy: "manual" | "claude";
   generationContext: Record<string, unknown> | null;
@@ -63,8 +82,11 @@ export const STATUS_COLOR: Record<SocialPostStatus, string> = {
   draft:              "bg-slate-500/20 text-slate-300",
   pending_approval:   "bg-amber-500/20 text-amber-300",
   approved:           "bg-cyan-500/20 text-cyan-300",
+  publishing:         "bg-violet-500/20 text-violet-300 animate-pulse",
   published_manual:   "bg-emerald-500/20 text-emerald-300",
-  rejected:           "bg-red-500/20 text-red-300",
+  published_auto:     "bg-emerald-500/20 text-emerald-300",
+  failed:             "bg-red-500/20 text-red-300",
+  rejected:           "bg-slate-500/20 text-slate-400",
 };
 
 export async function fetchToken(): Promise<string | null> {

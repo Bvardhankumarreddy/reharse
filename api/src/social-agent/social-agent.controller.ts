@@ -1,18 +1,24 @@
 import {
-  Controller, Get, Post, Patch, Delete, Param, Query, Body, Req,
+  Controller, Get, Post, Patch, Delete, Param, Query, Body, Req, Res,
   UseGuards, ParseIntPipe, DefaultValuePipe,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { AdminGuard } from '../auth/admin.guard';
 import { SocialAgentService } from './social-agent.service';
-import type {
-  SocialPlatform, SocialContentType, SocialPostStatus,
-} from './social-post.entity';
+import { LinkedInService } from './linkedin.service';
+import { SocialPublishProcessor } from './social-publish.processor';
+import { ConfigService } from '@nestjs/config';
+import type { SocialPost, SocialPlatform, SocialContentType, SocialPostStatus } from './social-post.entity';
 
+// ── Admin-protected endpoints ──────────────────────────────────────────────────
 @Controller('admin/social-agent')
 @UseGuards(AdminGuard)
 export class SocialAgentController {
-  constructor(private readonly service: SocialAgentService) {}
+  constructor(
+    private readonly service: SocialAgentService,
+    private readonly linkedin: LinkedInService,
+    private readonly publisher: SocialPublishProcessor,
+  ) {}
 
   @Get('stats')
   stats() {
@@ -81,5 +87,66 @@ export class SocialAgentController {
   @Delete('posts/:id')
   remove(@Param('id') id: string) {
     return this.service.delete(id);
+  }
+
+  // ── Phase 2 ─────────────────────────────────────────────────────────
+
+  /** Manual "Publish Now" — runs the same publisher as the cron */
+  @Post('posts/:id/publish-now')
+  async publishNow(@Param('id') id: string): Promise<SocialPost> {
+    const post = await this.service.get(id);
+    await this.publisher.publishOne(post);
+    return this.service.get(id); // return refreshed state
+  }
+
+  /** GET /api/v1/admin/social-agent/connections — list connected accounts */
+  @Get('connections')
+  listConnections() {
+    return this.linkedin.listConnections();
+  }
+
+  /** DELETE /api/v1/admin/social-agent/connections/:platform — revoke connection */
+  @Delete('connections/:platform')
+  disconnect(@Param('platform') platform: SocialPlatform) {
+    return this.linkedin.disconnect(platform);
+  }
+
+  /** GET /api/v1/admin/social-agent/connect/linkedin?platform=linkedin_page
+   *  Returns the LinkedIn authorize URL — browser navigates client-side. */
+  @Get('connect/linkedin')
+  connectLinkedin(@Query('platform') platform: SocialPlatform) {
+    return { url: this.linkedin.buildAuthorizeUrl(platform) };
+  }
+}
+
+// ── OAuth callback — public route (LinkedIn redirects browsers here) ──────────
+@Controller('social-agent/oauth')
+export class SocialAgentOAuthController {
+  constructor(
+    private readonly linkedin: LinkedInService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /** GET /api/v1/social-agent/oauth/linkedin/callback?code=...&state=... */
+  @Get('linkedin/callback')
+  async linkedinCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('error') error: string | undefined,
+    @Res() res: Response,
+  ) {
+    const appUrl = this.config.get<string>('FRONTEND_URL') ?? 'https://reharse.inferix.in';
+    const dest = (status: string, msg = '') =>
+      `${appUrl}/admin/social-agent/connections?${status}&msg=${encodeURIComponent(msg)}`;
+
+    if (error) return res.redirect(dest('error=oauth', `LinkedIn error: ${error}`));
+    if (!code || !state) return res.redirect(dest('error=oauth', 'Missing code or state'));
+
+    try {
+      const { platform, accountName } = await this.linkedin.handleCallback(code, state);
+      return res.redirect(dest('connected', `${platform}:${accountName}`));
+    } catch (e) {
+      return res.redirect(dest('error=callback', (e as Error).message));
+    }
   }
 }
