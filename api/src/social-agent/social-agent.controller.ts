@@ -9,6 +9,9 @@ import { AdminGuard } from '../auth/admin.guard';
 import { SocialAgentService } from './social-agent.service';
 import { LinkedInService } from './linkedin.service';
 import { InstagramService } from './instagram.service';
+import { YouTubeService } from './youtube.service';
+import { AnalyticsService } from './analytics.service';
+import { InsightsProcessor } from './insights.processor';
 import { SocialPublishProcessor } from './social-publish.processor';
 import { StorageService } from '../storage/storage.service';
 import { ConfigService } from '@nestjs/config';
@@ -22,6 +25,9 @@ export class SocialAgentController {
     private readonly service: SocialAgentService,
     private readonly linkedin: LinkedInService,
     private readonly instagram: InstagramService,
+    private readonly youtube: YouTubeService,
+    private readonly analytics: AnalyticsService,
+    private readonly insights: InsightsProcessor,
     private readonly publisher: SocialPublishProcessor,
     private readonly storage: StorageService,
   ) {}
@@ -132,6 +138,33 @@ export class SocialAgentController {
     return { url: this.instagram.buildAuthorizeUrl() };
   }
 
+  /** GET /api/v1/admin/social-agent/connect/youtube — Google OAuth */
+  @Get('connect/youtube')
+  connectYoutube() {
+    return { url: this.youtube.buildAuthorizeUrl() };
+  }
+
+  /** GET /api/v1/admin/social-agent/youtube/subscribers — current subscriber count */
+  @Get('youtube/subscribers')
+  async youtubeSubscribers() {
+    const count = await this.youtube.getSubscriberCount();
+    return { subscriberCount: count, eligibleForCommunityPosts: (count ?? 0) >= 500 };
+  }
+
+  // ── Analytics + Insights ────────────────────────────────────────────
+
+  /** GET /api/v1/admin/social-agent/analytics — 30-day dashboard summary */
+  @Get('analytics')
+  analyticsSummary() {
+    return this.analytics.summary();
+  }
+
+  /** POST /api/v1/admin/social-agent/insights/generate — manually trigger Claude analysis */
+  @Post('insights/generate')
+  generateInsightsNow() {
+    return this.insights.triggerNow();
+  }
+
   /** POST /api/v1/admin/social-agent/upload-image
    *  Multipart upload → S3 via existing StorageService → returns 24-hour presigned URL.
    *  Instagram requires a publicly fetchable image URL during media-container creation. */
@@ -167,6 +200,7 @@ export class SocialAgentOAuthController {
   constructor(
     private readonly linkedin: LinkedInService,
     private readonly instagram: InstagramService,
+    private readonly youtube: YouTubeService,
     private readonly config: ConfigService,
   ) {}
 
@@ -208,6 +242,28 @@ export class SocialAgentOAuthController {
     try {
       const { accountName } = await this.instagram.handleCallback(code, state);
       return res.redirect(dest('connected', `instagram_feed:${accountName}`));
+    } catch (e) {
+      return res.redirect(dest('error=callback', (e as Error).message));
+    }
+  }
+
+  /** GET /api/v1/social-agent/oauth/youtube/callback?code=...&state=... */
+  @Get('youtube/callback')
+  async youtubeCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('error') error: string | undefined,
+    @Res() res: Response,
+  ) {
+    const dest = this.destBuilder();
+
+    if (error) return res.redirect(dest('error=oauth', `YouTube error: ${error}`));
+    if (!code || !state) return res.redirect(dest('error=oauth', 'Missing code or state'));
+
+    try {
+      const { accountName, subscriberCount } = await this.youtube.handleCallback(code, state);
+      const eligible = subscriberCount >= 500 ? '' : ` (Note: needs 500+ subs for community posts; you have ${subscriberCount})`;
+      return res.redirect(dest('connected', `youtube_community:${accountName}${eligible}`));
     } catch (e) {
       return res.redirect(dest('error=callback', (e as Error).message));
     }

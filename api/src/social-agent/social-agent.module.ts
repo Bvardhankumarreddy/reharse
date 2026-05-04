@@ -5,16 +5,31 @@ import { SocialAgentController, SocialAgentOAuthController } from './social-agen
 import { SocialAgentService } from './social-agent.service';
 import { LinkedInService } from './linkedin.service';
 import { InstagramService } from './instagram.service';
+import { YouTubeService } from './youtube.service';
 import { SocialAgentEncryptionService } from './encryption.service';
 import { SocialPublishProcessor, SOCIAL_PUBLISH_QUEUE } from './social-publish.processor';
+import { EngagementSyncProcessor, ENGAGEMENT_SYNC_QUEUE } from './engagement-sync.processor';
+import { InsightsProcessor, INSIGHTS_QUEUE } from './insights.processor';
+import { AnalyticsService } from './analytics.service';
 import { SocialPost } from './social-post.entity';
 import { SocialPlatformConnection } from './social-platform-connection.entity';
+import { PostEngagement } from './post-engagement.entity';
+import { SocialInsight } from './social-insight.entity';
 import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SocialPost, SocialPlatformConnection]),
-    BullModule.registerQueue({ name: SOCIAL_PUBLISH_QUEUE }),
+    TypeOrmModule.forFeature([
+      SocialPost,
+      SocialPlatformConnection,
+      PostEngagement,
+      SocialInsight,
+    ]),
+    BullModule.registerQueue(
+      { name: SOCIAL_PUBLISH_QUEUE },
+      { name: ENGAGEMENT_SYNC_QUEUE },
+      { name: INSIGHTS_QUEUE },
+    ),
     AdminModule, // for AdminGuard
   ],
   controllers: [SocialAgentController, SocialAgentOAuthController],
@@ -22,8 +37,12 @@ import { AdminModule } from '../admin/admin.module';
     SocialAgentService,
     LinkedInService,
     InstagramService,
+    YouTubeService,
     SocialAgentEncryptionService,
     SocialPublishProcessor,
+    EngagementSyncProcessor,
+    InsightsProcessor,
+    AnalyticsService,
   ],
 })
 export class SocialAgentModule {}

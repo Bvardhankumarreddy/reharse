@@ -9,6 +9,7 @@ import {
 
 const LINKEDIN_PLATFORMS: SocialPlatform[] = ["linkedin_page", "linkedin_personal"];
 const INSTAGRAM_PLATFORM: SocialPlatform = "instagram_feed";
+const YOUTUBE_PLATFORM: SocialPlatform = "youtube_community";
 
 interface ConnectionRowProps {
   platform: SocialPlatform;
@@ -29,7 +30,9 @@ function ConnectionRow({ platform, connection, onChange }: ConnectionRowProps) {
     try {
       const path = platform === "instagram_feed"
         ? "/connect/instagram"
-        : `/connect/linkedin?platform=${platform}`;
+        : platform === "youtube_community"
+          ? "/connect/youtube"
+          : `/connect/linkedin?platform=${platform}`;
       const { url } = await api<{ url: string }>(token, path);
       window.location.href = url;
     } catch (e) {
@@ -175,6 +178,11 @@ export default function ConnectionsPage() {
               connection={byPlatform.get(INSTAGRAM_PLATFORM)}
               onChange={load}
             />
+            <ConnectionRow
+              platform={YOUTUBE_PLATFORM}
+              connection={byPlatform.get(YOUTUBE_PLATFORM)}
+              onChange={load}
+            />
           </>
         )}
       </div>
@@ -201,6 +209,23 @@ export default function ConnectionsPage() {
           <li>Set env vars: <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">META_APP_ID</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">META_APP_SECRET</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">META_REDIRECT_URI</code></li>
           <li>Image hosting reuses the existing <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">StorageService</code> (S3 via Lambda) — no new env vars needed</li>
           <li>Click <strong>Connect Instagram Feed</strong> above to start OAuth</li>
+        </ol>
+      </div>
+
+      <div className="bg-[#151B3D] border border-[#FF0000]/30 rounded-2xl p-5">
+        <h3 className="text-white font-bold mb-3">⚙️ Setup — YouTube</h3>
+        <div className="bg-[#FFD700]/10 border border-[#FFD700]/30 rounded-xl p-3 mb-3 text-xs text-[#FFD700]">
+          ⚠ <strong>API limitation:</strong> YouTube&apos;s public Data API doesn&apos;t support creating Community Posts programmatically.
+          You can connect to track subscriber count + verify the channel, but auto-publishing of community posts isn&apos;t possible
+          today. Approve YouTube posts in the Queue → copy → paste manually on YouTube&apos;s Community tab → click <em>Mark Published</em>.
+        </div>
+        <ol className="space-y-2 text-sm text-[#B8C5E0] list-decimal list-inside">
+          <li>Go to <a className="text-[#00D4FF] hover:underline" href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> → Create project</li>
+          <li>Enable <strong>YouTube Data API v3</strong></li>
+          <li>Create OAuth 2.0 credentials (Web application). Authorized redirect: <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">https://reharse.inferix.in/api/v1/social-agent/oauth/youtube/callback</code></li>
+          <li>OAuth consent screen → publish or add yourself as test user</li>
+          <li>Set env vars: <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">YOUTUBE_CLIENT_ID</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">YOUTUBE_CLIENT_SECRET</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">YOUTUBE_REDIRECT_URI</code></li>
+          <li>Click <strong>Connect YouTube Community</strong> — required for the analytics dashboard to show subscriber count</li>
         </ol>
       </div>
     </div>

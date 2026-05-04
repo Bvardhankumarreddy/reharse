@@ -274,4 +274,59 @@ export class LinkedInService {
     conn.lastUsedAt = new Date();
     await this.connections.save(conn);
   }
+
+  // ── Engagement sync (Phase 4) ───────────────────────────────────────
+
+  /** Fetch likes/comments/shares from LinkedIn for a published post */
+  async fetchStats(post: SocialPost): Promise<EngagementStats | null> {
+    if (!post.externalPostId) return null;
+    const conn = await this.connections.findOne({ where: { platform: post.platform, isActive: true } });
+    if (!conn) return null;
+    if (conn.tokenExpiresAt.getTime() <= Date.now() + 60_000) {
+      try { await this.refreshToken(conn); } catch { return null; }
+    }
+
+    try {
+      const accessToken = this.enc.decrypt(conn.encryptedAccessToken);
+      const res = await fetch(
+        `https://api.linkedin.com/v2/socialActions/${encodeURIComponent(post.externalPostId)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
+        },
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        likesSummary?: { totalLikes?: number };
+        commentsSummary?: { totalFirstLevelComments?: number };
+        sharesSummary?: { totalShares?: number };
+      };
+      return {
+        likes: data.likesSummary?.totalLikes ?? 0,
+        comments: data.commentsSummary?.totalFirstLevelComments ?? 0,
+        shares: data.sharesSummary?.totalShares ?? 0,
+        impressions: 0, // LinkedIn doesn't expose for personal accounts
+        reach: 0,
+        saves: 0,
+        clicks: 0,
+        rawData: data,
+      };
+    } catch (e) {
+      this.logger.warn(`LinkedIn stats fetch failed for ${post.id}: ${(e as Error).message}`);
+      return null;
+    }
+  }
+}
+
+export interface EngagementStats {
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  impressions: number;
+  reach: number;
+  clicks: number;
+  rawData: Record<string, unknown>;
 }

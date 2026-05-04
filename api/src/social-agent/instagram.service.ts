@@ -6,6 +6,7 @@ import * as jwt from 'jsonwebtoken';
 import { SocialPlatformConnection } from './social-platform-connection.entity';
 import { SocialAgentEncryptionService } from './encryption.service';
 import type { SocialPost, SocialPlatform } from './social-post.entity';
+import type { EngagementStats } from './linkedin.service';
 
 const FB_GRAPH = 'https://graph.facebook.com/v19.0';
 
@@ -281,6 +282,44 @@ export class InstagramService {
     conn.lastUsedAt = new Date();
     await this.connections.save(conn);
   }
+
+  // ── Engagement sync (Phase 4) ───────────────────────────────────────
+
+  /** Fetch insights for a published Instagram post via /insights endpoint */
+  async fetchStats(post: SocialPost): Promise<EngagementStats | null> {
+    if (!post.externalPostId) return null;
+    const conn = await this.connections.findOne({ where: { platform: 'instagram_feed', isActive: true } });
+    if (!conn) return null;
+    if (conn.tokenExpiresAt.getTime() <= Date.now()) return null;
+
+    try {
+      const accessToken = this.enc.decrypt(conn.encryptedAccessToken);
+      const metrics = 'likes,comments,shares,saved,reach,impressions';
+      const res = await fetch(
+        `${FB_GRAPH}/${post.externalPostId}/insights?metric=${metrics}&access_token=${accessToken}`,
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        data?: Array<{ name: string; values?: Array<{ value: number }> }>;
+      };
+      const get = (name: string): number =>
+        data.data?.find((d) => d.name === name)?.values?.[0]?.value ?? 0;
+
+      return {
+        likes: get('likes'),
+        comments: get('comments'),
+        shares: get('shares'),
+        saves: get('saved'),
+        impressions: get('impressions'),
+        reach: get('reach'),
+        clicks: 0,
+        rawData: data as Record<string, unknown>,
+      };
+    } catch (e) {
+      this.logger.warn(`IG stats fetch failed for ${post.id}: ${(e as Error).message}`);
+      return null;
+    }
+  }
 }
 
 /** Used by SocialAgentService and admin endpoints to know which platforms support auto-publish. */
@@ -289,3 +328,4 @@ export const AUTO_PUBLISH_PLATFORMS: SocialPlatform[] = [
   'linkedin_personal',
   'instagram_feed',
 ];
+
