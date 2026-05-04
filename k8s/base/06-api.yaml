@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: rehearse-api:latest
+          image: bhopathivardhan1/rehearse-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3001

@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: ai-engine
-          image: rehearse-ai-engine:latest
+          image: bhopathivardhan1/rehearse-ai-engine:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
