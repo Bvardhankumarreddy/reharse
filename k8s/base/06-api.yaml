@@ -134,6 +134,67 @@ spec:
                 secretKeyRef:
                   name: rehearse-secrets
                   key: STORAGE_LAMBDA_SECRET
+            # ── Social Agent (Phase 2/3/4): encryption + OAuth ────────────
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: ENCRYPTION_KEY
+                  optional: true
+            - name: LINKEDIN_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: LINKEDIN_CLIENT_ID
+                  optional: true
+            - name: LINKEDIN_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: LINKEDIN_CLIENT_SECRET
+                  optional: true
+            - name: LINKEDIN_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: LINKEDIN_REDIRECT_URI
+                  optional: true
+            - name: META_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: META_APP_ID
+                  optional: true
+            - name: META_APP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: META_APP_SECRET
+                  optional: true
+            - name: META_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: META_REDIRECT_URI
+                  optional: true
+            - name: YOUTUBE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: YOUTUBE_CLIENT_ID
+                  optional: true
+            - name: YOUTUBE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: YOUTUBE_CLIENT_SECRET
+                  optional: true
+            - name: YOUTUBE_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: YOUTUBE_REDIRECT_URI
+                  optional: true
           resources:
             requests:
               cpu: 50m
