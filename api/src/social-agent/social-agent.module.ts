@@ -4,6 +4,7 @@ import { BullModule } from '@nestjs/bull';
 import { SocialAgentController, SocialAgentOAuthController } from './social-agent.controller';
 import { SocialAgentService } from './social-agent.service';
 import { LinkedInService } from './linkedin.service';
+import { InstagramService } from './instagram.service';
 import { SocialAgentEncryptionService } from './encryption.service';
 import { SocialPublishProcessor, SOCIAL_PUBLISH_QUEUE } from './social-publish.processor';
 import { SocialPost } from './social-post.entity';
@@ -20,6 +21,7 @@ import { AdminModule } from '../admin/admin.module';
   providers: [
     SocialAgentService,
     LinkedInService,
+    InstagramService,
     SocialAgentEncryptionService,
     SocialPublishProcessor,
   ],

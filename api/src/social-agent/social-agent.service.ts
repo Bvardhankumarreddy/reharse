@@ -22,11 +22,18 @@ export class SocialAgentService {
     context: Record<string, unknown>;
     platforms: SocialPlatform[];
     scheduledAt: string;
+    imageUrl?: string; // Instagram needs an image — attached to instagram_* posts
   }): Promise<SocialPost[]> {
-    const { contentType, context, platforms, scheduledAt } = opts;
+    const { contentType, context, platforms, scheduledAt, imageUrl } = opts;
     if (!platforms?.length) throw new BadRequestException('At least one platform required');
     if (!contentType) throw new BadRequestException('contentType required');
     if (!scheduledAt) throw new BadRequestException('scheduledAt required');
+
+    // Validate: any instagram_feed selection requires an image
+    const hasInstagramFeed = platforms.some((p) => p === 'instagram_feed');
+    if (hasInstagramFeed && !imageUrl) {
+      throw new BadRequestException('Instagram Feed posts require an image — upload one first');
+    }
 
     const aiUrl = this.config.get<string>('AI_ENGINE_URL') ?? 'http://localhost:8000';
     const generated: SocialPost[] = [];
@@ -37,10 +44,12 @@ export class SocialAgentService {
         platform,
         contentType,
         textContent: text,
+        // Attach image only to platforms that use it
+        imageUrl: platform.startsWith('instagram') ? imageUrl ?? null : null,
         scheduledAt: new Date(scheduledAt),
         status: 'pending_approval',
         generatedBy: 'claude',
-        generationContext: { contentType, context, platform },
+        generationContext: { contentType, context, platform, imageUrl },
       });
       generated.push(await this.posts.save(entity));
     }

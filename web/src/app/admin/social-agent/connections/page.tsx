@@ -8,6 +8,7 @@ import {
 } from "../_helpers";
 
 const LINKEDIN_PLATFORMS: SocialPlatform[] = ["linkedin_page", "linkedin_personal"];
+const INSTAGRAM_PLATFORM: SocialPlatform = "instagram_feed";
 
 interface ConnectionRowProps {
   platform: SocialPlatform;
@@ -26,7 +27,10 @@ function ConnectionRow({ platform, connection, onChange }: ConnectionRowProps) {
     const token = await fetchToken();
     if (!token) { setBusy(false); return; }
     try {
-      const { url } = await api<{ url: string }>(token, `/connect/linkedin?platform=${platform}`);
+      const path = platform === "instagram_feed"
+        ? "/connect/instagram"
+        : `/connect/linkedin?platform=${platform}`;
+      const { url } = await api<{ url: string }>(token, path);
       window.location.href = url;
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to start OAuth");
@@ -153,29 +157,50 @@ export default function ConnectionsPage() {
 
       <div className="space-y-3">
         {loading ? (
-          Array.from({ length: 2 }).map((_, i) => (
+          Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-32 bg-[#151B3D] rounded-2xl animate-pulse" />
           ))
         ) : (
-          LINKEDIN_PLATFORMS.map((p) => (
+          <>
+            {LINKEDIN_PLATFORMS.map((p) => (
+              <ConnectionRow
+                key={p}
+                platform={p}
+                connection={byPlatform.get(p)}
+                onChange={load}
+              />
+            ))}
             <ConnectionRow
-              key={p}
-              platform={p}
-              connection={byPlatform.get(p)}
+              platform={INSTAGRAM_PLATFORM}
+              connection={byPlatform.get(INSTAGRAM_PLATFORM)}
               onChange={load}
             />
-          ))
+          </>
         )}
       </div>
 
       <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-5">
-        <h3 className="text-white font-bold mb-3">⚙️ Setup</h3>
+        <h3 className="text-white font-bold mb-3">⚙️ Setup — LinkedIn</h3>
         <ol className="space-y-2 text-sm text-[#B8C5E0] list-decimal list-inside">
           <li>Create a LinkedIn app at <a className="text-[#00D4FF] hover:underline" href="https://www.linkedin.com/developers/" target="_blank" rel="noopener">linkedin.com/developers</a></li>
           <li>Add redirect URL: <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">https://reharse.inferix.in/api/v1/social-agent/oauth/linkedin/callback</code></li>
           <li>Request products: <em>Sign In with OpenID Connect</em>, <em>Share on LinkedIn</em>, and (for page posting) <em>Marketing Developer Platform</em></li>
-          <li>Set env vars on the API: <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">LINKEDIN_CLIENT_ID</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">LINKEDIN_CLIENT_SECRET</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">LINKEDIN_REDIRECT_URI</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">ENCRYPTION_KEY</code></li>
-          <li>Click <strong>Connect</strong> above to start the OAuth flow</li>
+          <li>Set env vars: <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">LINKEDIN_CLIENT_ID</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">LINKEDIN_CLIENT_SECRET</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">LINKEDIN_REDIRECT_URI</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">ENCRYPTION_KEY</code></li>
+        </ol>
+      </div>
+
+      <div className="bg-[#151B3D] border border-[#E4405F]/30 rounded-2xl p-5">
+        <h3 className="text-white font-bold mb-3">⚙️ Setup — Instagram (more steps)</h3>
+        <ol className="space-y-2 text-sm text-[#B8C5E0] list-decimal list-inside">
+          <li>In the Instagram app: Settings → Account → <em>Switch to Professional Account</em> → choose <strong>Business</strong></li>
+          <li>Create a Facebook Page (if you don&apos;t have one) at <a className="text-[#00D4FF] hover:underline" href="https://www.facebook.com/pages/create" target="_blank" rel="noopener">facebook.com/pages/create</a> and link it to your IG Business account</li>
+          <li>Create a Meta app at <a className="text-[#00D4FF] hover:underline" href="https://developers.facebook.com/apps" target="_blank" rel="noopener">developers.facebook.com/apps</a> (App type: <em>Business</em>)</li>
+          <li>Add products: <em>Instagram Graph API</em> + <em>Facebook Login for Business</em></li>
+          <li>Add OAuth redirect: <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">https://reharse.inferix.in/api/v1/social-agent/oauth/instagram/callback</code></li>
+          <li>App Roles → add yourself as a Tester (until you submit for App Review)</li>
+          <li>Set env vars: <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">META_APP_ID</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">META_APP_SECRET</code>, <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">META_REDIRECT_URI</code></li>
+          <li>Image hosting reuses the existing <code className="text-[#FFD700] bg-[#0A0E27] px-1.5 py-0.5 rounded">StorageService</code> (S3 via Lambda) — no new env vars needed</li>
+          <li>Click <strong>Connect Instagram Feed</strong> above to start OAuth</li>
         </ol>
       </div>
     </div>

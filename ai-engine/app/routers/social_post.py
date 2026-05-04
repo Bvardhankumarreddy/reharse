@@ -116,11 +116,11 @@ INCLUDE THESE LINKS:{common_links}
 REQUIREMENTS:
 1. STRONG hook in the first line (especially first 3 words)
 2. Mention what makes this lesson valuable
-3. Include the YouTube link
+3. Include the YouTube link{(' (Instagram captions strip URLs — say "link in bio" instead, no raw URLs)' if platform == 'instagram_feed' else '')}
 4. Subtle CTA: subscribe + Saturday quiz at {COMMUNITY_LINKS['quiz']}
 5. Authentic voice, not corporate
 {('6. MUST be under 700 chars AND under 10 lines.' if platform == 'whatsapp_status' else '')}
-{('6. End with 10-15 relevant hashtags.' if platform == 'instagram_feed' else '')}
+{('6. End with 10-15 relevant hashtags. NO @mentions. NO raw URLs (use "link in bio" instead).' if platform == 'instagram_feed' else '')}
 """
 
     if content_type == "quiz_winners":

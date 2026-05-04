@@ -36,6 +36,9 @@ export default function GeneratePage() {
     new Set(["linkedin_page", "instagram_feed", "whatsapp_status"]),
   );
   const [generating, setGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Lesson drop fields
@@ -89,7 +92,43 @@ export default function GeneratePage() {
     if (contentType === "lesson_drop" && !lessonCtx.title.trim()) return "Lesson title required";
     if (contentType === "quiz_winners" && !quizCtx.winners[0].name.trim()) return "1st place winner name required";
     if (contentType === "custom" && !customBrief.trim()) return "Brief required for custom posts";
+    if (selectedPlatforms.has("instagram_feed") && !imageUrl) {
+      return "Upload an image — Instagram Feed requires one";
+    }
     return null;
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setError("Image too large (max 8 MB)");
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    try {
+      const token = await fetchToken();
+      if (!token) throw new Error("Not authenticated");
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/v1/admin/social-agent/upload-image", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message ?? `Upload failed (${res.status})`);
+      }
+      const { url } = (await res.json()) as { url: string };
+      setImageUrl(url);
+      setImagePreview(URL.createObjectURL(file));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Image upload failed");
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleGenerate() {
@@ -109,6 +148,7 @@ export default function GeneratePage() {
           context: buildContext(),
           platforms: Array.from(selectedPlatforms),
           scheduledAt: new Date(scheduledAt).toISOString(),
+          imageUrl: imageUrl ?? undefined,
         }),
       });
 
@@ -237,6 +277,52 @@ export default function GeneratePage() {
           })}
         </div>
       </div>
+
+      {/* Image upload — required when Instagram Feed is selected */}
+      {selectedPlatforms.has("instagram_feed") && (
+        <div className="bg-[#151B3D] border border-[#E4405F]/30 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-widest text-[#E4405F]">📸 Instagram Image (required)</div>
+              <div className="text-xs text-[#6B7799] mt-0.5">Recommended: 1080×1080 square, JPG/PNG, max 8 MB</div>
+            </div>
+            {imageUrl && (
+              <button
+                onClick={() => { setImageUrl(null); setImagePreview(null); }}
+                className="text-xs text-[#FF5C7C] hover:underline"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {imagePreview ? (
+            <div className="flex items-start gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imagePreview} alt="Preview" className="w-32 h-32 object-cover rounded-xl border border-white/10" />
+              <div className="flex-1">
+                <div className="text-[#00F5A0] text-xs font-semibold mb-1">✓ Uploaded</div>
+                <div className="text-[#6B7799] text-[10px] break-all">{imageUrl}</div>
+              </div>
+            </div>
+          ) : (
+            <label className={`block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition ${
+              uploading ? "border-[#00D4FF] bg-[#00D4FF]/5" : "border-white/10 hover:border-white/30"
+            }`}>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleImageUpload}
+                disabled={uploading}
+                className="hidden"
+              />
+              <div className="text-3xl mb-2">{uploading ? "⏳" : "📤"}</div>
+              <div className="text-white text-sm font-medium">
+                {uploading ? "Uploading to S3…" : "Click to choose an image"}
+              </div>
+            </label>
+          )}
+        </div>
+      )}
 
       {/* Schedule */}
       <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-5">

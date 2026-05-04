@@ -6,6 +6,7 @@ import { Repository, LessThanOrEqual } from 'typeorm';
 import type { Queue, Job } from 'bull';
 import { SocialPost } from './social-post.entity';
 import { LinkedInService } from './linkedin.service';
+import { InstagramService, AUTO_PUBLISH_PLATFORMS } from './instagram.service';
 
 export const SOCIAL_PUBLISH_QUEUE = 'social-publish';
 export const SOCIAL_PUBLISH_JOB = 'tick';
@@ -21,6 +22,7 @@ export class SocialPublishProcessor implements OnModuleInit {
     @InjectRepository(SocialPost) private readonly posts: Repository<SocialPost>,
     @InjectQueue(SOCIAL_PUBLISH_QUEUE) private readonly queue: Queue,
     private readonly linkedin: LinkedInService,
+    private readonly instagram: InstagramService,
   ) {}
 
   async onModuleInit() {
@@ -70,13 +72,15 @@ export class SocialPublishProcessor implements OnModuleInit {
     // Lock the row so a concurrent run doesn't double-publish
     await this.posts.update(post.id, { status: 'publishing' });
 
-    if (post.platform !== 'linkedin_page' && post.platform !== 'linkedin_personal') {
-      // Phase 2 supports LinkedIn only — leave others alone
+    if (!AUTO_PUBLISH_PLATFORMS.includes(post.platform)) {
+      // Not yet auto-publishable (e.g. instagram_story, whatsapp_status, youtube_community)
       await this.posts.update(post.id, { status: 'approved' });
-      return { success: false, error: `Auto-publish not supported for ${post.platform} (Phase 2 = LinkedIn only)` };
+      return { success: false, error: `Auto-publish not supported for ${post.platform}` };
     }
 
-    const result = await this.linkedin.publish(post);
+    const result = post.platform === 'instagram_feed'
+      ? await this.instagram.publish(post)
+      : await this.linkedin.publish(post);
 
     if (result.success) {
       await this.posts.update(post.id, {
