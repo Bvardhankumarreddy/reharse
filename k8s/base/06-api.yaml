@@ -238,17 +238,26 @@ spec:
     kind: Deployment
     name: api
   minReplicas: 2
-  maxReplicas: 8
+  maxReplicas: 4
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60   # Wait 60s before scaling up — ignores startup spikes
+      policies:
+        - type: Pods
+          value: 1                      # Add max 1 pod at a time
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 180   # Wait 3min before scaling down (avoid flapping)
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 65
+          averageUtilization: 80         # Was 65 — too sensitive to startup spikes
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 80
+          averageUtilization: 85
