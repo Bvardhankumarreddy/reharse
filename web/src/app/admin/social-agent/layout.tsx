@@ -13,6 +13,7 @@ const TABS = [
   { href: "/admin/social-agent/scheduled",    label: "Scheduled" },
   { href: "/admin/social-agent/history",      label: "History" },
   { href: "/admin/social-agent/analytics",    label: "📊 Analytics" },
+  { href: "/admin/social-agent/competitors",  label: "👀 Competitors" },
   { href: "/admin/social-agent/connections",  label: "🔗 Connections" },
 ];
 

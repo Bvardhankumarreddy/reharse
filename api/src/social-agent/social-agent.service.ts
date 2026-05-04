@@ -2,18 +2,44 @@ import {
   Injectable, BadRequestException, NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThanOrEqual, FindOptionsWhere } from 'typeorm';
+import { Repository, Between, MoreThanOrEqual, FindOptionsWhere, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import {
   SocialPost, SocialPlatform, SocialContentType, SocialPostStatus,
 } from './social-post.entity';
+import { SocialInsight } from './social-insight.entity';
+
+interface PastLearning {
+  finding: string;
+  recommendation: string;
+}
 
 @Injectable()
 export class SocialAgentService {
   constructor(
     @InjectRepository(SocialPost) private readonly posts: Repository<SocialPost>,
+    @InjectRepository(SocialInsight) private readonly insights: Repository<SocialInsight>,
     private readonly config: ConfigService,
   ) {}
+
+  /** Phase 5: pull the top actionable insights for a platform (or "all") */
+  private async getApplicableLearnings(platform: SocialPlatform): Promise<PastLearning[]> {
+    const list = await this.insights.find({
+      where: [
+        { isActionable: true, platform: In([platform, 'all']) as unknown as string },
+        { isActionable: true, platform: null as unknown as string },
+      ],
+      order: { confidenceScore: 'DESC', generatedAt: 'DESC' },
+      take: 3, // keep prompt focused
+    });
+    return list
+      .filter((i) => Number(i.confidenceScore) >= 0.5) // ignore low-confidence noise
+      .map((i) => ({
+        finding: String((i.insightData as { finding?: string })?.finding ?? ''),
+        recommendation: String((i.insightData as { recommendation?: string })?.recommendation ?? ''),
+      }))
+      .filter((l) => l.finding && l.recommendation);
+  }
 
   // ── Generation ────────────────────────────────────────────────────────
 
@@ -23,8 +49,11 @@ export class SocialAgentService {
     platforms: SocialPlatform[];
     scheduledAt: string;
     imageUrl?: string; // Instagram needs an image — attached to instagram_* posts
+    variants?: number; // Phase 5: A/B testing — generate N variants per platform (1-3)
+    experimentName?: string; // Phase 5: when variants > 1, group them under this experiment
   }): Promise<SocialPost[]> {
     const { contentType, context, platforms, scheduledAt, imageUrl } = opts;
+    const variants = Math.min(3, Math.max(1, opts.variants ?? 1));
     if (!platforms?.length) throw new BadRequestException('At least one platform required');
     if (!contentType) throw new BadRequestException('contentType required');
     if (!scheduledAt) throw new BadRequestException('scheduledAt required');
@@ -38,20 +67,37 @@ export class SocialAgentService {
     const aiUrl = this.config.get<string>('AI_ENGINE_URL') ?? 'http://localhost:8000';
     const generated: SocialPost[] = [];
 
+    // One experimentId per call when variants > 1 — links the variants in analytics
+    const experimentId = variants > 1
+      ? (opts.experimentName?.trim() || `exp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`)
+      : null;
+
     for (const platform of platforms) {
-      const text = await this.callClaude(aiUrl, platform, contentType, context);
-      const entity = this.posts.create({
-        platform,
-        contentType,
-        textContent: text,
-        // Attach image only to platforms that use it
-        imageUrl: platform.startsWith('instagram') ? imageUrl ?? null : null,
-        scheduledAt: new Date(scheduledAt),
-        status: 'pending_approval',
-        generatedBy: 'claude',
-        generationContext: { contentType, context, platform, imageUrl },
-      });
-      generated.push(await this.posts.save(entity));
+      // Phase 5: fetch top actionable learnings for this platform once per platform
+      const pastLearnings = await this.getApplicableLearnings(platform);
+
+      for (let v = 0; v < variants; v++) {
+        const text = await this.callClaude(aiUrl, platform, contentType, context, pastLearnings);
+        const entity = this.posts.create({
+          platform,
+          contentType,
+          textContent: text,
+          imageUrl: platform.startsWith('instagram') ? imageUrl ?? null : null,
+          scheduledAt: new Date(scheduledAt),
+          status: 'pending_approval',
+          generatedBy: 'claude',
+          generationContext: {
+            contentType,
+            context,
+            platform,
+            imageUrl,
+            appliedLearnings: pastLearnings,
+            experimentId,
+            variantIndex: experimentId ? v : null,
+          },
+        });
+        generated.push(await this.posts.save(entity));
+      }
     }
     return generated;
   }
@@ -61,11 +107,17 @@ export class SocialAgentService {
     platform: SocialPlatform,
     contentType: SocialContentType,
     context: Record<string, unknown>,
+    pastLearnings: PastLearning[] = [],
   ): Promise<string> {
     const res = await fetch(`${aiUrl}/social-post/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform, content_type: contentType, context }),
+      body: JSON.stringify({
+        platform,
+        content_type: contentType,
+        context,
+        past_learnings: pastLearnings,
+      }),
       signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) {
@@ -87,12 +139,18 @@ export class SocialAgentService {
       platform: SocialPlatform;
     };
     const aiUrl = this.config.get<string>('AI_ENGINE_URL') ?? 'http://localhost:8000';
-    const text = await this.callClaude(aiUrl, ctx.platform, ctx.contentType, ctx.context);
+    const pastLearnings = await this.getApplicableLearnings(ctx.platform);
+    const text = await this.callClaude(aiUrl, ctx.platform, ctx.contentType, ctx.context, pastLearnings);
 
     post.textContent = text;
     post.status = 'pending_approval';
     post.approvedAt = null;
     post.approvedBy = null;
+    // Update generation context with the new applied learnings
+    post.generationContext = {
+      ...(post.generationContext ?? {}),
+      appliedLearnings: pastLearnings,
+    };
     return this.posts.save(post);
   }
 
@@ -210,5 +268,45 @@ export class SocialAgentService {
     ]);
 
     return { pending, scheduledToday, publishedThisWeek, generatedThisMonth, recent };
+  }
+
+  // ── Phase 5: A/B experiments ──────────────────────────────────────────
+
+  /** Group posts by experimentId (from generationContext) — used by analytics */
+  async listExperiments(): Promise<Array<{
+    experimentId: string;
+    platform: SocialPlatform;
+    contentType: SocialContentType;
+    variantCount: number;
+    posts: SocialPost[];
+    createdAt: Date;
+  }>> {
+    // jsonb path query — TypeORM doesn't have a clean DSL for this; raw sql is simplest
+    const rows = await this.posts
+      .createQueryBuilder('p')
+      .where(`p."generationContext"->>'experimentId' IS NOT NULL`)
+      .orderBy('p.createdAt', 'DESC')
+      .getMany();
+
+    const groups = new Map<string, SocialPost[]>();
+    for (const p of rows) {
+      const ctx = p.generationContext as { experimentId?: string };
+      const id = ctx?.experimentId;
+      if (!id) continue;
+      const arr = groups.get(id) ?? [];
+      arr.push(p);
+      groups.set(id, arr);
+    }
+
+    return Array.from(groups.entries())
+      .filter(([, posts]) => posts.length >= 2) // only true A/B groups
+      .map(([experimentId, posts]) => ({
+        experimentId,
+        platform: posts[0].platform,
+        contentType: posts[0].contentType,
+        variantCount: posts.length,
+        posts,
+        createdAt: new Date(Math.min(...posts.map((p) => p.createdAt.getTime()))),
+      }));
   }
 }

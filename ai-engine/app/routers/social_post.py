@@ -60,15 +60,22 @@ PLATFORM_SPECS: dict[str, dict[str, Any]] = {
 }
 
 
+class PastLearning(BaseModel):
+    finding: str
+    recommendation: str
+
+
 class GenerateRequest(BaseModel):
     platform: str
     content_type: str
     context: dict[str, Any]
+    past_learnings: list[PastLearning] = []  # Auto-applied from past performance
 
 
 class GenerateResponse(BaseModel):
     text: str
     model: str
+    applied_learnings_count: int = 0
 
 
 _SYSTEM = """You are a social media copywriter for AetherStackAI — a YouTube channel teaching AI to beginners.
@@ -76,13 +83,29 @@ Your style is: clear, energetic, no jargon, mobile-first.
 Output ONLY the post text. No preamble, no explanation, no quotation marks wrapping the post."""
 
 
-def _build_prompt(content_type: str, platform: str, context: dict[str, Any]) -> str:
+def _build_prompt(
+    content_type: str,
+    platform: str,
+    context: dict[str, Any],
+    past_learnings: list[PastLearning] | None = None,
+) -> str:
     spec = PLATFORM_SPECS.get(platform)
     if not spec:
         raise ValueError(f"Unknown platform: {platform}")
 
     spec_lines = [f"- {k}: {v}" for k, v in spec.items()]
     spec_block = "\n".join(spec_lines)
+
+    # Phase 5: prepend past performance learnings so Claude adapts each generation
+    learnings_block = ""
+    if past_learnings:
+        bullets = "\n".join(
+            f'- {l.finding} → {l.recommendation}' for l in past_learnings
+        )
+        learnings_block = (
+            "\n\n## PAST PERFORMANCE LEARNINGS (apply these where relevant)\n"
+            f"{bullets}\n"
+        )
 
     common_links = (
         f"\n- YouTube: {COMMUNITY_LINKS['youtube']}"
@@ -121,7 +144,7 @@ REQUIREMENTS:
 5. Authentic voice, not corporate
 {('6. MUST be under 700 chars AND under 10 lines.' if platform == 'whatsapp_status' else '')}
 {('6. End with 10-15 relevant hashtags. NO @mentions. NO raw URLs (use "link in bio" instead).' if platform == 'instagram_feed' else '')}
-"""
+{learnings_block}"""
 
     if content_type == "quiz_winners":
         c = context
@@ -154,7 +177,7 @@ REQUIREMENTS:
 5. Authentic, congratulatory tone
 {('6. MUST be under 700 chars AND under 10 lines.' if platform == 'whatsapp_status' else '')}
 {('6. End with 10-15 relevant hashtags.' if platform == 'instagram_feed' else '')}
-"""
+{learnings_block}"""
 
     if content_type == "quiz_announcement":
         c = context
@@ -179,7 +202,7 @@ REQUIREMENTS:
 3. Clear CTA: visit {COMMUNITY_LINKS['quiz']}
 {('4. MUST be under 700 chars AND under 10 lines.' if platform == 'whatsapp_status' else '')}
 {('4. End with 10-15 relevant hashtags.' if platform == 'instagram_feed' else '')}
-"""
+{learnings_block}"""
 
     if content_type == "engagement_post":
         c = context
@@ -198,7 +221,7 @@ REQUIREMENTS:
 2. Make it easy to comment/reply (1-line response is fine)
 3. Soft mention of the channel — no hard sell
 {('4. MUST be under 700 chars AND under 10 lines.' if platform == 'whatsapp_status' else '')}
-"""
+{learnings_block}"""
 
     if content_type == "custom":
         c = context
@@ -210,7 +233,7 @@ PLATFORM REQUIREMENTS:
 {spec_block}
 
 INCLUDE THESE LINKS:{common_links}
-"""
+{learnings_block}"""
 
     raise ValueError(f"Unsupported contentType: {content_type}")
 
@@ -221,7 +244,7 @@ async def generate_post(req: GenerateRequest) -> GenerateResponse:
         raise HTTPException(status_code=400, detail=f"Unknown platform: {req.platform}")
 
     try:
-        prompt = _build_prompt(req.content_type, req.platform, req.context)
+        prompt = _build_prompt(req.content_type, req.platform, req.context, req.past_learnings)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -236,4 +259,8 @@ async def generate_post(req: GenerateRequest) -> GenerateResponse:
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Claude error: {e}") from e
 
-    return GenerateResponse(text=text.strip(), model=settings.model_coach)
+    return GenerateResponse(
+        text=text.strip(),
+        model=settings.model_coach,
+        applied_learnings_count=len(req.past_learnings or []),
+    )

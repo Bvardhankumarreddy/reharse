@@ -12,6 +12,9 @@ import { InstagramService } from './instagram.service';
 import { YouTubeService } from './youtube.service';
 import { AnalyticsService } from './analytics.service';
 import { InsightsProcessor } from './insights.processor';
+import { AudienceSyncProcessor } from './audience-sync.processor';
+import { CompetitorService } from './competitor.service';
+import { ReportExportService } from './report-export.service';
 import { SocialPublishProcessor } from './social-publish.processor';
 import { StorageService } from '../storage/storage.service';
 import { ConfigService } from '@nestjs/config';
@@ -28,6 +31,9 @@ export class SocialAgentController {
     private readonly youtube: YouTubeService,
     private readonly analytics: AnalyticsService,
     private readonly insights: InsightsProcessor,
+    private readonly audience: AudienceSyncProcessor,
+    private readonly competitors: CompetitorService,
+    private readonly reports: ReportExportService,
     private readonly publisher: SocialPublishProcessor,
     private readonly storage: StorageService,
   ) {}
@@ -44,6 +50,8 @@ export class SocialAgentController {
     platforms: SocialPlatform[];
     scheduledAt: string;
     imageUrl?: string;
+    variants?: number;       // Phase 5: A/B variants per platform (1-3)
+    experimentName?: string; // Phase 5: name for the A/B test
   }) {
     return this.service.generate(body);
   }
@@ -163,6 +171,96 @@ export class SocialAgentController {
   @Post('insights/generate')
   generateInsightsNow() {
     return this.insights.triggerNow();
+  }
+
+  // ── Phase 5: A/B experiments ─────────────────────────────────────────
+
+  /** GET /api/v1/admin/social-agent/experiments — list all A/B groups with variants */
+  @Get('experiments')
+  experiments() {
+    return this.service.listExperiments();
+  }
+
+  // ── Phase 5: Audience demographics ───────────────────────────────────
+
+  /** GET /api/v1/admin/social-agent/audience — latest snapshot per platform */
+  @Get('audience')
+  audienceLatest() {
+    return this.audience.getLatest();
+  }
+
+  /** POST /api/v1/admin/social-agent/audience/sync — manually trigger weekly sync */
+  @Post('audience/sync')
+  audienceSyncNow() {
+    return this.audience.tick({} as never);
+  }
+
+  // ── Phase 5: Competitor tracking ─────────────────────────────────────
+
+  @Get('competitors')
+  listCompetitors() {
+    return this.competitors.list();
+  }
+
+  @Post('competitors')
+  createCompetitor(@Body() body: { platform: SocialPlatform; handle: string; displayName: string; url?: string; followerCount?: number; description?: string }) {
+    return this.competitors.create(body);
+  }
+
+  @Patch('competitors/:id')
+  updateCompetitor(@Param('id') id: string, @Body() body: Partial<{ handle: string; displayName: string; url: string; followerCount: number; description: string }>) {
+    return this.competitors.update(id, body);
+  }
+
+  @Delete('competitors/:id')
+  removeCompetitor(@Param('id') id: string) {
+    return this.competitors.remove(id);
+  }
+
+  @Post('competitors/:id/notes')
+  addCompetitorNote(
+    @Param('id') id: string,
+    @Body() body: { content: string; referenceUrl?: string },
+    @Req() req: Request,
+  ) {
+    const email = (req as Request & { user?: { email?: string } }).user?.email ?? 'admin';
+    return this.competitors.addNote(id, body.content, body.referenceUrl ?? null, email);
+  }
+
+  @Delete('competitors/notes/:noteId')
+  deleteCompetitorNote(@Param('noteId') noteId: string) {
+    return this.competitors.deleteNote(noteId);
+  }
+
+  // ── Phase 5: Report exports ──────────────────────────────────────────
+
+  /** GET /api/v1/admin/social-agent/reports/posts.csv?from=...&to=...&platform=... */
+  @Get('reports/posts.csv')
+  async exportPostsReport(
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Query('platform') platform: string | undefined,
+    @Res() res: Response,
+  ) {
+    const csv = await this.reports.exportPostsCSV({ from, to, platform });
+    const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=social_posts_${ts}.csv`);
+    res.send(csv);
+  }
+
+  /** GET /api/v1/admin/social-agent/reports/timeseries.csv?from=... */
+  @Get('reports/timeseries.csv')
+  async exportTimeseriesReport(
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Res() res: Response,
+  ) {
+    const csv = await this.reports.exportTimeseriesCSV({ from, to });
+    const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=social_timeseries_${ts}.csv`);
+    res.send(csv);
   }
 
   /** POST /api/v1/admin/social-agent/upload-image

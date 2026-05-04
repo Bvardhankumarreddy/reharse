@@ -41,6 +41,11 @@ export default function GeneratePage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Phase 5: A/B testing
+  const [variantsEnabled, setVariantsEnabled] = useState(false);
+  const [variantsCount, setVariantsCount] = useState(2);
+  const [experimentName, setExperimentName] = useState("");
+
   // Lesson drop fields
   const [lessonCtx, setLessonCtx] = useState({
     week: 1, lessonNum: 1, title: "", hook: "",
@@ -149,6 +154,8 @@ export default function GeneratePage() {
           platforms: Array.from(selectedPlatforms),
           scheduledAt: new Date(scheduledAt).toISOString(),
           imageUrl: imageUrl ?? undefined,
+          variants: variantsEnabled ? variantsCount : 1,
+          experimentName: variantsEnabled ? (experimentName.trim() || undefined) : undefined,
         }),
       });
 
@@ -324,6 +331,46 @@ export default function GeneratePage() {
         </div>
       )}
 
+      {/* A/B testing toggle (Phase 5) */}
+      <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-5">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={variantsEnabled}
+            onChange={(e) => setVariantsEnabled(e.target.checked)}
+            className="w-4 h-4"
+          />
+          <div className="flex-1">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-[#B8C5E0]">🧪 A/B Test</div>
+            <div className="text-xs text-[#6B7799] mt-0.5">Generate multiple variants per platform — pick the winner after publishing</div>
+          </div>
+        </label>
+        {variantsEnabled && (
+          <div className="grid grid-cols-3 gap-3 mt-3">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-[#B8C5E0] block mb-1">Variants per platform</label>
+              <select
+                value={variantsCount}
+                onChange={(e) => setVariantsCount(parseInt(e.target.value, 10))}
+                className={inputCls}
+              >
+                <option value={2}>2 variants (A/B)</option>
+                <option value={3}>3 variants (A/B/C)</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-[#B8C5E0] block mb-1">Experiment Name (optional)</label>
+              <input
+                value={experimentName}
+                onChange={(e) => setExperimentName(e.target.value)}
+                placeholder="e.g., Lesson 4 hook test"
+                className={inputCls}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Schedule */}
       <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-5">
         <label className="text-[11px] font-bold uppercase tracking-widest text-[#B8C5E0] block mb-1.5">Schedule For</label>
@@ -346,7 +393,11 @@ export default function GeneratePage() {
         disabled={generating}
         className="w-full bg-gradient-to-r from-[#00D4FF] to-[#0099CC] text-[#0A0E27] font-bold py-4 rounded-xl shadow-[0_0_30px_rgba(0,212,255,0.3)] disabled:opacity-50 transition"
       >
-        {generating ? "Generating with Claude..." : `⚡ Generate ${selectedPlatforms.size} Post${selectedPlatforms.size !== 1 ? "s" : ""}`}
+        {(() => {
+          if (generating) return "Generating with Claude...";
+          const total = selectedPlatforms.size * (variantsEnabled ? variantsCount : 1);
+          return `⚡ Generate ${total} Post${total !== 1 ? "s" : ""}`;
+        })()}
       </button>
     </div>
   );

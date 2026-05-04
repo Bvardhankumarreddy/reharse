@@ -10,6 +10,26 @@ import {
   type SocialPlatform,
 } from "../_helpers";
 
+interface Experiment {
+  experimentId: string;
+  platform: SocialPlatform;
+  contentType: string;
+  variantCount: number;
+  posts: Array<{ id: string; textContent: string; status: string; externalUrl: string | null }>;
+  createdAt: string;
+}
+
+interface AudienceSnapshot {
+  id: string;
+  platform: SocialPlatform;
+  snapshotDate: string;
+  totalAudience: number;
+  ageBuckets: Record<string, number>;
+  gender: Record<string, number>;
+  topCountries: Record<string, number>;
+  topCities: Record<string, number>;
+}
+
 interface Insight {
   id: string;
   insightType: string;
@@ -52,8 +72,11 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsSummary | null>(null);
+  const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [audience, setAudience] = useState<AudienceSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [syncingAudience, setSyncingAudience] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -62,12 +85,58 @@ export default function AnalyticsPage() {
     const token = await fetchToken();
     if (!token) { setLoading(false); return; }
     try {
-      const summary = await api<AnalyticsSummary>(token, "/analytics");
+      const [summary, exps, aud] = await Promise.all([
+        api<AnalyticsSummary>(token, "/analytics"),
+        api<Experiment[]>(token, "/experiments"),
+        api<AudienceSnapshot[]>(token, "/audience"),
+      ]);
       setData(summary);
+      setExperiments(exps);
+      setAudience(aud);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load analytics");
     } finally { setLoading(false); }
   }, []);
+
+  async function syncAudienceNow() {
+    setSyncingAudience(true);
+    const token = await fetchToken();
+    if (!token) { setSyncingAudience(false); return; }
+    try {
+      await api(token, "/audience/sync", { method: "POST" });
+      await load();
+    } finally { setSyncingAudience(false); }
+  }
+
+  async function exportPostsCSV() {
+    const token = await fetchToken();
+    if (!token) return;
+    const res = await fetch("/api/v1/admin/social-agent/reports/posts.csv", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `social_posts_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportTimeseriesCSV() {
+    const token = await fetchToken();
+    if (!token) return;
+    const res = await fetch("/api/v1/admin/social-agent/reports/timeseries.csv", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `social_timeseries_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   useEffect(() => { void load(); }, [load]);
 
@@ -232,6 +301,102 @@ export default function AnalyticsPage() {
         )}
       </div>
 
+      {/* Phase 5: A/B Experiments */}
+      {experiments.length > 0 && (
+        <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-5">
+          <h2 className="text-white font-bold mb-4 flex items-center gap-2">🧪 A/B Experiments ({experiments.length})</h2>
+          <div className="space-y-3">
+            {experiments.map((exp) => (
+              <div key={exp.experimentId} className="bg-[#0A0E27]/60 border border-white/10 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PLATFORM_COLOR[exp.platform] }} />
+                  <span className="text-white text-sm font-semibold">{PLATFORM_LABEL[exp.platform]}</span>
+                  <span className="text-[#6B7799] text-xs">·</span>
+                  <span className="text-[#B8C5E0] text-xs">{exp.contentType}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest bg-[#FFD700]/15 text-[#FFD700] px-2 py-0.5 rounded ml-auto">
+                    {exp.variantCount} variants
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {exp.posts.map((p, vi) => (
+                    <div key={p.id} className="flex items-start gap-2 text-xs">
+                      <span className="text-[#FFD700] font-bold w-5 shrink-0">{String.fromCharCode(65 + vi)}.</span>
+                      <span className="text-[#B8C5E0] flex-1 line-clamp-2">{p.textContent.slice(0, 200)}</span>
+                      <span className="text-[10px] text-[#6B7799] shrink-0">{p.status}</span>
+                      {p.externalUrl && (
+                        <a href={p.externalUrl} target="_blank" rel="noopener" className="text-[#00D4FF] text-[10px] shrink-0">↗</a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Phase 5: Audience demographics */}
+      <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-white font-bold flex items-center gap-2">👥 Audience Demographics</h2>
+          <button
+            onClick={syncAudienceNow}
+            disabled={syncingAudience}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#00D4FF]/40 text-[#00D4FF] hover:bg-[#00D4FF]/10 disabled:opacity-50"
+          >
+            {syncingAudience ? "Syncing…" : "🔄 Sync Now"}
+          </button>
+        </div>
+        {audience.length === 0 ? (
+          <p className="text-[#6B7799] text-sm">
+            No audience snapshots yet. Connect Instagram + click <strong>Sync Now</strong>. Auto-runs Mondays @ 07:00 UTC.
+            (LinkedIn requires Marketing Developer Platform; YouTube needs YouTube Analytics API — not wired yet.)
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {audience.map((a) => (
+              <div key={a.id} className="bg-[#0A0E27]/60 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PLATFORM_COLOR[a.platform] }} />
+                  <span className="text-white text-sm font-semibold">{PLATFORM_LABEL[a.platform]}</span>
+                  <span className="text-[#FFD700] text-sm font-bold">{a.totalAudience.toLocaleString()} followers</span>
+                  <span className="text-[10px] text-[#6B7799] ml-auto">{a.snapshotDate}</span>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  <DemoBlock title="Age" data={a.ageBuckets} />
+                  <DemoBlock title="Gender" data={a.gender} />
+                  <DemoBlock title="Top Countries" data={a.topCountries} limit={5} />
+                  <DemoBlock title="Top Cities" data={a.topCities} limit={5} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Phase 5: Export */}
+      <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-5">
+        <h2 className="text-white font-bold mb-3 flex items-center gap-2">📥 Export Reports</h2>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={exportPostsCSV}
+            className="px-4 py-2 bg-[#00F5A0]/15 border border-[#00F5A0]/40 text-[#00F5A0] text-sm font-semibold rounded-xl hover:bg-[#00F5A0]/25"
+          >
+            📄 Download Posts CSV
+          </button>
+          <button
+            onClick={exportTimeseriesCSV}
+            className="px-4 py-2 bg-[#7C3AED]/15 border border-[#7C3AED]/40 text-[#7C3AED] text-sm font-semibold rounded-xl hover:bg-[#7C3AED]/25"
+          >
+            📈 Download Timeseries CSV
+          </button>
+        </div>
+        <p className="text-[#6B7799] text-xs mt-2">
+          Posts CSV: one row per published post with latest engagement snapshot.
+          Timeseries CSV: daily engagement per platform — pivot in Excel for charts.
+        </p>
+      </div>
+
       {/* Content type performance */}
       {data.contentTypePerformance.length > 0 && (
         <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-5">
@@ -301,6 +466,37 @@ export default function AnalyticsPage() {
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DemoBlock({ title, data, limit = 6 }: { title: string; data: Record<string, number>; limit?: number }) {
+  const entries = Object.entries(data ?? {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit);
+  if (entries.length === 0) {
+    return (
+      <div>
+        <div className="text-[10px] font-bold uppercase tracking-widest text-[#6B7799] mb-1">{title}</div>
+        <div className="text-[#4A5470] text-xs">—</div>
+      </div>
+    );
+  }
+  const max = Math.max(...entries.map(([, v]) => v), 1);
+  return (
+    <div>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-[#B8C5E0] mb-1">{title}</div>
+      <div className="space-y-1">
+        {entries.map(([k, v]) => (
+          <div key={k} className="flex items-center gap-2">
+            <span className="text-[#B8C5E0] text-[11px] w-16 truncate">{k}</span>
+            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full bg-[#00D4FF] rounded-full" style={{ width: `${(v / max) * 100}%` }} />
+            </div>
+            <span className="text-[#FFD700] text-[10px] w-10 text-right tabular-nums">{v.toFixed(1)}%</span>
+          </div>
+        ))}
       </div>
     </div>
   );
