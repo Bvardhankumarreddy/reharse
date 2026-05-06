@@ -83,6 +83,33 @@ Your style is: clear, energetic, no jargon, mobile-first.
 Output ONLY the post text. No preamble, no explanation, no quotation marks wrapping the post."""
 
 
+WHATSAPP_HARD_LIMIT_CHARS = 700
+WHATSAPP_HARD_LIMIT_LINES = 10
+
+
+def _whatsapp_banner() -> str:
+    """Loud constraint banner prepended to every WhatsApp Status prompt.
+    LLMs follow tight limits much better when the rule is at the top, repeated,
+    and framed as a hard reject rather than a polite request."""
+    return f"""⚠️ HARD LIMIT — WhatsApp Status post:
+- MAXIMUM {WHATSAPP_HARD_LIMIT_CHARS} characters total (count every char incl. spaces, emojis, line breaks)
+- MAXIMUM {WHATSAPP_HARD_LIMIT_LINES} lines total (a line break counts as a line)
+- Posts that exceed either limit will be REJECTED and you will be asked to rewrite shorter.
+- Aim for ~500 chars / 7 lines to leave headroom. Be ruthless. Cut every non-essential word.
+
+"""
+
+
+def _violates_whatsapp_limits(text: str) -> tuple[bool, str]:
+    char_count = len(text)
+    line_count = text.count("\n") + 1
+    if char_count > WHATSAPP_HARD_LIMIT_CHARS:
+        return True, f"{char_count} chars (max {WHATSAPP_HARD_LIMIT_CHARS})"
+    if line_count > WHATSAPP_HARD_LIMIT_LINES:
+        return True, f"{line_count} lines (max {WHATSAPP_HARD_LIMIT_LINES})"
+    return False, ""
+
+
 def _build_prompt(
     content_type: str,
     platform: str,
@@ -95,6 +122,8 @@ def _build_prompt(
 
     spec_lines = [f"- {k}: {v}" for k, v in spec.items()]
     spec_block = "\n".join(spec_lines)
+
+    whatsapp_banner = _whatsapp_banner() if platform == "whatsapp_status" else ""
 
     # Phase 5: prepend past performance learnings so Claude adapts each generation
     learnings_block = ""
@@ -121,7 +150,7 @@ def _build_prompt(
             if c.get("nextLessonTitle") else ""
         )
         insight = f"\n- Personal insight to weave in: {c.get('insight')}" if c.get("insight") else ""
-        return f"""Generate a {platform} post announcing a NEW LESSON.
+        return f"""{whatsapp_banner}Generate a {platform} post announcing a NEW LESSON.
 
 LESSON CONTEXT:
 - Week: {c.get('week')}
@@ -153,7 +182,7 @@ REQUIREMENTS:
         w2 = winners[1] if len(winners) > 1 else {}
         w3 = winners[2] if len(winners) > 2 else {}
         next_week = (int(c.get("week", 0)) or 0) + 1
-        return f"""Generate a {platform} post announcing QUIZ #{c.get('week')} WINNERS.
+        return f"""{whatsapp_banner}Generate a {platform} post announcing QUIZ #{c.get('week')} WINNERS.
 
 QUIZ CONTEXT:
 - Week: {c.get('week')}
@@ -181,7 +210,7 @@ REQUIREMENTS:
 
     if content_type == "quiz_announcement":
         c = context
-        return f"""Generate a {platform} post ANNOUNCING this week's quiz.
+        return f"""{whatsapp_banner}Generate a {platform} post ANNOUNCING this week's quiz.
 
 QUIZ CONTEXT:
 - Week: {c.get('week')}
@@ -206,7 +235,7 @@ REQUIREMENTS:
 
     if content_type == "engagement_post":
         c = context
-        return f"""Generate a {platform} ENGAGEMENT post — designed to start a conversation.
+        return f"""{whatsapp_banner}Generate a {platform} ENGAGEMENT post — designed to start a conversation.
 
 TOPIC: {c.get('topic', 'AI fundamentals')}
 ANGLE: {c.get('angle', 'Ask the audience to share their take')}
@@ -225,7 +254,7 @@ REQUIREMENTS:
 
     if content_type == "custom":
         c = context
-        return f"""Generate a {platform} post with this brief:
+        return f"""{whatsapp_banner}Generate a {platform} post with this brief:
 
 BRIEF: {c.get('brief', '(no brief provided)')}
 
@@ -248,19 +277,40 @@ async def generate_post(req: GenerateRequest) -> GenerateResponse:
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-    try:
-        text = await complete(
+    async def _generate(p: str) -> str:
+        return await complete(
             model=settings.model_coach,
             system=_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": p}],
             max_tokens=1500,
             temperature=0.9,
         )
+
+    try:
+        text = (await _generate(prompt)).strip()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Claude error: {e}") from e
 
+    # WhatsApp Status has tight hard limits — retry once if the first generation overshoots.
+    # LLMs frequently miss tight char/line caps; a focused retry usually fixes it.
+    if req.platform == "whatsapp_status":
+        violated, reason = _violates_whatsapp_limits(text)
+        if violated:
+            retry_prompt = (
+                f"Your previous draft was REJECTED for being too long: {reason}.\n\n"
+                f"Rewrite it to fit the WhatsApp Status hard limits "
+                f"({WHATSAPP_HARD_LIMIT_CHARS} chars max, {WHATSAPP_HARD_LIMIT_LINES} lines max). "
+                f"Aim for ~500 chars / 7 lines. Cut filler. Keep the hook + the link.\n\n"
+                f"Previous draft:\n---\n{text}\n---\n\n"
+                f"Now output ONLY the shorter rewrite."
+            )
+            try:
+                text = (await _generate(retry_prompt)).strip()
+            except Exception as e:
+                raise HTTPException(status_code=502, detail=f"Claude retry error: {e}") from e
+
     return GenerateResponse(
-        text=text.strip(),
+        text=text,
         model=settings.model_coach,
         applied_learnings_count=len(req.past_learnings or []),
     )
