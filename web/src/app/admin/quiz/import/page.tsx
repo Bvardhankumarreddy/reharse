@@ -48,6 +48,7 @@ export default function AdminQuizImportPage() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("preview", "true");
+      if (quizWeek) fd.append("quizWeek", quizWeek);
       const res = await fetch("/api/v1/admin/quiz/questions/import", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -72,7 +73,7 @@ export default function AdminQuizImportPage() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("mode", mode);
-      if (mode === "replace") fd.append("quizWeek", quizWeek);
+      if (quizWeek) fd.append("quizWeek", quizWeek);
       const res = await fetch("/api/v1/admin/quiz/questions/import", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },

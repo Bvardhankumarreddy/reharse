@@ -196,14 +196,20 @@ export class QuizAdminController {
       throw new BadRequestException('Unsupported file type. Use .csv, .xlsx, or .xls');
     }
 
+    const quizWeek = body.quizWeek ? parseInt(body.quizWeek, 10) : undefined;
+
     // Preview-only: validate without saving
     if (body.preview === 'true') {
       const errors: Array<{ row: number; message: string }> = [];
       const valid: number[] = [];
+      const svc = this.quizService as unknown as {
+        parseImportRow: (r: Record<string, unknown>, defaultQuizWeek?: number) => unknown;
+        validateQuestion: (q: unknown) => void;
+      };
       rows.forEach((row, i) => {
         try {
-          const parsed = (this.quizService as unknown as { parseImportRow: (r: Record<string, unknown>) => unknown; validateQuestion: (q: unknown) => void }).parseImportRow(row);
-          (this.quizService as unknown as { validateQuestion: (q: unknown) => void }).validateQuestion(parsed);
+          const parsed = svc.parseImportRow(row, quizWeek);
+          svc.validateQuestion(parsed);
           valid.push(i + 2);
         } catch (err) {
           errors.push({ row: i + 2, message: (err as Error).message });
@@ -219,7 +225,6 @@ export class QuizAdminController {
     }
 
     const mode = body.mode ?? 'append';
-    const quizWeek = body.quizWeek ? parseInt(body.quizWeek, 10) : undefined;
     return this.quizService.adminImportQuestions(rows, mode, quizWeek);
   }
 

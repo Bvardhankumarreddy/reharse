@@ -937,7 +937,7 @@ export class QuizService {
 
     rows.forEach((row, i) => {
       try {
-        const parsed = this.parseImportRow(row);
+        const parsed = this.parseImportRow(row, quizWeek);
         this.validateQuestion(parsed);
         valid.push(parsed);
       } catch (err) {
@@ -990,9 +990,37 @@ export class QuizService {
     return header + rows;
   }
 
-  private parseImportRow(row: Record<string, unknown>): Partial<QuizQuestion> {
+  private parseImportRow(row: Record<string, unknown>, defaultQuizWeek?: number): Partial<QuizQuestion> {
+    // Normalize header keys once: trim, lowercase, drop spaces/punctuation.
+    // This lets us accept friendly headers ("Question", "Option A", "Correct Answer")
+    // alongside the canonical snake_case names ("question_text", "option_a").
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const FRIENDLY_ALIASES: Record<string, string> = {
+      // canonical → list of friendly forms (all already normalized)
+      question_text: 'question',
+      option_a: 'optiona',
+      option_b: 'optionb',
+      option_c: 'optionc',
+      option_d: 'optiond',
+      correct_answer: 'correctanswer',
+      correct_answers: 'correctanswers',
+      correct_number: 'correctnumber',
+      numeric_tolerance: 'numerictolerance',
+      numeric_unit: 'numericunit',
+      quiz_week: 'quizweek',
+      is_mandatory: 'ismandatory',
+      question_type: 'questiontype',
+    };
+    const normalizedRow: Record<string, unknown> = {};
+    for (const k of Object.keys(row)) normalizedRow[normalize(k)] = row[k];
+
     const get = (key: string): string => {
-      const v = row[key] ?? row[key.replace(/_/g, '')] ?? row[this.camelize(key)];
+      const v =
+        row[key] ??
+        row[key.replace(/_/g, '')] ??
+        row[this.camelize(key)] ??
+        normalizedRow[normalize(key)] ??
+        normalizedRow[FRIENDLY_ALIASES[key] ?? ''];
       return v == null ? '' : String(v).trim();
     };
     const getNum = (key: string): number | null => {
@@ -1027,7 +1055,7 @@ export class QuizService {
       points: parseInt(get('points'), 10),
       difficulty: get('difficulty').toLowerCase() as 'easy' | 'medium' | 'hard',
       category: get('category'),
-      quizWeek: parseInt(get('quiz_week'), 10),
+      quizWeek: get('quiz_week') ? parseInt(get('quiz_week'), 10) : (defaultQuizWeek ?? NaN),
       isMandatory: ['true', '1', 'yes', 'y'].includes(get('is_mandatory').toLowerCase()),
       isActive: true,
     };
