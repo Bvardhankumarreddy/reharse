@@ -41,6 +41,11 @@ function parseBody(event) {
   try { return JSON.parse(event.body ?? '{}'); } catch { return {}; }
 }
 
+const ALLOWED_PREFIXES = ['resumes/', 'social-posts/'];
+function hasAllowedPrefix(key) {
+  return ALLOWED_PREFIXES.some((p) => key.startsWith(p));
+}
+
 // ── Route: POST /upload ───────────────────────────────────────────────────────
 // Body: { key: string, content: string (base64), contentType: string }
 // Returns: { key }
@@ -51,12 +56,13 @@ async function upload(event) {
   if (!BUCKET) return err(500, 'BUCKET_NAME env not set');
 
   // Validate key structure — only allow resumes/{userId}/... to prevent arbitrary writes
-  if (!key.startsWith('resumes/')) return err(403, 'Invalid key prefix');
+  if (!hasAllowedPrefix(key)) return err(403, 'Invalid key prefix');
 
   const buffer = Buffer.from(content, 'base64');
 
-  // Enforce 5 MB limit (API Gateway allows up to 10 MB payload)
-  if (buffer.byteLength > 5 * 1024 * 1024) return err(413, 'File exceeds 5 MB limit');
+  // Lambda Function URLs cap request payload at 6 MB. Base64 inflates by ~33%,
+  // so the practical binary upload limit is ~4.4 MB regardless of what we set here.
+  if (buffer.byteLength > 8 * 1024 * 1024) return err(413, 'File exceeds 8 MB limit');
 
   await s3.send(new PutObjectCommand({
     Bucket:      BUCKET,
@@ -76,7 +82,7 @@ async function presign(event) {
   const { key, expiresIn = 900 } = parseBody(event);
   if (!key) return err(400, 'key required');
   if (!BUCKET) return err(500, 'BUCKET_NAME env not set');
-  if (!key.startsWith('resumes/')) return err(403, 'Invalid key prefix');
+  if (!hasAllowedPrefix(key)) return err(403, 'Invalid key prefix');
 
   const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
   const url     = await getSignedUrl(s3, command, { expiresIn });
@@ -92,7 +98,7 @@ async function remove(event) {
   const { key } = parseBody(event);
   if (!key) return err(400, 'key required');
   if (!BUCKET) return err(500, 'BUCKET_NAME env not set');
-  if (!key.startsWith('resumes/')) return err(403, 'Invalid key prefix');
+  if (!hasAllowedPrefix(key)) return err(403, 'Invalid key prefix');
 
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 

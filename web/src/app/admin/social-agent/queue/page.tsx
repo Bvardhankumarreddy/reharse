@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   fetchToken, api, PLATFORM_LABEL, PLATFORM_COLOR, STATUS_COLOR, CONTENT_TYPE_LABEL,
+  isManualPlatform,
   type SocialPost, type SocialPostStatus, type SocialPlatform,
 } from "../_helpers";
 
@@ -40,6 +41,23 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
     if (!token) return;
     try {
       await api(token, `/posts/${post.id}/regenerate`, { method: "POST" });
+      onChange();
+    } finally { setBusy(false); }
+  }
+
+  async function markPosted() {
+    const externalUrl = prompt(
+      `Did you post this on ${PLATFORM_LABEL[post.platform]}?\n\nOptional — paste the URL of your published post (leave blank to skip):`,
+    );
+    if (externalUrl === null) return; // cancelled
+    setBusy(true);
+    const token = await fetchToken();
+    if (!token) return;
+    try {
+      await api(token, `/posts/${post.id}/mark-published`, {
+        method: "POST",
+        body: JSON.stringify(externalUrl ? { externalUrl } : {}),
+      });
       onChange();
     } finally { setBusy(false); }
   }
@@ -127,6 +145,9 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
             <ActionBtn label="🔄 Regenerate" onClick={regenerate} disabled={busy} />
             {post.status === "pending_approval" && (
               <ActionBtn label="✅ Approve" onClick={approve} disabled={busy} accent="#00F5A0" />
+            )}
+            {post.status === "approved" && isManualPlatform(post.platform) && (
+              <ActionBtn label="📲 Mark as Posted" onClick={markPosted} disabled={busy} accent="#00F5A0" />
             )}
             <ActionBtn label="❌ Reject" onClick={reject} disabled={busy} accent="#FF5C7C" />
           </>

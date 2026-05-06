@@ -52,6 +52,13 @@ export interface SocialPost {
   updatedAt: string;
 }
 
+export const AUTO_PUBLISH_PLATFORMS: SocialPlatform[] = [
+  "linkedin_page", "linkedin_personal", "instagram_feed",
+];
+
+export const isManualPlatform = (p: SocialPlatform): boolean =>
+  !AUTO_PUBLISH_PLATFORMS.includes(p);
+
 export const PLATFORM_LABEL: Record<SocialPlatform, string> = {
   linkedin_page:     "LinkedIn Page",
   linkedin_personal: "LinkedIn Personal",

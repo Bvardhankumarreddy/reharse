@@ -2,7 +2,7 @@ import { Process, Processor, OnQueueCompleted, OnQueueFailed } from '@nestjs/bul
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual } from 'typeorm';
+import { Repository, LessThanOrEqual, In } from 'typeorm';
 import type { Queue, Job } from 'bull';
 import { SocialPost } from './social-post.entity';
 import { LinkedInService } from './linkedin.service';
@@ -51,6 +51,7 @@ export class SocialPublishProcessor implements OnModuleInit {
       where: {
         status: 'approved',
         scheduledAt: LessThanOrEqual(new Date()),
+        platform: In(AUTO_PUBLISH_PLATFORMS),
       },
       take: 10,
       order: { scheduledAt: 'ASC' },

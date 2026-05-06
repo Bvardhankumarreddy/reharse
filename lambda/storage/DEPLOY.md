@@ -43,7 +43,10 @@ aws s3api put-public-access-block \
     {
       "Effect": "Allow",
       "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
-      "Resource": "arn:aws:s3:::rehearse-resumes-prod/resumes/*"
+      "Resource": [
+        "arn:aws:s3:::rehearse-resumes-prod/resumes/*",
+        "arn:aws:s3:::rehearse-resumes-prod/social-posts/*"
+      ]
     },
     {
       "Effect": "Allow",
