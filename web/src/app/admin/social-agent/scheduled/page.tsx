@@ -6,6 +6,42 @@ import {
   type SocialPost,
 } from "../_helpers";
 
+function RescheduleEditor({
+  initialValue, busy, onSave, onCancel,
+}: {
+  initialValue: string;
+  busy: boolean;
+  onSave: (v: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        type="datetime-local"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1 text-xs text-white [color-scheme:dark]"
+        autoFocus
+      />
+      <button
+        onClick={() => onSave(value)}
+        disabled={busy || !value}
+        className="px-2 py-1 text-xs font-semibold rounded-lg border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 disabled:opacity-50"
+      >
+        Save
+      </button>
+      <button
+        onClick={onCancel}
+        disabled={busy}
+        className="px-2 py-1 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:text-white disabled:opacity-50"
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 function fmtDateGroup(d: string): string {
   const date = new Date(d);
   const today = new Date();
@@ -69,17 +105,36 @@ export default function ScheduledPage() {
   }
 
   async function reschedule(id: string, newAt: string) {
+    // <input type="datetime-local"> returns "YYYY-MM-DDTHH:mm" without a TZ suffix.
+    // new Date() of that string interprets it as LOCAL time, which is what we want —
+    // the user typed local clock time. We just need to validate it's a real date.
+    const d = new Date(newAt);
+    if (isNaN(d.getTime())) {
+      alert("Invalid date — please enter a valid date and time.");
+      return;
+    }
     setBusy(id);
     const token = await fetchToken();
-    if (!token) return;
+    if (!token) { setBusy(null); return; }
     try {
       await api(token, `/posts/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({ scheduledAt: new Date(newAt).toISOString() }),
+        body: JSON.stringify({ scheduledAt: d.toISOString() }),
       });
       setEditingSchedule(null);
       await load();
+    } catch (e) {
+      alert(e instanceof Error ? `Reschedule failed: ${e.message}` : "Reschedule failed");
     } finally { setBusy(null); }
+  }
+
+  /** Convert a UTC ISO string to the "YYYY-MM-DDTHH:mm" local-time format
+   *  that <input type="datetime-local"> needs. Slicing the ISO string directly
+   *  silently mis-shows times by the local UTC offset. */
+  function toLocalInputValue(iso: string): string {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
   // Group posts by date (YYYY-MM-DD)
@@ -162,12 +217,11 @@ export default function ScheduledPage() {
                       ✅ Mark Published
                     </button>
                     {editingSchedule === p.id ? (
-                      <input
-                        type="datetime-local"
-                        defaultValue={p.scheduledAt.slice(0, 16)}
-                        onBlur={(e) => reschedule(p.id, e.target.value)}
-                        className="bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1 text-xs text-white [color-scheme:dark]"
-                        autoFocus
+                      <RescheduleEditor
+                        initialValue={toLocalInputValue(p.scheduledAt)}
+                        busy={busy === p.id}
+                        onSave={(v) => reschedule(p.id, v)}
+                        onCancel={() => setEditingSchedule(null)}
                       />
                     ) : (
                       <button
