@@ -194,34 +194,84 @@ function NewsTab() {
   const [items, setItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string>("");
+  const [since, setSince] = useState<string>("");
+  const [until, setUntil] = useState<string>("");
 
   const load = useCallback(async () => {
     setLoading(true);
     const token = await fetchToken();
     if (!token) { setLoading(false); return; }
     try {
-      const qs = status ? `?status=${status}&limit=50` : "?limit=50";
-      const res = await api<{ data: NewsItem[] }>(token, `/news${qs}`);
+      const params = new URLSearchParams({ limit: "50" });
+      if (status) params.set("status", status);
+      if (since) params.set("since", since);
+      if (until) params.set("until", until);
+      const res = await api<{ data: NewsItem[] }>(token, `/news?${params}`);
       setItems(res.data);
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, [status, since, until]);
 
   useEffect(() => { void load(); }, [load]);
 
+  function quickRange(days: number) {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    setSince(d.toISOString().slice(0, 10));
+    setUntil("");
+  }
+
   return (
     <div className="space-y-3">
-      <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        className="bg-[#151B3D] border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
-      >
-        <option value="">All statuses</option>
-        {["raw", "scored", "scripted", "published", "rejected"].map((s) => (
-          <option key={s} value={s}>{s}</option>
-        ))}
-      </select>
+      <div className="flex flex-wrap gap-2 items-center">
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="bg-[#151B3D] border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+        >
+          <option value="">All statuses</option>
+          {["raw", "scored", "scripted", "published", "rejected"].map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+
+        <label className="text-xs text-[#6B7799]">From</label>
+        <input
+          type="date"
+          value={since}
+          onChange={(e) => setSince(e.target.value)}
+          className="bg-[#151B3D] border border-white/10 rounded-xl px-3 py-2 text-sm text-white [color-scheme:dark]"
+        />
+        <label className="text-xs text-[#6B7799]">To</label>
+        <input
+          type="date"
+          value={until}
+          onChange={(e) => setUntil(e.target.value)}
+          className="bg-[#151B3D] border border-white/10 rounded-xl px-3 py-2 text-sm text-white [color-scheme:dark]"
+        />
+
+        <button
+          onClick={() => quickRange(1)}
+          className="px-3 py-2 text-xs font-semibold rounded-xl border border-white/10 text-[#B8C5E0] hover:bg-white/5"
+        >
+          Last 24h
+        </button>
+        <button
+          onClick={() => quickRange(7)}
+          className="px-3 py-2 text-xs font-semibold rounded-xl border border-white/10 text-[#B8C5E0] hover:bg-white/5"
+        >
+          Last 7d
+        </button>
+        {(since || until) && (
+          <button
+            onClick={() => { setSince(""); setUntil(""); }}
+            className="px-3 py-2 text-xs font-semibold rounded-xl border border-[#FF5C7C]/40 text-[#FF5C7C] hover:bg-[#FF5C7C]/10"
+          >
+            Clear dates
+          </button>
+        )}
+      </div>
 
       {loading ? (
         <div className="text-[#6B7799] text-sm p-8 text-center">Loading…</div>

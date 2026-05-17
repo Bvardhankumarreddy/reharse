@@ -32,6 +32,8 @@ export class NewsController {
   async listNews(
     @Query('status') status?: NewsItemStatus,
     @Query('limit') limit = '50',
+    @Query('since') since?: string, // ISO date — publishedAt >= since
+    @Query('until') until?: string, // ISO date — publishedAt <= until
   ) {
     // score is OneToOne (no row fan-out) so .limit() is safe and avoids
     // TypeORM's fragile take()+join+orderBy "combined order" code path.
@@ -39,10 +41,20 @@ export class NewsController {
       .createQueryBuilder('item')
       .leftJoinAndSelect('item.source', 'source')
       .leftJoinAndSelect('item.score', 'score')
-      .orderBy('score.compositeScore', 'DESC')
-      .addOrderBy('item.publishedAt', 'DESC')
+      .orderBy('item.publishedAt', 'DESC', 'NULLS LAST')
+      .addOrderBy('score.compositeScore', 'DESC')
       .limit(Math.min(Number(limit) || 50, 200));
-    if (status) qb.where('item.status = :status', { status });
+    if (status) qb.andWhere('item.status = :status', { status });
+    const sinceDate = since ? new Date(since) : null;
+    if (sinceDate && !isNaN(sinceDate.getTime())) {
+      qb.andWhere('item.publishedAt >= :since', { since: sinceDate });
+    }
+    const untilDate = until ? new Date(until) : null;
+    if (untilDate && !isNaN(untilDate.getTime())) {
+      // inclusive of the whole 'until' day
+      untilDate.setHours(23, 59, 59, 999);
+      qb.andWhere('item.publishedAt <= :until', { until: untilDate });
+    }
     const data = await qb.getMany();
     return { data, count: data.length };
   }
