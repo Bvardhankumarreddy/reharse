@@ -1,5 +1,8 @@
-import Parser from 'rss-parser';
 import { BaseSourceAdapter, RawNewsItem } from './base-source.adapter';
+// rss-parser ships `export = Parser` (CommonJS). With module:commonjs and no
+// esModuleInterop, a default import compiles to `.default` which is undefined.
+// import-equals is the correct interop here.
+import Parser = require('rss-parser');
 
 export abstract class RssBaseAdapter extends BaseSourceAdapter {
   protected parser = new Parser({
