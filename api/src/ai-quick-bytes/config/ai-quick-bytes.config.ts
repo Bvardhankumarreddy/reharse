@@ -43,6 +43,10 @@ export default registerAs('aiQuickBytes', () => ({
     duplicateSimilarityThreshold: Number(
       process.env.AQB_DUP_SIMILARITY_THRESHOLD ?? 0.85,
     ),
+    // Only ingest stories published within this many hours. Keeps the channel
+    // focused on fresh news and stops archive feeds (e.g. OpenAI's sitewide
+    // feed) from dumping years of old posts. Default 48h.
+    freshnessHours: Number(process.env.AQB_FRESHNESS_HOURS ?? 48),
   },
 
   costGuardrails: {

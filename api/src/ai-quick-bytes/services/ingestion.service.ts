@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { createHash } from 'crypto';
 import { NewsSource } from '../entities/news-source.entity';
@@ -26,6 +27,7 @@ export class IngestionService {
     @InjectRepository(NewsItem)
     private readonly itemRepo: Repository<NewsItem>,
     private readonly dedup: DedupService,
+    private readonly config: ConfigService,
     openaiBlog: OpenAIBlogAdapter,
     googleAI: GoogleAIAdapter,
     theBatch: TheBatchAdapter,
@@ -64,6 +66,24 @@ export class IngestionService {
     } catch (e) {
       await this.recordSourceError(source.id, (e as Error).message);
       throw e;
+    }
+
+    // Freshness filter — only keep stories published within the window.
+    // Items with no publishedAt are kept (some scraped sources lack a date);
+    // items with a date OLDER than the cutoff are dropped. This is what stops
+    // archive feeds dumping years of old posts.
+    const freshnessHours =
+      this.config.get<number>('aiQuickBytes.limits.freshnessHours') ?? 48;
+    const cutoff = new Date(Date.now() - freshnessHours * 3600_000);
+    const total = rawItems.length;
+    rawItems = rawItems.filter(
+      (r) => !r.publishedAt || r.publishedAt >= cutoff,
+    );
+    const dropped = total - rawItems.length;
+    if (dropped > 0) {
+      this.logger.log(
+        `${source.name}: dropped ${dropped}/${total} as older than ${freshnessHours}h`,
+      );
     }
 
     let saved = 0;
