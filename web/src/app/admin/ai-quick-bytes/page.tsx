@@ -408,6 +408,8 @@ function ScriptCard({ script, onAct }: {
     const token = await fetchToken();
     if (!token) { setDistBusy(false); return; }
     try {
+      // Regenerate both the thumbnail prompt and the distribution package.
+      await api(token, `/approval/${script.id}/thumbnail/regenerate`, { method: "POST" });
       await api(token, `/approval/${script.id}/distribution/regenerate`, { method: "POST" });
       await loadDist();
     } finally {
@@ -529,7 +531,7 @@ function ScriptCard({ script, onAct }: {
                   disabled={distBusy}
                   className="px-3 py-1 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-50"
                 >
-                  {distBusy ? "Regenerating…" : "🔄 Regenerate"}
+                  {distBusy ? "Regenerating…" : "🔄 Regenerate all"}
                 </button>
               </div>
 

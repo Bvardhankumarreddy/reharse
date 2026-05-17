@@ -11,6 +11,7 @@ import { ShortScript } from '../entities/short-script.entity';
 import { HeyGenService } from '../services/heygen.service';
 import { PublishingService } from '../services/publishing.service';
 import { DistributionPackageService } from '../services/distribution-package.service';
+import { ThumbnailPromptService } from '../services/thumbnail-prompt.service';
 import { PublishPlatform } from '../entities/publishing-log.entity';
 
 @Controller('admin/ai-quick-bytes/approval')
@@ -22,6 +23,7 @@ export class ApprovalController {
     private readonly heygen: HeyGenService,
     private readonly publishing: PublishingService,
     private readonly distribution: DistributionPackageService,
+    private readonly thumbnail: ThumbnailPromptService,
     private readonly config: ConfigService,
   ) {}
 
@@ -159,6 +161,23 @@ export class ApprovalController {
       thumbnailPrompt: script.thumbnailPrompt,
       generatedAt: script.thumbnailGeneratedAt,
     };
+  }
+
+  @Post(':id/thumbnail/regenerate')
+  async regenerateThumbnail(@Param('id') id: string) {
+    const script = await this.scriptRepo.findOne({
+      where: { id },
+      relations: ['newsItem', 'newsItem.source'],
+    });
+    if (!script) throw new NotFoundException('Script not found');
+    if (!script.newsItem) throw new BadRequestException('Script has no linked news item');
+
+    const { result, cost_usd } = await this.thumbnail.generate(script, script.newsItem);
+    script.thumbnailPrompt = result;
+    script.thumbnailCostUsd = Number(script.thumbnailCostUsd ?? 0) + cost_usd;
+    script.thumbnailGeneratedAt = new Date();
+    await this.scriptRepo.save(script);
+    return { success: true, thumbnailPrompt: result, costAdded: cost_usd };
   }
 
   // ── Distribution package ────────────────────────────────────────────
