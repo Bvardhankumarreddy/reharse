@@ -26,14 +26,16 @@ export class ApprovalController {
   /** Draft scripts awaiting approval, highest news score first. */
   @Get('queue')
   async queue() {
+    // .limit() (not .take()) — joins here are OneToOne/ManyToOne with no row
+    // fan-out, and it avoids TypeORM's take()+join+orderBy crash.
     return this.scriptRepo
       .createQueryBuilder('script')
       .leftJoinAndSelect('script.newsItem', 'item')
       .leftJoinAndSelect('item.source', 'source')
       .leftJoinAndSelect('item.score', 'score')
       .where('script.status = :status', { status: 'draft' })
-      .orderBy('score."compositeScore"', 'DESC', 'NULLS LAST')
-      .take(20)
+      .orderBy('score.compositeScore', 'DESC')
+      .limit(20)
       .getMany();
   }
 

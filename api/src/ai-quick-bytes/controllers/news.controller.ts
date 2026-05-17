@@ -33,13 +33,15 @@ export class NewsController {
     @Query('status') status?: NewsItemStatus,
     @Query('limit') limit = '50',
   ) {
+    // score is OneToOne (no row fan-out) so .limit() is safe and avoids
+    // TypeORM's fragile take()+join+orderBy "combined order" code path.
     const qb = this.itemRepo
       .createQueryBuilder('item')
       .leftJoinAndSelect('item.source', 'source')
       .leftJoinAndSelect('item.score', 'score')
-      .orderBy('score."compositeScore"', 'DESC', 'NULLS LAST')
-      .addOrderBy('item."publishedAt"', 'DESC')
-      .take(Math.min(Number(limit) || 50, 200));
+      .orderBy('score.compositeScore', 'DESC')
+      .addOrderBy('item.publishedAt', 'DESC')
+      .limit(Math.min(Number(limit) || 50, 200));
     if (status) qb.where('item.status = :status', { status });
     const data = await qb.getMany();
     return { data, count: data.length };
