@@ -111,11 +111,23 @@ export class ScriptGeneratorService {
       return 0;
     }
 
+    // Scripts must be about timely news — only consider stories published
+    // within the freshness window (same knob as ingestion), then rank by
+    // score, breaking ties toward the more recent story.
+    const maxAgeHours =
+      this.config.get<number>('aiQuickBytes.limits.freshnessHours') ?? 48;
+    const cutoff = new Date(Date.now() - maxAgeHours * 3600_000);
+
     const top = await this.itemRepo
       .createQueryBuilder('item')
       .innerJoin(NewsScore, 'score', 'score."newsItemId" = item.id')
       .where('item.status = :status', { status: 'scored' })
+      .andWhere(
+        '(item."publishedAt" >= :cutoff OR item."publishedAt" IS NULL)',
+        { cutoff },
+      )
       .orderBy('score."compositeScore"', 'DESC')
+      .addOrderBy('item."publishedAt"', 'DESC', 'NULLS LAST')
       .limit(limit)
       .getMany();
 
