@@ -15,6 +15,8 @@ import { DedupService } from './services/dedup.service';
 import { IngestionService } from './services/ingestion.service';
 import { ScoringService } from './services/scoring.service';
 import { ScriptGeneratorService } from './services/script-generator.service';
+import { ThumbnailPromptService } from './services/thumbnail-prompt.service';
+import { DistributionPackageService } from './services/distribution-package.service';
 import { HeyGenService } from './services/heygen.service';
 import { PublishingService } from './services/publishing.service';
 
@@ -66,6 +68,8 @@ import { WebhooksController } from './controllers/webhooks.controller';
     IngestionService,
     ScoringService,
     ScriptGeneratorService,
+    ThumbnailPromptService,
+    DistributionPackageService,
     HeyGenService,
     PublishingService,
     // Source adapters

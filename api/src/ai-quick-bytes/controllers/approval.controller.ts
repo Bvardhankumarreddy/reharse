@@ -10,6 +10,7 @@ import { AdminGuard } from '../../auth/admin.guard';
 import { ShortScript } from '../entities/short-script.entity';
 import { HeyGenService } from '../services/heygen.service';
 import { PublishingService } from '../services/publishing.service';
+import { DistributionPackageService } from '../services/distribution-package.service';
 import { PublishPlatform } from '../entities/publishing-log.entity';
 
 @Controller('admin/ai-quick-bytes/approval')
@@ -20,6 +21,7 @@ export class ApprovalController {
     private readonly scriptRepo: Repository<ShortScript>,
     private readonly heygen: HeyGenService,
     private readonly publishing: PublishingService,
+    private readonly distribution: DistributionPackageService,
     private readonly config: ConfigService,
   ) {}
 
@@ -143,5 +145,73 @@ export class ApprovalController {
   @Get('stats/daily')
   dailyStats() {
     return this.publishing.getDailyStats();
+  }
+
+  // ── Thumbnail prompt ────────────────────────────────────────────────
+
+  @Get(':id/thumbnail')
+  async getThumbnail(@Param('id') id: string) {
+    const script = await this.scriptRepo.findOne({ where: { id } });
+    if (!script) throw new NotFoundException('Script not found');
+    return {
+      scriptId: script.id,
+      dayNumber: script.dayNumber,
+      thumbnailPrompt: script.thumbnailPrompt,
+      generatedAt: script.thumbnailGeneratedAt,
+    };
+  }
+
+  // ── Distribution package ────────────────────────────────────────────
+
+  @Get(':id/distribution')
+  async getDistribution(@Param('id') id: string) {
+    const script = await this.scriptRepo.findOne({ where: { id } });
+    if (!script) throw new NotFoundException('Script not found');
+    return {
+      scriptId: script.id,
+      dayNumber: script.dayNumber,
+      package: script.distributionPackage,
+      generatedAt: script.distributionGeneratedAt,
+    };
+  }
+
+  @Post(':id/distribution/regenerate')
+  async regenerateDistribution(@Param('id') id: string) {
+    const script = await this.scriptRepo.findOne({
+      where: { id },
+      relations: ['newsItem', 'newsItem.source'],
+    });
+    if (!script) throw new NotFoundException('Script not found');
+    if (!script.newsItem) throw new BadRequestException('Script has no linked news item');
+
+    const { package: pkg, cost_usd } = await this.distribution.generatePackage(
+      script,
+      script.newsItem,
+    );
+    script.distributionPackage = pkg as unknown as Record<string, unknown>;
+    script.distributionCostUsd = Number(script.distributionCostUsd ?? 0) + cost_usd;
+    script.distributionGeneratedAt = new Date();
+    await this.scriptRepo.save(script);
+    return { success: true, package: pkg, costAdded: cost_usd };
+  }
+
+  @Patch(':id/distribution/:platform')
+  async updatePlatformPost(
+    @Param('id') id: string,
+    @Param('platform') platform: string,
+    @Body() updates: Record<string, unknown>,
+  ) {
+    const allowed = ['youtube', 'instagram', 'linkedin', 'whatsapp_channel', 'whatsapp_status'];
+    if (!allowed.includes(platform)) {
+      throw new BadRequestException(`platform must be one of ${allowed.join(', ')}`);
+    }
+    const script = await this.scriptRepo.findOne({ where: { id } });
+    if (!script) throw new NotFoundException('Script not found');
+
+    const pkg = (script.distributionPackage ?? {}) as Record<string, unknown>;
+    pkg[platform] = { ...((pkg[platform] as Record<string, unknown>) ?? {}), ...updates };
+    script.distributionPackage = pkg;
+    await this.scriptRepo.save(script);
+    return { success: true, updated: platform };
   }
 }

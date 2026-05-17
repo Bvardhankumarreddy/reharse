@@ -81,6 +81,26 @@ export class ShortScript {
   @Column({ type: 'numeric', precision: 10, scale: 6, nullable: true })
   costUsd: number | null;
 
+  // ── Thumbnail prompt (text the host pastes into ChatGPT/DALL-E) ──────
+  @Column({ type: 'jsonb', nullable: true })
+  thumbnailPrompt: { prompt: string; overlayText: string } | null;
+
+  @Column({ type: 'numeric', precision: 10, scale: 6, default: 0 })
+  thumbnailCostUsd: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  thumbnailGeneratedAt: Date | null;
+
+  // ── Distribution package (5-platform posts) ──────────────────────────
+  @Column({ type: 'jsonb', nullable: true })
+  distributionPackage: Record<string, unknown> | null;
+
+  @Column({ type: 'numeric', precision: 10, scale: 6, default: 0 })
+  distributionCostUsd: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  distributionGeneratedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

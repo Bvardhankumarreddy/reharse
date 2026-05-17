@@ -6,6 +6,8 @@ import { NewsItem } from '../entities/news-item.entity';
 import { NewsScore } from '../entities/news-score.entity';
 import { ShortScript, AvatarKey } from '../entities/short-script.entity';
 import { OpenAIClientService } from './openai-client.service';
+import { ThumbnailPromptService } from './thumbnail-prompt.service';
+import { DistributionPackageService } from './distribution-package.service';
 
 const SCRIPT_SYSTEM_PROMPT = `
 You write YouTube Shorts scripts for AetherStackAI — an Indian AI
@@ -111,6 +113,8 @@ export class ScriptGeneratorService {
     private readonly scriptRepo: Repository<ShortScript>,
     private readonly openai: OpenAIClientService,
     private readonly config: ConfigService,
+    private readonly thumbnail: ThumbnailPromptService,
+    private readonly distribution: DistributionPackageService,
   ) {}
 
   async generateScript(itemId: string): Promise<ShortScript> {
@@ -162,6 +166,29 @@ export class ScriptGeneratorService {
     }));
 
     await this.itemRepo.update(itemId, { status: 'scripted' });
+
+    // ── Thumbnail prompt (non-fatal) ───────────────────────────────────
+    try {
+      const { result, cost_usd } = await this.thumbnail.generate(script, item);
+      script.thumbnailPrompt = result;
+      script.thumbnailCostUsd = cost_usd;
+      script.thumbnailGeneratedAt = new Date();
+      await this.scriptRepo.save(script);
+    } catch (e) {
+      this.logger.error(`Thumbnail prompt failed for ${script.id}: ${(e as Error).message}`);
+    }
+
+    // ── Distribution package (non-fatal) ───────────────────────────────
+    try {
+      const { package: pkg, cost_usd } = await this.distribution.generatePackage(script, item);
+      script.distributionPackage = pkg as unknown as Record<string, unknown>;
+      script.distributionCostUsd = cost_usd;
+      script.distributionGeneratedAt = new Date();
+      await this.scriptRepo.save(script);
+    } catch (e) {
+      this.logger.error(`Distribution package failed for ${script.id}: ${(e as Error).message}`);
+    }
+
     return script;
   }
 
