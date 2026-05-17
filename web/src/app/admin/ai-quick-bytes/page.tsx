@@ -3,10 +3,11 @@
 // AI Quick Bytes — admin dashboard. API is at /api/v1/admin/ai-quick-bytes
 // (behind AdminGuard). Auth handled by the /admin layout's Better Auth check.
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type ReactNode } from "react";
 import {
   fetchToken, api, STATUS_COLOR,
   type NewsItem, type ShortScript, type NewsSourceRow, type DailyStats,
+  type DistributionResp, type ThumbnailPromptResp,
 } from "./_helpers";
 
 type Tab = "pipeline" | "news" | "approval";
@@ -375,6 +376,44 @@ function ScriptCard({ script, onAct }: {
   const [hook, setHook] = useState(script.hook);
   const [body, setBody] = useState(script.body);
   const [cta, setCta] = useState(script.cta);
+  const [showDist, setShowDist] = useState(false);
+  const [dist, setDist] = useState<DistributionResp | null>(null);
+  const [thumb, setThumb] = useState<ThumbnailPromptResp | null>(null);
+  const [distBusy, setDistBusy] = useState(false);
+
+  async function loadDist() {
+    setDistBusy(true);
+    const token = await fetchToken();
+    if (!token) { setDistBusy(false); return; }
+    try {
+      const [d, t] = await Promise.all([
+        api<DistributionResp>(token, `/approval/${script.id}/distribution`),
+        api<ThumbnailPromptResp>(token, `/approval/${script.id}/thumbnail`),
+      ]);
+      setDist(d);
+      setThumb(t);
+    } finally {
+      setDistBusy(false);
+    }
+  }
+
+  function toggleDist() {
+    const next = !showDist;
+    setShowDist(next);
+    if (next && !dist) void loadDist();
+  }
+
+  async function regenerateDist() {
+    setDistBusy(true);
+    const token = await fetchToken();
+    if (!token) { setDistBusy(false); return; }
+    try {
+      await api(token, `/approval/${script.id}/distribution/regenerate`, { method: "POST" });
+      await loadDist();
+    } finally {
+      setDistBusy(false);
+    }
+  }
 
   return (
     <div className="bg-[#151B3D] border border-white/10 rounded-2xl overflow-hidden">
@@ -466,9 +505,120 @@ function ScriptCard({ script, onAct }: {
                 );
               }}
             />
+            <Btn
+              label={showDist ? "📦 Hide Distribution" : "📦 Distribution"}
+              accent="#FFB020"
+              onClick={toggleDist}
+            />
           </>
         )}
       </div>
+
+      {showDist && (
+        <div className="px-4 py-4 border-t border-white/5 space-y-4 bg-[#0F1330]">
+          {distBusy && !dist ? (
+            <p className="text-[#6B7799] text-sm">Loading distribution package…</p>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-[#B8C5E0] text-xs font-semibold uppercase tracking-wide">
+                  Day {dist?.dayNumber ?? thumb?.dayNumber ?? "—"} · copy & post
+                </span>
+                <button
+                  onClick={regenerateDist}
+                  disabled={distBusy}
+                  className="px-3 py-1 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-50"
+                >
+                  {distBusy ? "Regenerating…" : "🔄 Regenerate"}
+                </button>
+              </div>
+
+              {/* Thumbnail prompt */}
+              {thumb?.thumbnailPrompt ? (
+                <Block title="🖼 Thumbnail prompt (paste into ChatGPT/DALL-E)">
+                  <CopyField label="Overlay text" value={thumb.thumbnailPrompt.overlayText} />
+                  <CopyField label="Image prompt" value={thumb.thumbnailPrompt.prompt} multiline />
+                </Block>
+              ) : (
+                <p className="text-[#6B7799] text-xs">No thumbnail prompt generated yet.</p>
+              )}
+
+              {/* Distribution posts */}
+              {dist?.package ? (
+                <>
+                  <Block title="▶️ YouTube">
+                    <CopyField label="Title" value={dist.package.youtube?.title ?? ""} />
+                    <CopyField label="Description" value={dist.package.youtube?.description ?? ""} multiline />
+                    <CopyField label="Tags" value={(dist.package.youtube?.tags ?? []).join(", ")} />
+                  </Block>
+                  <Block title="📸 Instagram">
+                    <CopyField label="Caption + hashtags" value={dist.package.instagram?.full_text ?? ""} multiline />
+                  </Block>
+                  <Block title="💼 LinkedIn">
+                    <CopyField label="Post" value={dist.package.linkedin?.full_text ?? ""} multiline />
+                  </Block>
+                  <Block title="💬 WhatsApp Channel">
+                    <CopyField label="Message" value={dist.package.whatsapp_channel?.full_text ?? ""} multiline />
+                  </Block>
+                  <Block title="📱 WhatsApp Status">
+                    <CopyField label="Status" value={dist.package.whatsapp_status?.full_text ?? ""} multiline />
+                  </Block>
+                  {dist.package.source_reference && (
+                    <p className="text-[10px] text-[#6B7799]">
+                      Source: {dist.package.source_reference.source_name} ·{" "}
+                      <a href={dist.package.source_reference.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-[#00D4FF]">
+                        {dist.package.source_reference.url}
+                      </a>
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-[#6B7799] text-xs">
+                  No distribution package yet. Click 🔄 Regenerate to create one.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Block({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="border border-white/10 rounded-xl overflow-hidden">
+      <div className="px-3 py-2 bg-white/5 text-[#B8C5E0] text-xs font-semibold">{title}</div>
+      <div className="p-3 space-y-2">{children}</div>
+    </div>
+  );
+}
+
+function CopyField({ label, value, multiline }: {
+  label: string; value: string; multiline?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] text-[#6B7799] uppercase">{label}</span>
+        <button
+          onClick={copy}
+          disabled={!value}
+          className="text-[10px] font-semibold text-[#00D4FF] hover:underline disabled:opacity-40"
+        >
+          {copied ? "✓ Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className={`bg-[#0A0E27] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-[#B8C5E0] whitespace-pre-wrap font-mono ${multiline ? "" : "truncate"}`}>
+        {value || "—"}
+      </pre>
     </div>
   );
 }

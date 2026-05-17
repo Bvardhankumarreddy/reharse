@@ -57,6 +57,30 @@ export interface ShortScript {
   newsItem?: { title: string; url: string; source?: { name: string } | null } | null;
 }
 
+export interface ThumbnailPromptResp {
+  scriptId: string;
+  dayNumber: number | null;
+  thumbnailPrompt: { prompt: string; overlayText: string } | null;
+  generatedAt: string | null;
+}
+
+export interface DistributionPackage {
+  youtube?: { title: string; description: string; tags: string[] };
+  instagram?: { caption: string; hashtags: string[]; full_text: string };
+  linkedin?: { body: string; hashtags: string[]; full_text: string };
+  whatsapp_channel?: { full_text: string };
+  whatsapp_status?: { full_text: string };
+  source_reference?: { title: string; url: string; source_name: string };
+  generated_at?: string;
+}
+
+export interface DistributionResp {
+  scriptId: string;
+  dayNumber: number | null;
+  package: DistributionPackage | null;
+  generatedAt: string | null;
+}
+
 export interface DailyStats {
   publishedToday: number;
   llmCostToday: number;
