@@ -66,11 +66,29 @@ export class ThumbnailPromptService {
 
     return {
       result: {
-        prompt: parsed.prompt?.trim() || '',
-        overlayText: parsed.overlayText?.trim() || script.hook.slice(0, 60),
+        prompt: this.sanitize(parsed.prompt?.trim() || ''),
+        overlayText: this.sanitize(parsed.overlayText?.trim() || script.hook.slice(0, 60)),
       },
       cost_usd: cost,
     };
+  }
+
+  /**
+   * Strip stray non-Latin glyphs from the thumbnail prompt. Claude
+   * occasionally injects a CJK token mid-word (e.g. "intense and警alert");
+   * this is a plain-English image prompt the host pastes into ChatGPT, so
+   * we keep ASCII, Latin accents and common typographic punctuation, replace
+   * anything else with a space, and collapse the gap so words don't mash.
+   */
+  private sanitize(s: string): string {
+    if (!s) return s;
+    return s
+      .replace(
+        /[^\x09\x0A\x0D\x20-\x7E -ɏ‐-‧‰-⁞]/g,
+        ' ',
+      )
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
   }
 
   private calcCost(
