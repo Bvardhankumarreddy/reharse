@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OpenAIClientService } from './openai-client.service';
+import { AnthropicClientService } from './anthropic-client.service';
 import { NewsItem } from '../entities/news-item.entity';
 import { ShortScript } from '../entities/short-script.entity';
 import { ThumbnailPromptResult } from '../dto/distribution-package.dto';
@@ -42,7 +42,7 @@ export class ThumbnailPromptService {
   private readonly logger = new Logger(ThumbnailPromptService.name);
 
   constructor(
-    private readonly openai: OpenAIClientService,
+    private readonly anthropic: AnthropicClientService,
     private readonly config: ConfigService,
   ) {}
 
@@ -50,28 +50,19 @@ export class ThumbnailPromptService {
     script: ShortScript,
     item: NewsItem,
   ): Promise<{ result: ThumbnailPromptResult; cost_usd: number }> {
-    const model = this.config.get<string>('aiQuickBytes.openai.scriptModel') ?? 'gpt-4o';
-
-    const completion = await this.openai.getClient().chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: THUMBNAIL_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content:
-            `TOPIC: ${item.title}\n` +
-            `AVATAR: ${script.avatarId ?? 'vardhan'}\n` +
-            `HOOK: ${script.hook}\n` +
-            `Generate the thumbnail image prompt + overlay text.`,
-        },
-      ],
-      response_format: { type: 'json_object' },
+    const { content: raw, usage, model } = await this.anthropic.completeJSON({
+      system: THUMBNAIL_SYSTEM_PROMPT,
+      user:
+        `TOPIC: ${item.title}\n` +
+        `AVATAR: ${script.avatarId ?? 'vardhan'}\n` +
+        `HOOK: ${script.hook}\n` +
+        `Generate the thumbnail image prompt + overlay text.`,
       temperature: 0.8,
+      maxTokens: 800,
     });
 
-    const raw = completion.choices[0]?.message?.content ?? '{}';
-    const parsed = JSON.parse(raw) as Partial<ThumbnailPromptResult>;
-    const cost = this.calcCost(model, completion.usage);
+    const parsed = JSON.parse(raw || '{}') as Partial<ThumbnailPromptResult>;
+    const cost = this.calcCost(model, usage);
 
     return {
       result: {
@@ -89,10 +80,13 @@ export class ThumbnailPromptService {
     const inTok = usage?.prompt_tokens ?? 0;
     const outTok = usage?.completion_tokens ?? 0;
     const rates: Record<string, [number, number]> = {
+      'claude-sonnet-4-6': [3, 15],
+      'claude-opus-4-7': [15, 75],
+      'claude-haiku-4-5-20251001': [1, 5],
       'gpt-4o': [2.5, 10],
       'gpt-4o-mini': [0.15, 0.6],
     };
-    const [inRate, outRate] = rates[model] ?? rates['gpt-4o'];
+    const [inRate, outRate] = rates[model] ?? rates['claude-sonnet-4-6'];
     return (inTok / 1_000_000) * inRate + (outTok / 1_000_000) * outRate;
   }
 }

@@ -6,11 +6,17 @@ import { registerAs } from '@nestjs/config';
  * Access with config.get('aiQuickBytes.<path>').
  */
 export default registerAs('aiQuickBytes', () => ({
+  // OpenAI: scoring (cheap) + embeddings (Claude has no embeddings API).
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
     scoringModel: process.env.AQB_SCORING_MODEL ?? 'gpt-4o-mini',
-    scriptModel: process.env.AQB_SCRIPT_MODEL ?? 'gpt-4o',
     embeddingModel: process.env.AQB_EMBEDDING_MODEL ?? 'text-embedding-3-small',
+  },
+
+  // Anthropic: all the writing steps — script, thumbnail prompt, distribution.
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    writeModel: process.env.AQB_WRITE_MODEL ?? 'claude-sonnet-4-6',
   },
 
   heygen: {

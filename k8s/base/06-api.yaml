@@ -195,12 +195,18 @@ spec:
                   name: rehearse-secrets
                   key: YOUTUBE_REDIRECT_URI
                   optional: true
-            # ── AI Quick Bytes: LLM scoring + script generation ───────────
+            # ── AI Quick Bytes: scoring/embeddings (OpenAI) + writing (Claude) ──
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: rehearse-secrets
                   key: OPENAI_API_KEY
+                  optional: true
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: ANTHROPIC_API_KEY
                   optional: true
           resources:
             requests:

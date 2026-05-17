@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { NewsItem } from '../entities/news-item.entity';
 import { NewsScore } from '../entities/news-score.entity';
 import { ShortScript, AvatarKey } from '../entities/short-script.entity';
-import { OpenAIClientService } from './openai-client.service';
+import { AnthropicClientService } from './anthropic-client.service';
 import { ThumbnailPromptService } from './thumbnail-prompt.service';
 import { DistributionPackageService } from './distribution-package.service';
 
@@ -111,7 +111,7 @@ export class ScriptGeneratorService {
     private readonly scoreRepo: Repository<NewsScore>,
     @InjectRepository(ShortScript)
     private readonly scriptRepo: Repository<ShortScript>,
-    private readonly openai: OpenAIClientService,
+    private readonly anthropic: AnthropicClientService,
     private readonly config: ConfigService,
     private readonly thumbnail: ThumbnailPromptService,
     private readonly distribution: DistributionPackageService,
@@ -125,22 +125,17 @@ export class ScriptGeneratorService {
     if (!item) throw new Error(`News item ${itemId} not found`);
 
     const score = await this.scoreRepo.findOne({ where: { newsItemId: itemId } });
-    const model = this.config.get<string>('aiQuickBytes.openai.scriptModel') ?? 'gpt-4o';
     const dayNumber = await this.getNextDayNumber();
 
-    const completion = await this.openai.getClient().chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: SCRIPT_SYSTEM_PROMPT },
-        { role: 'user', content: this.buildPrompt(item, score, dayNumber) },
-      ],
-      response_format: { type: 'json_object' },
+    const { content: raw, usage, model } = await this.anthropic.completeJSON({
+      system: SCRIPT_SYSTEM_PROMPT,
+      user: this.buildPrompt(item, score, dayNumber),
       temperature: 0.8,
+      maxTokens: 2000,
     });
 
-    const raw = completion.choices[0]?.message?.content ?? '{}';
-    const parsed = JSON.parse(raw) as ScriptResponse;
-    const cost = this.calcCost(model, completion.usage);
+    const parsed = JSON.parse(raw || '{}') as ScriptResponse;
+    const cost = this.calcCost(model, usage);
     const avatarId = this.assignAvatar(item);
     // Prefer the LLM's assembled full_script (opening baked in); fall back to
     // assembling it ourselves so a malformed response can't yield an empty script.
@@ -194,8 +189,8 @@ export class ScriptGeneratorService {
 
   /** Generate scripts for the top-scored, not-yet-scripted stories. */
   async generateForTopStories(limit = 3): Promise<number> {
-    if (!this.openai.isConfigured()) {
-      this.logger.warn('OpenAI not configured — skipping script generation');
+    if (!this.anthropic.isConfigured()) {
+      this.logger.warn('Anthropic not configured — skipping script generation');
       return 0;
     }
 
@@ -288,11 +283,15 @@ Set "day_number" to exactly ${dayNumber} in your JSON response.`;
   private calcCost(model: string, usage?: { prompt_tokens?: number; completion_tokens?: number }): number {
     const inTok = usage?.prompt_tokens ?? 0;
     const outTok = usage?.completion_tokens ?? 0;
+    // USD per 1M tokens [input, output].
     const rates: Record<string, [number, number]> = {
+      'claude-sonnet-4-6': [3, 15],
+      'claude-opus-4-7': [15, 75],
+      'claude-haiku-4-5-20251001': [1, 5],
       'gpt-4o': [2.5, 10],
       'gpt-4o-mini': [0.15, 0.6],
     };
-    const [inRate, outRate] = rates[model] ?? rates['gpt-4o'];
+    const [inRate, outRate] = rates[model] ?? rates['claude-sonnet-4-6'];
     return (inTok / 1_000_000) * inRate + (outTok / 1_000_000) * outRate;
   }
 }

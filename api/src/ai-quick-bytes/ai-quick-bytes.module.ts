@@ -11,6 +11,7 @@ import { PublishingLog } from './entities/publishing-log.entity';
 import { AdminModule } from '../admin/admin.module';
 
 import { OpenAIClientService } from './services/openai-client.service';
+import { AnthropicClientService } from './services/anthropic-client.service';
 import { DedupService } from './services/dedup.service';
 import { IngestionService } from './services/ingestion.service';
 import { ScoringService } from './services/scoring.service';
@@ -64,6 +65,7 @@ import { WebhooksController } from './controllers/webhooks.controller';
   ],
   providers: [
     OpenAIClientService,
+    AnthropicClientService,
     DedupService,
     IngestionService,
     ScoringService,

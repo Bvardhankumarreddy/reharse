@@ -19,6 +19,7 @@
     "seed": "ts-node -r tsconfig-paths/register src/seeds/questions.seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
     "@nestjs/bull": "^11.0.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
