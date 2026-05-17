@@ -255,7 +255,7 @@ function ProfilePanel({ user, onSave }: { user: UserResponse | null; onSave: (dt
 function PreferencesPanel({ user, onSave }: { user: UserResponse | null; onSave: (dto: UpdateUserDto) => Promise<void> }) {
   const isPro = user?.subscriptionTier === "pro" &&
     (user.subscriptionStatus === "active" ||
-      (user.subscriptionStatus === "day_pass" &&
+      ((user.subscriptionStatus === "pass" || user.subscriptionStatus === "day_pass") &&
         (!user.subscriptionEndsAt || new Date(user.subscriptionEndsAt) > new Date())));
 
   const [level,          setLevel]          = useState(user?.experienceLevel ?? "Mid-level (3–5 years)");
@@ -1082,11 +1082,22 @@ const PRO_FEATURES = [
   { icon: "workspace_premium", text: "Early access to all new features" },
 ];
 
-const PLANS = [
-  { id: "weekly",  label: "Weekly",  price: "$4",  per: "/ week",  badge: null },
-  { id: "monthly", label: "Monthly", price: "$12", per: "/ month", badge: null },
-  { id: "yearly",  label: "Yearly",  price: "$8",  per: "/ month", badge: "Save 33%" },
+// ₹120/mo is the only recurring plan. 3mo/6mo/yearly are one-time access
+// passes (no auto-renew). Amounts here are display-only — the server is the
+// source of truth for what is actually charged.
+const ACCESS_PASSES = [
+  { id: "3mo" as const,    price: "₹279", was: null,   per: "/ 3 mo", sub: "One-time · 3 months access", tag: "Save 22% vs monthly", best: false },
+  { id: "6mo" as const,    price: "₹449", was: null,   per: "/ 6 mo", sub: "One-time · 6 months access", tag: "Save 38% vs monthly", best: false },
+  { id: "yearly" as const, price: "₹599", was: "₹999", per: "/ yr",   sub: "One-time · no renewal",     tag: null,                 best: true  },
 ];
+
+// Rolling urgency date for the yearly offer — always ~5 days out so it never
+// looks stale. Display only; price is constant.
+function rollingOfferDate(): string {
+  return new Date(Date.now() + 5 * 86_400_000).toLocaleDateString("en-GB", {
+    day: "numeric", month: "short", year: "numeric",
+  });
+}
 
 function BillingPanel({ user }: { user: UserResponse | null }) {
   const { api } = useApiClient();
@@ -1098,20 +1109,20 @@ function BillingPanel({ user }: { user: UserResponse | null }) {
     subscriptionId: null,
     endsAt:         user?.subscriptionEndsAt ?? null,
   }));
-  const [selectedPlan, setSelectedPlan] = useState<"weekly" | "monthly" | "yearly">("monthly");
   const [showModal,    setShowModal]    = useState(false);
   const [working,      setWorking]      = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [notice,       setNotice]       = useState<string | null>(null);
 
-  const isDayPass = billing?.tier === "pro" && billing?.status === "day_pass";
-  const isPro     = billing?.tier === "pro" && (billing?.status === "active" || isDayPass);
+  // 'pass' = new 3/6/12-month access pass; 'day_pass' = legacy 24h pass.
+  const isPass    = billing?.tier === "pro" && (billing?.status === "pass" || billing?.status === "day_pass");
+  const isPro     = billing?.tier === "pro" && (billing?.status === "active" || isPass);
   const isPastDue = billing?.status === "past_due";
 
   async function handleUpgrade() {
     setWorking(true); setError(null);
     try {
-      const { subscriptionId, keyId } = await api.createSubscription(selectedPlan);
+      const { subscriptionId, keyId } = await api.createSubscription();
 
       // Load Razorpay checkout script on-demand
       await new Promise<void>((resolve, reject) => {
@@ -1128,7 +1139,7 @@ function BillingPanel({ user }: { user: UserResponse | null }) {
         key:             keyId,
         subscription_id: subscriptionId,
         name:            "Rehearse",
-        description:     `Pro ${selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)} plan`,
+        description:     "Pro — ₹120 / month (recurring)",
         image:           "/logo.png",
         handler: async (response: RazorpayVerifyDto) => {
           try {
@@ -1155,10 +1166,10 @@ function BillingPanel({ user }: { user: UserResponse | null }) {
     }
   }
 
-  async function handleDayPass() {
+  async function handleAccessPass(passType: "3mo" | "6mo" | "yearly") {
     setWorking(true); setError(null);
     try {
-      const { orderId, keyId, amount } = await api.createDayPass();
+      const { orderId, keyId, amount } = await api.createAccessPass(passType);
 
       await new Promise<void>((resolve, reject) => {
         if ((window as unknown as Record<string, unknown>).Razorpay) { resolve(); return; }
@@ -1169,6 +1180,9 @@ function BillingPanel({ user }: { user: UserResponse | null }) {
         document.head.appendChild(s);
       });
 
+      const label =
+        passType === "3mo" ? "3 months" : passType === "6mo" ? "6 months" : "1 year";
+
       const RazorpayConstructor = (window as unknown as { Razorpay: new (opts: unknown) => { open(): void } }).Razorpay;
       const rzp = new RazorpayConstructor({
         key:      keyId,
@@ -1176,14 +1190,13 @@ function BillingPanel({ user }: { user: UserResponse | null }) {
         amount,
         currency: "INR",
         name:     "Rehearse",
-        description: "1-Day Pro Pass — full access for 24 hours",
+        description: `Pro Access Pass — ${label} (one-time)`,
         image:    "/logo.png",
         handler: async (response: DayPassVerifyDto) => {
           try {
-            await api.verifyDayPass(response);
-            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-            setBilling((prev) => ({ ...prev!, tier: "pro", status: "day_pass", endsAt: expiresAt }));
-            setNotice("1-Day Pass activated! Full Pro access for the next 24 hours.");
+            const { endsAt } = await api.verifyAccessPass(response);
+            setBilling((prev) => ({ ...prev!, tier: "pro", status: "pass", endsAt }));
+            setNotice(`Access pass activated! Full Pro access for ${label}.`);
             setShowModal(false);
           } catch {
             setError("Payment verification failed. Contact support if amount was charged.");
@@ -1217,9 +1230,7 @@ function BillingPanel({ user }: { user: UserResponse | null }) {
   }
 
   const renewalDate = billing?.endsAt
-    ? isDayPass
-      ? new Date(billing.endsAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-      : new Date(billing.endsAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    ? new Date(billing.endsAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
     : null;
 
   return (
@@ -1261,11 +1272,11 @@ function BillingPanel({ user }: { user: UserResponse | null }) {
           )}
           <div className="min-w-0">
             <p className="text-[14px] font-bold text-text-pri">
-              {isDayPass ? "Pro Plan · 1-Day Pass" : isPro ? "Pro Plan" : "Free Plan"}
+              {isPass ? "Pro · Access Pass" : isPro ? "Pro Plan" : "Free Plan"}
             </p>
             <p className="text-small text-text-sec mt-0.5">
-              {isDayPass && renewalDate
-                ? `Expires ${renewalDate}`
+              {isPass && renewalDate
+                ? `Access until ${renewalDate}`
                 : isPro && renewalDate
                 ? `Renews ${renewalDate}`
                 : isPro
@@ -1274,7 +1285,9 @@ function BillingPanel({ user }: { user: UserResponse | null }) {
             </p>
           </div>
         </div>
-        {isPro ? (
+        {billing?.status === "active" ? (
+          // Only recurring subscriptions can be cancelled. One-time passes
+          // simply lapse at their end date — nothing to cancel.
           <button
             onClick={handleCancel}
             disabled={working}
@@ -1282,14 +1295,14 @@ function BillingPanel({ user }: { user: UserResponse | null }) {
           >
             {working ? "Cancelling…" : "Cancel Plan"}
           </button>
-        ) : (
+        ) : !isPro ? (
           <button
             onClick={() => setShowModal(true)}
             className="flex-shrink-0 px-4 py-2 btn-gradient text-white rounded-btn text-[13px] font-semibold shadow-blue-glow hover:-translate-y-0.5 transition-all"
           >
             Upgrade to Pro
           </button>
-        )}
+        ) : null}
       </div>
 
       {/* Pro features grid — show only when not already pro */}
@@ -1327,71 +1340,77 @@ function BillingPanel({ user }: { user: UserResponse | null }) {
 
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[18px] font-black text-text-pri">Upgrade to Pro</p>
-                <p className="text-small text-text-sec mt-0.5">Cancel anytime · Instant access</p>
+                <p className="text-[18px] font-black text-text-pri">Become a Member</p>
+                <p className="text-small text-text-sec mt-0.5">Unlock everything · Cancel anytime</p>
               </div>
               <button onClick={() => setShowModal(false)} className="p-1 text-text-muted hover:text-text-pri transition-colors">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            {/* 1-Day Pass */}
-            <div className="flex items-center justify-between gap-3 p-4 rounded-xl border border-amber-400/40 bg-amber-50/50">
-              <div>
-                <p className="text-[13px] font-bold text-text-pri flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-amber-500 text-[16px]"
-                    style={{ fontVariationSettings: "'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24" }}>bolt</span>
-                  Try Pro for 1 Day — ₹99
-                </p>
-                <p className="text-[12px] text-text-sec mt-0.5">Full access for 24 hours · No recurring charge</p>
-              </div>
+            <div className="grid grid-cols-2 gap-3">
+              {/* ₹120/mo recurring subscription */}
               <button
-                onClick={handleDayPass}
+                onClick={handleUpgrade}
                 disabled={working}
-                className="flex-shrink-0 px-4 py-2 rounded-btn border border-amber-400 bg-amber-400 text-white text-[13px] font-semibold hover:bg-amber-500 transition-colors disabled:opacity-50"
+                className="text-left p-4 rounded-xl border-2 border-border hover:border-violet-300 transition-all disabled:opacity-50"
               >
-                {working ? "Opening…" : "Try Now"}
+                <p className="text-[22px] font-black text-text-pri leading-none">
+                  ₹120 <span className="text-[13px] font-medium text-text-muted">/ mo</span>
+                </p>
+                <p className="text-[12px] text-text-sec mt-1.5">Recurring · cancel anytime</p>
+                <p className="text-[11px] text-violet-600 font-semibold mt-1">Auto-charged ₹120 every month</p>
+                <span className="mt-3 inline-block w-full text-center px-3 py-2 rounded-btn border border-border text-[13px] font-semibold text-text-pri">
+                  {working ? "Opening…" : "Subscribe"}
+                </span>
               </button>
-            </div>
 
-            <div className="flex items-center gap-3 text-[11px] text-text-muted">
-              <div className="flex-1 h-px bg-border" />
-              <span>or subscribe for ongoing access</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-
-            {/* Plan toggle */}
-            <div className="flex gap-2">
-              {PLANS.map((p) => (
+              {/* One-time access passes */}
+              {ACCESS_PASSES.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setSelectedPlan(p.id as "weekly" | "monthly" | "yearly")}
+                  onClick={() => handleAccessPass(p.id)}
+                  disabled={working}
                   className={clsx(
-                    "flex-1 flex flex-col items-center py-3 px-4 rounded-xl border-2 transition-all",
-                    selectedPlan === p.id ? "border-[#7C3AED] bg-violet-50" : "border-border hover:border-violet-200"
+                    "relative text-left p-4 rounded-xl border-2 transition-all disabled:opacity-50",
+                    p.best ? "border-text-pri" : "border-border hover:border-violet-300",
                   )}
                 >
-                  <span className="text-[13px] font-semibold text-text-pri">{p.label}</span>
-                  <span className="text-[22px] font-black text-text-pri leading-tight">{p.price}</span>
-                  <span className="text-[11px] text-text-muted">{p.per}</span>
-                  {p.badge && (
-                    <span className="mt-1 px-2 py-0.5 rounded-full bg-[#7C3AED] text-white text-[10px] font-bold">{p.badge}</span>
+                  {p.best && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-text-pri text-white text-[10px] font-bold">
+                      Best Value
+                    </span>
                   )}
+                  <p className="text-[22px] font-black text-text-pri leading-none">
+                    {p.price}
+                    {p.was && <span className="ml-1.5 text-[13px] font-medium text-text-muted line-through">{p.was}</span>}
+                    <span className="text-[13px] font-medium text-text-muted"> {p.per}</span>
+                  </p>
+                  <p className="text-[12px] text-text-sec mt-1.5">{p.sub}</p>
+                  {p.tag && <p className="text-[11px] text-emerald-600 font-semibold mt-1">{p.tag}</p>}
+                  {p.best && (
+                    <p className="text-[11px] text-amber-600 font-semibold mt-1">
+                      Offer ends {rollingOfferDate()}
+                    </p>
+                  )}
+                  <span className={clsx(
+                    "mt-3 inline-block w-full text-center px-3 py-2 rounded-btn text-[13px] font-semibold",
+                    p.best ? "bg-text-pri text-white" : "border border-border text-text-pri",
+                  )}>
+                    {working ? "Opening…" : "Get access"}
+                  </span>
                 </button>
               ))}
             </div>
 
-            <button
-              onClick={handleUpgrade}
-              disabled={working}
-              className="w-full h-12 btn-gradient text-white rounded-btn font-bold text-[15px] shadow-blue-glow hover:-translate-y-0.5 transition-all disabled:opacity-60"
-            >
-              {working ? "Opening payment…" : `Subscribe — ${selectedPlan === "weekly" ? "$4/wk" : selectedPlan === "yearly" ? "$8/mo" : "$12/mo"}`}
-            </button>
+            <p className="text-[12px] text-text-sec text-center">
+              Full Pro access — all interview types, voice mode, AI coach, 1,800+ questions.
+              Monthly auto-renews; passes are one-time with no renewal.
+            </p>
 
             <div className="flex items-center justify-center gap-4 text-[11px] text-text-muted">
               <span className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-[13px]">lock</span>Secure payment
+                <span className="material-symbols-outlined text-[13px]">lock</span>Secure checkout via Razorpay
               </span>
               <span>·</span>
               <span>Cancel anytime</span>

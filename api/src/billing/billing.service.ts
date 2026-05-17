@@ -11,6 +11,9 @@ import Razorpay = require('razorpay');
 import * as crypto from 'crypto';
 import { User } from '../users/user.entity';
 
+export type AccessPassType = '3mo' | '6mo' | 'yearly';
+const ACCESS_PASS_TYPES: AccessPassType[] = ['3mo', '6mo', 'yearly'];
+
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
@@ -36,19 +39,31 @@ export class BillingService {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  private planId(plan: 'weekly' | 'monthly' | 'yearly'): string {
+  // ── Access-pass catalogue (one-time, app-tracked expiry) ─────────────────────
+  // 3mo/6mo/yearly are one-time Razorpay orders. Amounts (paise) are
+  // config-overridable; passType is stored in the order notes at creation and
+  // re-read at verify time so the granted duration can never be tampered by
+  // the client.
+
+  private static readonly PASS_DURATION_DAYS: Record<AccessPassType, number> = {
+    '3mo': 90,
+    '6mo': 180,
+    'yearly': 365,
+  };
+
+  private passAmount(passType: AccessPassType): number {
     const key =
-      plan === 'weekly'  ? 'RAZORPAY_PLAN_WEEKLY'  :
-      plan === 'monthly' ? 'RAZORPAY_PLAN_MONTHLY'  :
-                           'RAZORPAY_PLAN_YEARLY';
-    return this.config.getOrThrow<string>(key);
+      passType === '3mo' ? 'RAZORPAY_PASS_3MO_AMOUNT' :
+      passType === '6mo' ? 'RAZORPAY_PASS_6MO_AMOUNT' :
+                           'RAZORPAY_PASS_YEARLY_AMOUNT';
+    const fallback = passType === '3mo' ? '27900' : passType === '6mo' ? '44900' : '59900';
+    return parseInt(this.config.get<string>(key) ?? fallback, 10);
   }
 
-  // ── Create subscription (frontend then opens Razorpay modal) ─────────────────
+  // ── Create subscription — monthly recurring only (₹120) ──────────────────────
 
   async createSubscription(
     userId: string,
-    plan: 'weekly' | 'monthly' | 'yearly',
   ): Promise<{ subscriptionId: string; keyId: string }> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
@@ -58,11 +73,12 @@ export class BillingService {
     }
 
     const sub = await this.rzp.subscriptions.create({
-      plan_id:         this.planId(plan),
+      // RAZORPAY_PLAN_MONTHLY must point at the ₹120/month plan created in
+      // the Razorpay dashboard.
+      plan_id:         this.config.getOrThrow<string>('RAZORPAY_PLAN_MONTHLY'),
       customer_notify: 1,
-      // total_count drives the max billing cycles
-      total_count: plan === 'weekly' ? 520 : plan === 'monthly' ? 120 : 10,
-      notes: { userId },
+      total_count:     120, // up to 10 years of monthly cycles
+      notes:           { userId },
     });
 
     return {
@@ -120,9 +136,16 @@ export class BillingService {
     this.logger.log(`[Billing] Cancelled subscription for user ${userId}`);
   }
 
-  // ── 1-Day Pass (Razorpay Order — one-time payment) ───────────────────────────
+  // ── Access Pass (one-time Razorpay Order: 3mo / 6mo / yearly) ────────────────
 
-  async createDayPass(userId: string): Promise<{ orderId: string; keyId: string; amount: number }> {
+  async createAccessPass(
+    userId: string,
+    passType: AccessPassType,
+  ): Promise<{ orderId: string; keyId: string; amount: number; passType: AccessPassType }> {
+    if (!ACCESS_PASS_TYPES.includes(passType)) {
+      throw new BadRequestException(`Invalid passType — must be one of ${ACCESS_PASS_TYPES.join(', ')}`);
+    }
+
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
@@ -130,32 +153,34 @@ export class BillingService {
       throw new BadRequestException('Already on an active Pro subscription');
     }
 
-    const amount = parseInt(this.config.get<string>('RAZORPAY_DAYPASS_AMOUNT') ?? '9900', 10);
+    const amount = this.passAmount(passType);
 
-    // Orders API (one-time, not recurring)
     const rzpOrders = (this.rzp as unknown as {
       orders: { create(o: unknown): Promise<{ id: string }> };
     }).orders;
 
+    // passType is recorded in the order notes here and re-read (server-side)
+    // at verify time, so the granted duration cannot be tampered by the client.
     const order = await rzpOrders.create({
       amount,
       currency: 'INR',
-      notes: { userId, type: 'day_pass' },
+      notes: { userId, type: 'access_pass', passType },
     });
 
     return {
       orderId: order.id,
       keyId:   this.config.getOrThrow<string>('RAZORPAY_KEY_ID'),
       amount,
+      passType,
     };
   }
 
-  async verifyDayPass(
+  async verifyAccessPass(
     userId: string,
     razorpayPaymentId: string,
     razorpayOrderId:   string,
     razorpaySignature: string,
-  ): Promise<void> {
+  ): Promise<{ passType: AccessPassType; endsAt: string }> {
     const secret = this.config.getOrThrow<string>('RAZORPAY_KEY_SECRET');
 
     // Order signature = HMAC-SHA256(orderId + '|' + paymentId, key_secret)
@@ -166,12 +191,28 @@ export class BillingService {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
+    // Re-read passType from the order Razorpay holds — never trust the client.
+    const rzpOrders = (this.rzp as unknown as {
+      orders: { fetch(id: string): Promise<{ notes?: { passType?: string } }> };
+    }).orders;
+    const order = await rzpOrders.fetch(razorpayOrderId);
+    const passType = order?.notes?.passType as AccessPassType | undefined;
+    if (!passType || !ACCESS_PASS_TYPES.includes(passType)) {
+      throw new BadRequestException('Order is not a valid access pass');
+    }
+
+    const days = BillingService.PASS_DURATION_DAYS[passType];
+    const endsAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
     user.subscriptionTier   = 'pro';
-    user.subscriptionStatus = 'day_pass';
-    user.subscriptionEndsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    user.subscriptionStatus = 'pass';
+    user.subscriptionEndsAt = endsAt;
     await this.userRepo.save(user);
 
-    this.logger.log(`[Billing] Day pass activated for user ${userId} — expires ${user.subscriptionEndsAt.toISOString()}`);
+    this.logger.log(
+      `[Billing] ${passType} access pass activated for user ${userId} — expires ${endsAt.toISOString()}`,
+    );
+    return { passType, endsAt: endsAt.toISOString() };
   }
 
   // ── Current status ────────────────────────────────────────────────────────────
@@ -183,8 +224,13 @@ export class BillingService {
     let tier   = user.subscriptionTier   ?? 'free';
     let status = user.subscriptionStatus ?? null;
 
-    // Auto-expire day passes on read — no cron job needed
-    if (status === 'day_pass' && user.subscriptionEndsAt && user.subscriptionEndsAt < new Date()) {
+    // Auto-expire one-time passes on read — no cron job needed.
+    // 'day_pass' kept for legacy users still inside their old 24h window.
+    if (
+      (status === 'pass' || status === 'day_pass') &&
+      user.subscriptionEndsAt &&
+      user.subscriptionEndsAt < new Date()
+    ) {
       tier   = 'free';
       status = 'expired';
     }

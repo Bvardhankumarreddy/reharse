@@ -37,14 +37,10 @@ export class BillingController {
   @ApiBearerAuth()
   @UseGuards(ClerkGuard)
   @Post('subscription')
-  createSubscription(
-    @CurrentUser() user: ClerkUser,
-    @Body('plan') plan: string,
-  ) {
-    if (plan !== 'weekly' && plan !== 'monthly' && plan !== 'yearly') {
-      throw new BadRequestException('plan must be "weekly", "monthly", or "yearly"');
-    }
-    return this.billing.createSubscription(user.sub, plan);
+  createSubscription(@CurrentUser() user: ClerkUser) {
+    // Only the ₹120/month recurring plan remains; longer terms are one-time
+    // access passes (see /billing/access-pass).
+    return this.billing.createSubscription(user.sub);
   }
 
   /**
@@ -78,24 +74,30 @@ export class BillingController {
   }
 
   /**
-   * POST /api/v1/billing/daypass
-   * Creates a Razorpay Order for the 1-day pass (one-time payment).
+   * POST /api/v1/billing/access-pass
+   * Creates a Razorpay Order for a one-time access pass (3mo / 6mo / yearly).
    */
   @ApiBearerAuth()
   @UseGuards(ClerkGuard)
-  @Post('daypass')
-  createDayPass(@CurrentUser() user: ClerkUser) {
-    return this.billing.createDayPass(user.sub);
+  @Post('access-pass')
+  createAccessPass(
+    @CurrentUser() user: ClerkUser,
+    @Body('passType') passType: string,
+  ) {
+    if (passType !== '3mo' && passType !== '6mo' && passType !== 'yearly') {
+      throw new BadRequestException('passType must be "3mo", "6mo", or "yearly"');
+    }
+    return this.billing.createAccessPass(user.sub, passType);
   }
 
   /**
-   * POST /api/v1/billing/daypass/verify
-   * Verifies Razorpay Order payment and activates a 24-hour Pro pass.
+   * POST /api/v1/billing/access-pass/verify
+   * Verifies the Razorpay Order payment and activates Pro for the pass duration.
    */
   @ApiBearerAuth()
   @UseGuards(ClerkGuard)
-  @Post('daypass/verify')
-  verifyDayPass(
+  @Post('access-pass/verify')
+  verifyAccessPass(
     @CurrentUser() user: ClerkUser,
     @Body('razorpay_payment_id') paymentId: string,
     @Body('razorpay_order_id')   orderId:   string,
@@ -104,7 +106,7 @@ export class BillingController {
     if (!paymentId || !orderId || !signature) {
       throw new BadRequestException('Missing payment fields');
     }
-    return this.billing.verifyDayPass(user.sub, paymentId, orderId, signature);
+    return this.billing.verifyAccessPass(user.sub, paymentId, orderId, signature);
   }
 
   /** GET /api/v1/billing/webhook — Razorpay pings this to verify the URL */

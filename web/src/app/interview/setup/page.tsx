@@ -87,7 +87,7 @@ function InterviewSetupPageInner() {
         if (u.experienceLevel) setLevel(u.experienceLevel);
         const proUser = u.subscriptionTier === "pro" &&
           (u.subscriptionStatus === "active" ||
-            (u.subscriptionStatus === "day_pass" &&
+            ((u.subscriptionStatus === "pass" || u.subscriptionStatus === "day_pass") &&
               (!u.subscriptionEndsAt || new Date(u.subscriptionEndsAt) > new Date())));
         setIsPro(proUser);
         // Only pre-fill company for Pro users — free users would hit the Pro gate

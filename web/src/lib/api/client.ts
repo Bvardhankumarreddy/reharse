@@ -104,11 +104,11 @@ export function createApiClient(getToken: GetToken) {
 
     // ── Billing ────────────────────────────────────────────────────────────
     getBillingStatus:       ()                                        => get<BillingStatus>("/billing/status"),
-    createSubscription:     (plan: "weekly" | "monthly" | "yearly")   => post<{ subscriptionId: string; keyId: string }>("/billing/subscription", { plan }),
+    createSubscription:     ()                                        => post<{ subscriptionId: string; keyId: string }>("/billing/subscription", {}),
     verifyPayment:          (dto: RazorpayVerifyDto)                  => post<void>("/billing/verify", dto),
     cancelSubscription:     ()                                        => post<void>("/billing/cancel", {}),
-    createDayPass:          ()                                        => post<{ orderId: string; keyId: string; amount: number }>("/billing/daypass", {}),
-    verifyDayPass:          (dto: DayPassVerifyDto)                   => post<void>("/billing/daypass/verify", dto),
+    createAccessPass:       (passType: "3mo" | "6mo" | "yearly")      => post<{ orderId: string; keyId: string; amount: number; passType: string }>("/billing/access-pass", { passType }),
+    verifyAccessPass:       (dto: DayPassVerifyDto)                   => post<{ passType: string; endsAt: string }>("/billing/access-pass/verify", dto),
 
     // ── User Feedback ──────────────────────────────────────────────────────
     submitUserFeedback: (dto: { rating?: number; category?: string; message: string }) =>
@@ -280,7 +280,7 @@ export interface QuestionFilter {
 
 export interface BillingStatus {
   tier:           string;        // 'free' | 'pro'
-  status:         string | null; // 'active' | 'day_pass' | 'past_due' | 'cancelled' | 'expired' | null
+  status:         string | null; // 'active' | 'pass' | 'day_pass' | 'past_due' | 'cancelled' | 'expired' | null
   subscriptionId: string | null;
   endsAt:         string | null;
 }
