@@ -28,7 +28,12 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16-alpine
+          # pgvector/pgvector:pg16 = official postgres:16 + precompiled pgvector
+          # extension. Same PG16 major version as the previous postgres:16-alpine,
+          # so the existing data directory is binary-compatible (no dump/restore).
+          # The `vector` extension is enabled by the ai-quick-bytes migration via
+          # CREATE EXTENSION IF NOT EXISTS vector.
+          image: pgvector/pgvector:pg16
           ports:
             - containerPort: 5432
           env:
