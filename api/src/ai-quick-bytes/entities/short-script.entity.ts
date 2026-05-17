@@ -15,6 +15,11 @@ export class ShortScript {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  /** Sequential "Day N of AI Quick Bytes". Assigned at generation time. */
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  dayNumber: number | null;
+
   @Index()
   @Column({ type: 'uuid' })
   newsItemId: string;

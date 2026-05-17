@@ -9,38 +9,91 @@ import { OpenAIClientService } from './openai-client.service';
 
 const SCRIPT_SYSTEM_PROMPT = `
 You write YouTube Shorts scripts for AetherStackAI — an Indian AI
-education channel hosted by Vardhan.
+education channel hosted by Vardhan. The series is called "AI Quick Bytes"
+— a daily AI insight series with sequential day numbering.
 
 BRAND VOICE:
 - Conversational, like explaining to a friend
 - Slightly mysterious / curious tone
 - Indian English audience
-- Use words like "Spoiler:", "Plot twist:", "Here's the thing"
-- 30-45 seconds (75-110 words)
+- Use phrases like "Spoiler:", "Plot twist:", "Here's the thing"
+- 30-45 seconds total (90-130 words)
 
-SCRIPT STRUCTURE:
-1. HOOK (0-5 sec): Question, surprising fact, or bold statement
-2. BODY (5-35 sec): The actual news + why it matters
-3. CTA (35-45 sec): "Subscribe for more" or "Comment your thoughts"
+═══════════════════════════════════════
+MANDATORY OPENING (USE PROVIDED DAY NUMBER)
+═══════════════════════════════════════
 
-PAUSE MARKERS:
-Add [1 sec pause] after impact lines.
-Add [2 sec pause] before reveals.
+Choose ONE of these 5 opening variations based on day number rotation:
 
-RULES:
-- NO jargon without explanation
-- NO clickbait that doesn't deliver
-- NO opinions presented as facts
-- ALWAYS connect to "what this means for you"
+Variation 1: "Welcome to Day [X] of AI Quick Bytes."
+Variation 2: "Day [X] of AI Quick Bytes — let's go."
+Variation 3: "It's Day [X]. Today's AI byte:"
+Variation 4: "Welcome back to AI Quick Bytes. Day [X]."
+Variation 5: "Day [X]. One AI thing you should know today."
 
-Respond with JSON ONLY:
-{"hook": "<5s opening>", "body": "<25-30s main content with pause markers>", "cta": "<5-10s call to action>", "duration_estimate": <total seconds>, "brand_voice_score": <1-100>}
+Rules:
+- ALWAYS replace [X] with the actual day number provided
+- ALWAYS add [1 sec pause] after the opening
+- Use the variation number the user prompt tells you to prefer
+
+═══════════════════════════════════════
+SCRIPT STRUCTURE (FIXED)
+═══════════════════════════════════════
+
+1. OPENING (0-3 sec): The Day [X] welcome from the list + [1 sec pause]
+2. HOOK (3-8 sec): Question, surprising fact, or bold statement
+3. BODY (8-35 sec): The actual news/fact/tip + clear "why it matters"
+4. CTA (35-45 sec): Subscribe / Follow / Comment prompt
+
+═══════════════════════════════════════
+PAUSE MARKERS (CRITICAL)
+═══════════════════════════════════════
+
+- [1 sec pause] after impact lines and transitions
+- [2 sec pause] before reveals or key insights
+
+═══════════════════════════════════════
+CONTENT RULES
+═══════════════════════════════════════
+
+DO: explain jargon simply; connect every fact to "what this means for you";
+stay factually accurate; Indian-English-friendly; end with a strong CTA.
+DON'T: clickbait that doesn't deliver; opinions as facts; unexplained jargon;
+skip the Day [X] opening; forget pause markers.
+
+═══════════════════════════════════════
+CTA ROTATION (PICK ONE FITTING THE CONTENT)
+═══════════════════════════════════════
+
+News:  "Subscribe for daily AI insights." / "Follow for daily AI breakdowns."
+Facts: "Subscribe for daily AI facts that change perspectives."
+Tips:  "Follow for daily AI productivity hacks." / "Subscribe — more AI prompts that actually work."
+
+═══════════════════════════════════════
+OUTPUT FORMAT (STRICT JSON ONLY)
+═══════════════════════════════════════
+
+{
+  "day_number": <integer, exactly the day number provided>,
+  "opening": "<the Day [X] welcome line you chose>",
+  "opening_variation_used": <integer 1-5>,
+  "hook": "<the 5-second hook after the opening>",
+  "body": "<25-30 second main content with [pause] markers>",
+  "cta": "<5-10 second call to action>",
+  "full_script": "<complete script: opening + hook + body + cta, all pause markers, ready to paste into HeyGen>",
+  "duration_estimate": <total seconds, integer>,
+  "brand_voice_score": <1-100>
+}
 `.trim();
 
 interface ScriptResponse {
+  day_number?: number;
+  opening?: string;
+  opening_variation_used?: number;
   hook: string;
   body: string;
   cta: string;
+  full_script?: string;
   duration_estimate: number;
   brand_voice_score: number;
 }
@@ -69,12 +122,13 @@ export class ScriptGeneratorService {
 
     const score = await this.scoreRepo.findOne({ where: { newsItemId: itemId } });
     const model = this.config.get<string>('aiQuickBytes.openai.scriptModel') ?? 'gpt-4o';
+    const dayNumber = await this.getNextDayNumber();
 
     const completion = await this.openai.getClient().chat.completions.create({
       model,
       messages: [
         { role: 'system', content: SCRIPT_SYSTEM_PROMPT },
-        { role: 'user', content: this.buildPrompt(item, score) },
+        { role: 'user', content: this.buildPrompt(item, score, dayNumber) },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.8,
@@ -84,10 +138,17 @@ export class ScriptGeneratorService {
     const parsed = JSON.parse(raw) as ScriptResponse;
     const cost = this.calcCost(model, completion.usage);
     const avatarId = this.assignAvatar(item);
-    const fullScript = `${parsed.hook}\n\n${parsed.body}\n\n${parsed.cta}`;
+    // Prefer the LLM's assembled full_script (opening baked in); fall back to
+    // assembling it ourselves so a malformed response can't yield an empty script.
+    const fullScript =
+      parsed.full_script?.trim() ||
+      [parsed.opening, parsed.hook, parsed.body, parsed.cta]
+        .filter(Boolean)
+        .join('\n\n');
 
     const script = await this.scriptRepo.save(this.scriptRepo.create({
       newsItemId: itemId,
+      dayNumber,
       hook: parsed.hook,
       body: parsed.body,
       cta: parsed.cta,
@@ -156,15 +217,45 @@ export class ScriptGeneratorService {
     return 'vardhan';
   }
 
-  private buildPrompt(item: NewsItem, score: NewsScore | null): string {
+  /**
+   * Next sequential day number. Counts draft too (not just approved) so the
+   * batch "Generate Top N" flow — which creates N drafts in a loop with no
+   * approval between — produces Day 1, 2, 3… instead of all colliding on 1.
+   * A rejected draft therefore "burns" its number; that is intentional and
+   * keeps the public series strictly sequential.
+   */
+  private async getNextDayNumber(): Promise<number> {
+    const row = await this.scriptRepo
+      .createQueryBuilder('script')
+      .select('MAX(script."dayNumber")', 'max')
+      .where('script.status IN (:...statuses)', {
+        statuses: ['draft', 'approved', 'generating', 'ready', 'published'],
+      })
+      .andWhere('script."dayNumber" IS NOT NULL')
+      .getRawOne<{ max: number | null }>();
+    return (Number(row?.max) || 0) + 1;
+  }
+
+  private buildPrompt(
+    item: NewsItem,
+    score: NewsScore | null,
+    dayNumber: number,
+  ): string {
     const body = item.summary || item.content?.slice(0, 2000) || 'No summary';
-    return `NEWS TO ADAPT:
+    const preferredVariation = (dayNumber % 5) + 1;
+    return `DAY NUMBER: ${dayNumber}
+
+NEWS TO ADAPT:
 Title: ${item.title}
 Source: ${item.source?.name ?? 'unknown'}
+Published: ${item.publishedAt?.toISOString() ?? 'unknown'}
 Summary: ${body}
 Score: ${score?.compositeScore ?? 'n/a'}/100
 
-Create a 30-45 second YouTube Short script in the AetherStackAI brand voice.`;
+Create a 30-45 second YouTube Short script in the AetherStackAI brand voice.
+Start with a Day ${dayNumber} welcome from the approved opening list.
+For Day ${dayNumber}, prefer opening variation #${preferredVariation}.
+Set "day_number" to exactly ${dayNumber} in your JSON response.`;
   }
 
   private calcCost(model: string, usage?: { prompt_tokens?: number; completion_tokens?: number }): number {
