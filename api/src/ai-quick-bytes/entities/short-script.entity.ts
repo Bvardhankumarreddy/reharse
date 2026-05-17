@@ -1,0 +1,84 @@
+import {
+  Entity, PrimaryGeneratedColumn, Column, Index,
+  CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn,
+} from 'typeorm';
+import { NewsItem } from './news-item.entity';
+
+export type ScriptStatus =
+  | 'draft' | 'approved' | 'rejected'
+  | 'generating' | 'ready' | 'published' | 'failed';
+
+export type AvatarKey = 'cyber' | 'robot' | 'vardhan';
+
+@Entity('aqb_short_scripts')
+export class ShortScript {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Index()
+  @Column({ type: 'uuid' })
+  newsItemId: string;
+
+  @ManyToOne(() => NewsItem, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'newsItemId' })
+  newsItem: NewsItem;
+
+  @Column({ type: 'text' })
+  hook: string;
+
+  @Column({ type: 'text' })
+  body: string;
+
+  @Column({ type: 'text' })
+  cta: string;
+
+  @Column({ type: 'text' })
+  fullScript: string;
+
+  @Column({ type: 'int', nullable: true })
+  durationEstimateSeconds: number | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  avatarId: AvatarKey | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  voiceId: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  brandVoiceScore: number | null;
+
+  @Index()
+  @Column({ type: 'varchar', length: 50, default: 'draft' })
+  status: ScriptStatus;
+
+  @Column({ type: 'text', nullable: true })
+  rejectionReason: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  approvedBy: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  approvedAt: Date | null;
+
+  @Index()
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  heygenVideoId: string | null;
+
+  @Column({ type: 'varchar', length: 2000, nullable: true })
+  heygenVideoUrl: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  youtubeVideoId: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  youtubeUrl: string | null;
+
+  @Column({ type: 'numeric', precision: 10, scale: 6, nullable: true })
+  costUsd: number | null;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+}
