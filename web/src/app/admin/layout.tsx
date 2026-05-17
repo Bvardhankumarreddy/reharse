@@ -20,6 +20,7 @@ const NAV = [
   { href: "/admin/quiz/import", label: "Quiz Import", icon: "upload_file" },
   { href: "/admin/post-generator", label: "Post Generator", icon: "campaign" },
   { href: "/admin/social-agent", label: "Social Agent", icon: "smart_toy" },
+  { href: "/admin/ai-quick-bytes", label: "AI Quick Bytes", icon: "bolt" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
