@@ -21,7 +21,11 @@ export abstract class RssBaseAdapter extends BaseSourceAdapter {
           url: item.link?.trim() || '',
           content: item.contentSnippet || item.content || undefined,
           summary: item.contentSnippet || undefined,
-          author: item.creator || (item as { author?: string }).author || undefined,
+          // Some feeds (e.g. Google AI) return author/creator as an object
+          // ({ name }) or array, not a string — coerce defensively.
+          author: this.normalizeAuthor(
+            item.creator ?? (item as { author?: unknown }).author,
+          ),
           publishedAt: item.pubDate ? new Date(item.pubDate) : undefined,
           metadata: { guid: item.guid },
         }))
@@ -29,5 +33,21 @@ export abstract class RssBaseAdapter extends BaseSourceAdapter {
     } catch (error) {
       return this.handleError(error);
     }
+  }
+
+  /** RSS author/creator may be a string, { name }, array, or undefined. */
+  private normalizeAuthor(raw: unknown): string | undefined {
+    if (!raw) return undefined;
+    if (typeof raw === 'string') return raw.trim() || undefined;
+    if (Array.isArray(raw)) {
+      const joined = raw.map((r) => this.normalizeAuthor(r)).filter(Boolean).join(', ');
+      return joined || undefined;
+    }
+    if (typeof raw === 'object') {
+      const o = raw as { name?: unknown; _?: unknown };
+      const v = o.name ?? o._;
+      return typeof v === 'string' ? v.trim() || undefined : undefined;
+    }
+    return undefined;
   }
 }
