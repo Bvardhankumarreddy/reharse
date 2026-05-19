@@ -185,6 +185,9 @@ function TopicsTab({ onToast }: { onToast: (m: string) => void }) {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
+  const [idea, setIdea] = useState("");
+  const [ideaFormat, setIdeaFormat] = useState<"long" | "short">("long");
+  const [ideaBusy, setIdeaBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -212,8 +215,59 @@ function TopicsTab({ onToast }: { onToast: (m: string) => void }) {
     }
   }
 
+  async function submitIdea() {
+    if (!idea.trim()) return;
+    setIdeaBusy(true);
+    onToast("Structuring your idea… (Claude)");
+    const token = await fetchToken();
+    if (!token) { setIdeaBusy(false); return; }
+    try {
+      await api(token, "/topics/custom", {
+        method: "POST",
+        body: JSON.stringify({ idea: idea.trim(), format: ideaFormat }),
+      });
+      setIdea("");
+      onToast("✓ Custom topic created — find it below, then Generate Episode");
+      await load();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setIdeaBusy(false); }
+  }
+
   return (
     <div className="space-y-3">
+      {/* Custom idea entry */}
+      <div className="bg-[#151B3D] border border-[#00D4FF]/30 rounded-2xl p-4 space-y-2">
+        <p className="text-[#B8C5E0] text-sm font-semibold">💡 Your own idea</p>
+        <p className="text-[#6B7799] text-xs">
+          Describe an episode in your own words — Claude structures it into a topic
+          (picks characters, type, key concepts) under “Custom Ideas”. Then hit
+          🎬 Generate Episode below.
+        </p>
+        <textarea
+          value={idea}
+          onChange={(e) => setIdea(e.target.value)}
+          rows={3}
+          placeholder="e.g. A dramatic debate on whether AI coding tools make junior devs worse — ATLAS vs LUNA, real hiring-data examples"
+          className="w-full bg-[#0A0E27] border border-white/10 rounded-lg px-3 py-2 text-[13px] text-[#B8C5E0] focus:outline-none focus:border-[#00D4FF]"
+        />
+        <div className="flex items-center gap-2">
+          <select
+            value={ideaFormat}
+            onChange={(e) => setIdeaFormat(e.target.value as "long" | "short")}
+            className="bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white"
+          >
+            <option value="long">long (7-10 min)</option>
+            <option value="short">short (30-60s)</option>
+          </select>
+          <PrimaryBtn
+            label={ideaBusy ? "Structuring…" : "➕ Create from idea"}
+            busy={ideaBusy}
+            onClick={submitIdea}
+          />
+        </div>
+      </div>
+
       <select
         value={status}
         onChange={(e) => setStatus(e.target.value)}

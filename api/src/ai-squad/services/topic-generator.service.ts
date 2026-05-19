@@ -109,4 +109,80 @@ export class TopicGeneratorService {
     );
     return { topics, cost };
   }
+
+  /** Singleton "Custom Ideas" theme — parents all user-supplied topics. */
+  private async customIdeasTheme(): Promise<Theme> {
+    const existing = await this.themeRepo.findOne({
+      where: { title: 'Custom Ideas' },
+    });
+    if (existing) return existing;
+    return this.themeRepo.save(
+      this.themeRepo.create({
+        title: 'Custom Ideas',
+        description: 'User-supplied episode ideas, structured on demand.',
+        category: null,
+        targetAudience: 'general',
+        estimatedTopicsCount: 0,
+        llmGenerated: false,
+        generationCostUsd: 0,
+        status: 'active',
+      }),
+    );
+  }
+
+  /**
+   * Turn a freeform user idea into one structured Topic (Claude fills the
+   * type / characters / format / key concepts), parented to "Custom Ideas".
+   * The user then runs Generate Episode on it like any other topic.
+   */
+  async createFromIdea(
+    idea: string,
+    formatOverride?: 'long' | 'short',
+  ): Promise<Topic> {
+    if (!idea?.trim()) throw new Error('idea is required');
+    if (!this.claude.isConfigured()) {
+      throw new Error('Anthropic not configured — cannot structure idea');
+    }
+    const theme = await this.customIdeasTheme();
+
+    const { content, usage, model } = await this.claude.completeJSON({
+      system: TOPIC_SYSTEM_PROMPT,
+      user:
+        `Structure THIS single user-supplied idea into exactly ONE topic ` +
+        `(JSON with a "topics" array of length 1). Honour the user's intent; ` +
+        `pick the best 2-4 characters and topic type.\n\n` +
+        `USER IDEA: ${idea.trim()}` +
+        (formatOverride ? `\nFORCE FORMAT: ${formatOverride}` : ''),
+      temperature: 0.8,
+      maxTokens: 1200,
+    });
+
+    const parsed = JSON.parse(content || '{}') as { topics?: TopicLlm[] };
+    const t = parsed.topics?.[0];
+    if (!t?.title) throw new Error('Claude did not return a usable topic');
+
+    const topic = await this.topicRepo.save(
+      this.topicRepo.create({
+        themeId: theme.id,
+        title: t.title,
+        description: t.description ?? idea.trim(),
+        angle: t.angle ?? null,
+        topicType: (t.topic_type as Topic['topicType']) ?? 'explainer',
+        recommendedCharacters: (t.recommended_characters ?? []).filter(
+          isCharacterKey,
+        ) as CharacterKey[],
+        difficulty: (t.difficulty as Topic['difficulty']) ?? 'beginner',
+        estimatedDurationMinutes: t.estimated_duration_minutes ?? 8,
+        format: formatOverride ?? (t.format as Topic['format']) ?? 'long',
+        keyConcepts: t.key_concepts ?? [],
+        status: 'planned',
+        llmGenerated: false,
+        generationCostUsd: this.claude.cost(model, usage),
+        notes: `Custom idea: ${idea.trim().slice(0, 500)}`,
+      }),
+    );
+
+    this.logger.log(`Custom idea → topic ${topic.id} ("${topic.title}")`);
+    return topic;
+  }
 }
