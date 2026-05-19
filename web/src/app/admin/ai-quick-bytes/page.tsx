@@ -320,21 +320,35 @@ function NewsTab() {
 
 // ── Approval tab ──────────────────────────────────────────────────────────────
 
+const SCRIPT_STATUSES = [
+  "draft", "approved", "generating", "ready", "published", "rejected", "failed",
+] as const;
+
 function ApprovalTab({ onToast }: { onToast: (m: string) => void }) {
   const [scripts, setScripts] = useState<ShortScript[]>([]);
   const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<string>("draft");
 
   const load = useCallback(async () => {
     setLoading(true);
     const token = await fetchToken();
     if (!token) { setLoading(false); return; }
     try {
-      const data = await api<ShortScript[]>(token, "/approval/queue");
-      setScripts(data);
+      if (status === "draft") {
+        // /approval/queue keeps news-score ordering for the review queue.
+        const data = await api<ShortScript[]>(token, "/approval/queue");
+        setScripts(data);
+      } else {
+        const res = await api<{ data: ShortScript[] }>(
+          token,
+          `/scripts?status=${status}&limit=100`,
+        );
+        setScripts(res.data);
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [status]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -350,20 +364,36 @@ function ApprovalTab({ onToast }: { onToast: (m: string) => void }) {
     }
   }
 
-  if (loading) return <div className="text-[#6B7799] text-sm p-8 text-center">Loading…</div>;
-  if (scripts.length === 0) {
-    return (
-      <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-12 text-center text-[#6B7799]">
-        No draft scripts. Generate some on the Pipeline tab.
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      {scripts.map((s) => (
-        <ScriptCard key={s.id} script={s} onAct={act} />
-      ))}
+      <div className="flex items-center gap-2">
+        <span className="text-[#6B7799] text-xs">Status</span>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="bg-[#151B3D] border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+        >
+          {SCRIPT_STATUSES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <span className="ml-auto text-[#6B7799] text-xs">
+          {scripts.length} script{scripts.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="text-[#6B7799] text-sm p-8 text-center">Loading…</div>
+      ) : scripts.length === 0 ? (
+        <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-12 text-center text-[#6B7799]">
+          No {status} scripts.
+          {status === "draft" && " Generate some on the Pipeline tab."}
+        </div>
+      ) : (
+        scripts.map((s) => (
+          <ScriptCard key={s.id} script={s} onAct={act} />
+        ))
+      )}
     </div>
   );
 }
@@ -420,7 +450,10 @@ function ScriptCard({ script, onAct }: {
   return (
     <div className="bg-[#151B3D] border border-white/10 rounded-2xl overflow-hidden">
       <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
-        <span className="text-[#B8C5E0] text-sm font-medium truncate">
+        <span className="text-[#B8C5E0] text-sm font-medium truncate flex items-center gap-2">
+          <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full ${STATUS_COLOR[script.status] ?? "bg-slate-500/20 text-slate-300"}`}>
+            {script.status}
+          </span>
           {script.newsItem?.title ?? "—"}
         </span>
         <span className="text-[#6B7799] text-xs whitespace-nowrap">
@@ -470,43 +503,50 @@ function ScriptCard({ script, onAct }: {
           </>
         ) : (
           <>
-            <Btn label="✏️ Edit" onClick={() => setEditing(true)} />
-            <Btn
-              label="✅ Approve"
-              accent="#00F5A0"
-              onClick={() =>
-                onAct(script.id, "Approved", (t) =>
-                  api(t, `/approval/${script.id}/approve`, { method: "POST" }),
-                )
-              }
-            />
-            <Btn
-              label="❌ Reject"
-              accent="#FF5C7C"
-              onClick={() => {
-                const reason = prompt("Rejection reason?") ?? "";
-                if (reason === "") return;
-                void onAct(script.id, "Rejected", (t) =>
-                  api(t, `/approval/${script.id}/reject`, {
-                    method: "POST",
-                    body: JSON.stringify({ reason }),
-                  }),
-                );
-              }}
-            />
-            <Btn
-              label="📲 Mark Published"
-              onClick={() => {
-                const url = prompt("Published YouTube URL?") ?? "";
-                if (!url) return;
-                void onAct(script.id, "Marked published", (t) =>
-                  api(t, `/approval/${script.id}/mark-published`, {
-                    method: "POST",
-                    body: JSON.stringify({ platform: "youtube", url }),
-                  }),
-                );
-              }}
-            />
+            {script.status === "draft" && (
+              <>
+                <Btn label="✏️ Edit" onClick={() => setEditing(true)} />
+                <Btn
+                  label="✅ Approve"
+                  accent="#00F5A0"
+                  onClick={() =>
+                    onAct(script.id, "Approved", (t) =>
+                      api(t, `/approval/${script.id}/approve`, { method: "POST" }),
+                    )
+                  }
+                />
+                <Btn
+                  label="❌ Reject"
+                  accent="#FF5C7C"
+                  onClick={() => {
+                    const reason = prompt("Rejection reason?") ?? "";
+                    if (reason === "") return;
+                    void onAct(script.id, "Rejected", (t) =>
+                      api(t, `/approval/${script.id}/reject`, {
+                        method: "POST",
+                        body: JSON.stringify({ reason }),
+                      }),
+                    );
+                  }}
+                />
+              </>
+            )}
+            {script.status !== "published" && script.status !== "rejected" && (
+              <Btn
+                label="📲 Mark Published"
+                onClick={() => {
+                  const url = prompt("Published YouTube URL?") ?? "";
+                  if (!url) return;
+                  void onAct(script.id, "Marked published", (t) =>
+                    api(t, `/approval/${script.id}/mark-published`, {
+                      method: "POST",
+                      body: JSON.stringify({ platform: "youtube", url }),
+                    }),
+                  );
+                }}
+              />
+            )}
+            <Btn label="📋 Copy script" onClick={() => navigator.clipboard.writeText(script.fullScript)} />
             <Btn
               label={showDist ? "📦 Hide Distribution" : "📦 Distribution"}
               accent="#FFB020"
