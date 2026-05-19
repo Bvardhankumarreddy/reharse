@@ -23,6 +23,7 @@ import { TeamModule } from './team/team.module';
 import { QuizModule } from './quiz/quiz.module';
 import { SocialAgentModule } from './social-agent/social-agent.module';
 import { AiQuickBytesModule } from './ai-quick-bytes/ai-quick-bytes.module';
+import { AiSquadModule } from './ai-squad/ai-squad.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { AiQuickBytesModule } from './ai-quick-bytes/ai-quick-bytes.module';
     QuizModule,
     SocialAgentModule,
     AiQuickBytesModule,
+    AiSquadModule,
   ],
   controllers: [HealthController],
 })
