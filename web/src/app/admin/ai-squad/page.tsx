@@ -6,7 +6,7 @@
 import { useEffect, useState, useCallback, type ReactNode } from "react";
 import {
   fetchToken, api, STATUS_COLOR, CHAR_COLOR,
-  type Theme, type Topic, type Episode,
+  type Theme, type Topic, type Episode, type LanguageVersion,
 } from "./_helpers";
 
 type Tab = "themes" | "topics" | "episodes";
@@ -347,18 +347,57 @@ function EpisodeCard({ ep, onToast, onChange }: {
   ep: Episode; onToast: (m: string) => void; onChange: () => void;
 }) {
   const [full, setFull] = useState<Episode | null>(null);
+  const [langs, setLangs] = useState<LanguageVersion[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function loadFull() {
     const token = await fetchToken();
     if (!token) return;
-    setFull(await api<Episode>(token, `/episodes/${ep.id}`));
+    const [e, lv] = await Promise.all([
+      api<Episode>(token, `/episodes/${ep.id}`),
+      api<LanguageVersion[]>(token, `/episodes/${ep.id}/languages`),
+    ]);
+    setFull(e);
+    setLangs(lv);
   }
   async function toggle() {
     const next = !open;
     setOpen(next);
     if (next && !full) await loadFull();
+  }
+
+  async function translate() {
+    setBusy(true);
+    onToast("Translating to Hindi + Telugu… (Claude)");
+    const token = await fetchToken();
+    if (!token) { setBusy(false); return; }
+    try {
+      await api(token, `/episodes/${ep.id}/translate`, { method: "POST" });
+      onToast("✓ Translated — see language versions below");
+      await loadFull();
+      onChange();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(false); }
+  }
+
+  async function langAction(lang: string, label: string, path: string, body?: object) {
+    setBusy(true);
+    onToast(`${label} (${lang})…`);
+    const token = await fetchToken();
+    if (!token) { setBusy(false); return; }
+    try {
+      const r = await api<{ skipped?: boolean }>(token, path, {
+        method: "POST",
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      onToast(r?.skipped ? "⏸ HeyGen not configured (deferred)" : `✓ ${label} (${lang})`);
+      await loadFull();
+      onChange();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(false); }
   }
   async function act(label: string, path: string) {
     setBusy(true);
@@ -402,6 +441,7 @@ function EpisodeCard({ ep, onToast, onChange }: {
         <Btn label="🎥 Gen Videos" onClick={() => act("Videos queued", `/episodes/${e.id}/generate-videos`)} disabled={busy} />
         <Btn label="🖼 Thumbnails" onClick={() => act("Thumbnails", `/episodes/${e.id}/generate-thumbnails`)} disabled={busy} />
         <Btn label="📦 Distribution" onClick={() => act("Distribution", `/episodes/${e.id}/generate-distribution`)} disabled={busy} />
+        <Btn label="🌍 Translate" accent="#00D4FF" onClick={translate} disabled={busy} />
         {e.status !== "approved" && e.status !== "published" && (
           <Btn label="✅ Approve" accent="#00F5A0" onClick={() => act("Approved", `/episodes/${e.id}/approve`)} disabled={busy} />
         )}
@@ -463,6 +503,51 @@ function EpisodeCard({ ep, onToast, onChange }: {
               {dist.linkedin && <CopyField label="LinkedIn" value={dist.linkedin.full_text ?? ""} multiline />}
               {dist.whatsapp_channel && <CopyField label="WhatsApp Channel" value={dist.whatsapp_channel.full_text ?? ""} multiline />}
               {dist.whatsapp_status && <CopyField label="WhatsApp Status" value={dist.whatsapp_status.full_text ?? ""} multiline />}
+            </Block>
+          )}
+
+          {langs.length > 0 && (
+            <Block title={`🌍 Languages (${langs.length})`}>
+              {langs.map((lv) => (
+                <div key={lv.id} className="space-y-1.5 border-b border-white/5 pb-3 last:border-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#B8C5E0] text-xs font-semibold uppercase">
+                      {lv.languageCode}{lv.isPrimary ? " · primary" : ""}
+                    </span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_COLOR[lv.status] ?? "bg-slate-500/20 text-slate-300"}`}>
+                      {lv.status}
+                    </span>
+                    {lv.publishedYoutubeUrl && (
+                      <a href={lv.publishedYoutubeUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-[10px] text-[#00D4FF] underline ml-auto">published ↗</a>
+                    )}
+                  </div>
+                  {lv.translatedFullText && (
+                    <CopyField label={`${lv.languageCode} script`} value={lv.translatedFullText} multiline />
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Btn
+                      label="🎥 Gen Videos"
+                      disabled={busy}
+                      onClick={() => langAction(lv.languageCode, "Videos queued",
+                        `/episodes/${e.id}/languages/${lv.languageCode}/generate-videos`)}
+                    />
+                    {lv.status !== "published" && (
+                      <Btn
+                        label="📲 Mark Published"
+                        disabled={busy}
+                        onClick={() => {
+                          const url = prompt(`Published YouTube URL for ${lv.languageCode}?`) ?? "";
+                          if (!url) return;
+                          void langAction(lv.languageCode, "Marked published",
+                            `/episodes/${e.id}/languages/${lv.languageCode}/published`,
+                            { youtubeUrl: url });
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
             </Block>
           )}
         </div>

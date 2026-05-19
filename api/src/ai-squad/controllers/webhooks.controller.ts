@@ -52,13 +52,13 @@ export class WebhooksController {
         heygenStatus: 'ready',
         heygenVideoUrl: payload.event_data.url ?? null,
       });
-      await this.heygen.checkEpisodeReadiness(seg.episodeId);
+      await this.heygen.checkLanguageReadiness(seg.episodeId, seg.languageCode);
     } else if (payload.event_type === 'avatar_video.fail') {
       await this.segmentRepo.update(seg.id, {
         heygenStatus: 'failed',
         heygenError: payload.event_data.msg ?? 'HeyGen generation failed',
       });
-      await this.heygen.checkEpisodeReadiness(seg.episodeId);
+      await this.heygen.checkLanguageReadiness(seg.episodeId, seg.languageCode);
     }
     return { received: true };
   }

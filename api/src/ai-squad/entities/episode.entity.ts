@@ -5,6 +5,7 @@ import {
 import { Topic } from './topic.entity';
 import { DialogueSegment } from './dialogue-segment.entity';
 import { EpisodeAsset } from './episode-asset.entity';
+import { LanguageVersion } from './language-version.entity';
 import type { CharacterKey } from '../config/cast.config';
 
 export type EpisodeStatus =
@@ -73,6 +74,19 @@ export class Episode {
 
   @Column({ type: 'numeric', precision: 10, scale: 6, default: 0 })
   distributionCostUsd: number;
+
+  // ── Multi-language ────────────────────────────────────────────────────
+  @Column({ type: 'jsonb', default: () => `'["english"]'::jsonb` })
+  languages: string[];
+
+  @Column({ type: 'varchar', length: 20, default: 'english' })
+  primaryLanguage: string;
+
+  @Column({ type: 'numeric', precision: 10, scale: 6, default: 0 })
+  translationCostUsd: number;
+
+  @OneToMany(() => LanguageVersion, (lv) => lv.episode)
+  languageVersions: LanguageVersion[];
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   approvedBy: string | null;

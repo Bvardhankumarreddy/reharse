@@ -5,6 +5,7 @@ import { Topic } from '../entities/topic.entity';
 import { Episode } from '../entities/episode.entity';
 import { DialogueSegment } from '../entities/dialogue-segment.entity';
 import { AnthropicClientService } from './anthropic-client.service';
+import { TranslationService } from './translation.service';
 import { CharacterKey, SPEAKER_NAME, isCharacterKey } from '../config/cast.config';
 
 const DIALOGUE_SYSTEM_PROMPT = `
@@ -57,6 +58,7 @@ export class DialogueGeneratorService {
     @InjectRepository(Episode) private readonly episodeRepo: Repository<Episode>,
     @InjectRepository(DialogueSegment) private readonly segmentRepo: Repository<DialogueSegment>,
     private readonly claude: AnthropicClientService,
+    private readonly translation: TranslationService,
   ) {}
 
   async generateEpisode(topicId: string): Promise<Episode> {
@@ -116,6 +118,7 @@ export class DialogueGeneratorService {
           textWithPauses: d.text_with_pauses ?? d.text,
           emotionTag: d.emotion ?? null,
           durationEstimateSeconds: d.duration_estimate ?? null,
+          languageCode: 'english',
           heygenStatus: 'pending',
         }),
       ),
@@ -150,6 +153,10 @@ export class DialogueGeneratorService {
       relations: ['segments', 'topic'],
     });
     if (!saved) throw new Error('Episode vanished after save');
+
+    // Primary (English) language version — exists from the start so the
+    // per-language readiness/publish flow works before any translation.
+    await this.translation.ensureEnglishVersion(saved);
     this.logger.log(
       `Episode ${episodeNumber} "${saved.title}" — ${segments.length} segments, ` +
       `${charsUsed.length} chars (cost $${cost.toFixed(4)})`,

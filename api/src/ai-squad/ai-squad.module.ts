@@ -7,12 +7,14 @@ import { Topic } from './entities/topic.entity';
 import { Episode } from './entities/episode.entity';
 import { DialogueSegment } from './entities/dialogue-segment.entity';
 import { EpisodeAsset } from './entities/episode-asset.entity';
+import { LanguageVersion } from './entities/language-version.entity';
 import { AdminModule } from '../admin/admin.module';
 
 import { AnthropicClientService } from './services/anthropic-client.service';
 import { ThemeGeneratorService } from './services/theme-generator.service';
 import { TopicGeneratorService } from './services/topic-generator.service';
 import { DialogueGeneratorService } from './services/dialogue-generator.service';
+import { TranslationService } from './services/translation.service';
 import { HeyGenSquadService } from './services/heygen-squad.service';
 import { ThumbnailPromptService } from './services/thumbnail-prompt.service';
 import { DistributionService } from './services/distribution.service';
@@ -31,7 +33,7 @@ import { WebhooksController } from './controllers/webhooks.controller';
   imports: [
     ConfigModule.forFeature(aiSquadConfig),
     TypeOrmModule.forFeature([
-      Theme, Topic, Episode, DialogueSegment, EpisodeAsset,
+      Theme, Topic, Episode, DialogueSegment, EpisodeAsset, LanguageVersion,
     ]),
     AdminModule,
   ],
@@ -46,6 +48,7 @@ import { WebhooksController } from './controllers/webhooks.controller';
     ThemeGeneratorService,
     TopicGeneratorService,
     DialogueGeneratorService,
+    TranslationService,
     HeyGenSquadService,
     ThumbnailPromptService,
     DistributionService,

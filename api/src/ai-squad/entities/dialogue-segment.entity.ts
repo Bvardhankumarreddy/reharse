@@ -56,6 +56,15 @@ export class DialogueSegment {
   @Column({ type: 'text', nullable: true })
   heygenError: string | null;
 
+  /** 'english' | 'hindi' | 'telugu'. English is the source. */
+  @Index()
+  @Column({ type: 'varchar', length: 20, default: 'english' })
+  languageCode: string;
+
+  /** For translated rows: the English segment they were translated from. */
+  @Column({ type: 'uuid', nullable: true })
+  originalSegmentId: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

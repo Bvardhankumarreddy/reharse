@@ -52,10 +52,22 @@ export interface ThumbnailVariation {
   estimatedCtrScore: number;
 }
 
+export interface LanguageVersion {
+  id: string;
+  episodeId: string;
+  languageCode: string;
+  isPrimary: boolean;
+  translatedFullText: string | null;
+  translationCostUsd: number;
+  status: string;
+  publishedYoutubeUrl: string | null;
+}
+
 export interface Episode {
   id: string;
   topicId: string;
   episodeNumber: number;
+  languages?: string[];
   title: string | null;
   status: string;
   charactersUsed: CharacterKey[];
