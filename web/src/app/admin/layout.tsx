@@ -21,6 +21,7 @@ const NAV = [
   { href: "/admin/post-generator", label: "Post Generator", icon: "campaign" },
   { href: "/admin/social-agent", label: "Social Agent", icon: "smart_toy" },
   { href: "/admin/ai-quick-bytes", label: "AI Quick Bytes", icon: "bolt" },
+  { href: "/admin/ai-squad", label: "AI Squad", icon: "groups" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
