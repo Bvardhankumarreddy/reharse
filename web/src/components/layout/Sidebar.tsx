@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/sessions",      label: "My Sessions",   icon: "history" },
   { href: "/progress",      label: "Progress",      icon: "leaderboard" },
   { href: "/question-bank", label: "Question Bank", icon: "database" },
+  { href: "/jobs",          label: "Job Matches",   icon: "work" },
 ] as const;
 
 const TOOLS_ITEMS = [

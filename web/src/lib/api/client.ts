@@ -133,6 +133,19 @@ export function createApiClient(getToken: GetToken) {
     inviteToTeam:     (teamId: string, email: string) => post<TeamData>(`/teams/${teamId}/invite`, { email }),
     removeFromTeam:   (teamId: string, memberId: string) => del<TeamData>(`/teams/${teamId}/members/${memberId}`),
     acceptTeamInvite: (teamId: string)      => post<TeamData>(`/teams/${teamId}/accept`, {}),
+
+    // ── Careers / Job matches ──────────────────────────────────────────────
+    getJobMatches: (params?: { status?: JobMatchStatus; q?: string }) => {
+      const qs = params
+        ? "?" + new URLSearchParams(
+            Object.fromEntries(Object.entries(params).filter(([, v]) => v)) as Record<string, string>,
+          ).toString()
+        : "";
+      return get<{ data: JobMatchRow[]; count: number }>(`/careers/jobs${qs}`);
+    },
+    refreshJobMatches:  () => post<{ matched: number; skipped?: boolean }>("/careers/refresh", {}),
+    setJobMatchStatus:  (matchId: string, status: JobMatchStatus) =>
+      post<{ success: true }>(`/careers/jobs/${matchId}/status`, { status }),
   };
 }
 
@@ -145,6 +158,24 @@ export interface ResumeVersion {
   fileName:   string;
   uploadedAt: string;
   version:    number;
+}
+
+export type JobMatchStatus = "matched" | "saved" | "dismissed" | "applied";
+
+export interface JobMatchRow {
+  matchId:    string;
+  jobId:      string;
+  title:      string;
+  company:    string;
+  location:   string | null;
+  remote:     boolean;
+  source:     string;
+  applyUrl:   string;
+  postedAt:   string | null;
+  matchScore: number;
+  similarity: number | null;
+  rationale:  string | null;
+  status:     JobMatchStatus;
 }
 
 export interface UserResponse {

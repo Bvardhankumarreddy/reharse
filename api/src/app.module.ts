@@ -24,6 +24,7 @@ import { QuizModule } from './quiz/quiz.module';
 import { SocialAgentModule } from './social-agent/social-agent.module';
 import { AiQuickBytesModule } from './ai-quick-bytes/ai-quick-bytes.module';
 import { AiSquadModule } from './ai-squad/ai-squad.module';
+import { CareersModule } from './careers/careers.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { AiSquadModule } from './ai-squad/ai-squad.module';
     SocialAgentModule,
     AiQuickBytesModule,
     AiSquadModule,
+    CareersModule,
   ],
   controllers: [HealthController],
 })
