@@ -22,6 +22,7 @@ const NAV = [
   { href: "/admin/social-agent", label: "Social Agent", icon: "smart_toy" },
   { href: "/admin/ai-quick-bytes", label: "AI Quick Bytes", icon: "bolt" },
   { href: "/admin/ai-squad", label: "AI Squad", icon: "groups" },
+  { href: "/admin/content-studio", label: "Content Studio", icon: "auto_awesome_motion" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -25,6 +25,7 @@ import { SocialAgentModule } from './social-agent/social-agent.module';
 import { AiQuickBytesModule } from './ai-quick-bytes/ai-quick-bytes.module';
 import { AiSquadModule } from './ai-squad/ai-squad.module';
 import { CareersModule } from './careers/careers.module';
+import { ContentStudioModule } from './content-studio/content-studio.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { CareersModule } from './careers/careers.module';
     AiQuickBytesModule,
     AiSquadModule,
     CareersModule,
+    ContentStudioModule,
   ],
   controllers: [HealthController],
 })
