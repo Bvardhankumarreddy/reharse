@@ -61,7 +61,15 @@ export class DialogueGeneratorService {
     private readonly translation: TranslationService,
   ) {}
 
-  async generateEpisode(topicId: string): Promise<Episode> {
+  /**
+   * @param opts.characters — explicit cast chosen in the admin UI. When given,
+   * it LOCKS the cast: Claude is told to use exactly these and no others.
+   * Empty/absent → fall back to the topic's recommended cast (Claude may adjust).
+   */
+  async generateEpisode(
+    topicId: string,
+    opts: { characters?: CharacterKey[] } = {},
+  ): Promise<Episode> {
     const topic = await this.topicRepo.findOne({
       where: { id: topicId },
       relations: ['theme'],
@@ -71,6 +79,14 @@ export class DialogueGeneratorService {
       throw new Error('Anthropic not configured — cannot generate dialogue');
     }
 
+    const lockedCast = Array.from(
+      new Set((opts.characters ?? []).filter(isCharacterKey)),
+    ) as CharacterKey[];
+    if (lockedCast.length === 1) {
+      throw new Error('Pick at least 2 characters for a dialogue');
+    }
+    const cast = lockedCast.length > 0 ? lockedCast : topic.recommendedCharacters;
+
     const episodeNumber = await this.getNextEpisodeNumber();
     const episode = await this.episodeRepo.save(
       this.episodeRepo.create({
@@ -78,8 +94,8 @@ export class DialogueGeneratorService {
         episodeNumber,
         title: topic.title,
         status: 'planning',
-        charactersUsed: topic.recommendedCharacters,
-        characterCount: topic.recommendedCharacters.length || 2,
+        charactersUsed: cast,
+        characterCount: cast.length || 2,
         format: topic.format,
       }),
     );
@@ -94,9 +110,14 @@ export class DialogueGeneratorService {
         `Angle: ${topic.angle ?? ''}\nType: ${topic.topicType}\n` +
         `Format: ${topic.format} (${targetDuration})\n` +
         `Key concepts: ${JSON.stringify(topic.keyConcepts)}\n` +
-        `Recommended characters: ${topic.recommendedCharacters.join(', ') || '(you choose 2-4)'}\n\n` +
-        `Style: DRAMATIC + REAL-WORLD. You may adjust the character set if it ` +
-        `improves the dialogue. Output strict JSON per the system prompt.`,
+        (lockedCast.length > 0
+          ? `CAST — USE EXACTLY THESE ${lockedCast.length} CHARACTERS, no others, ` +
+            `and every one must speak: ${lockedCast.join(', ')}\n\n` +
+            `Style: DRAMATIC + REAL-WORLD. Do NOT add or drop characters. ` +
+            `Output strict JSON per the system prompt.`
+          : `Recommended characters: ${cast.join(', ') || '(you choose 2-4)'}\n\n` +
+            `Style: DRAMATIC + REAL-WORLD. You may adjust the character set if ` +
+            `it improves the dialogue. Output strict JSON per the system prompt.`),
       temperature: 0.85,
       maxTokens: topic.format === 'short' ? 2000 : 6000,
     });
@@ -127,6 +148,18 @@ export class DialogueGeneratorService {
     const charsUsed = Array.from(
       new Set(rawDialogue.map((d) => d.character_key as CharacterKey)),
     );
+    if (lockedCast.length > 0) {
+      const off = [
+        ...charsUsed.filter((c) => !lockedCast.includes(c)),
+        ...lockedCast.filter((c) => !charsUsed.includes(c)),
+      ];
+      if (off.length > 0) {
+        this.logger.warn(
+          `Episode ${episodeNumber}: locked cast [${lockedCast.join(', ')}] ` +
+          `but Claude produced [${charsUsed.join(', ')}]`,
+        );
+      }
+    }
     const fullText = rawDialogue
       .map(
         (d) =>

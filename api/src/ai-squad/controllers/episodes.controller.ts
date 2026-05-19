@@ -14,6 +14,7 @@ import { HeyGenSquadService } from '../services/heygen-squad.service';
 import { ThumbnailPromptService } from '../services/thumbnail-prompt.service';
 import { DistributionService } from '../services/distribution.service';
 import { TranslationService } from '../services/translation.service';
+import { CharacterKey, isCharacterKey } from '../config/cast.config';
 
 @Controller('admin/ai-squad/episodes')
 @UseGuards(AdminGuard)
@@ -110,10 +111,19 @@ export class EpisodesController {
     return ep;
   }
 
-  /** Stage 3: generate dialogue for a topic → new episode. */
+  /**
+   * Stage 3: generate dialogue for a topic → new episode.
+   * Optional `characters` body locks the cast (which + how many).
+   */
   @Post('generate-from-topic/:topicId')
-  generateFromTopic(@Param('topicId') topicId: string) {
-    return this.dialogue.generateEpisode(topicId);
+  generateFromTopic(
+    @Param('topicId') topicId: string,
+    @Body() body?: { characters?: string[] },
+  ) {
+    const characters = Array.from(
+      new Set((body?.characters ?? []).filter(isCharacterKey)),
+    ) as CharacterKey[];
+    return this.dialogue.generateEpisode(topicId, { characters });
   }
 
   /** Trigger HeyGen for every segment (dormant until creds set). */

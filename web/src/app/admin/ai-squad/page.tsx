@@ -7,6 +7,7 @@ import { useEffect, useState, useCallback, type ReactNode } from "react";
 import {
   fetchToken, api, STATUS_COLOR, CHAR_COLOR,
   type Theme, type Topic, type Episode, type LanguageVersion,
+  type CharacterKey,
 } from "./_helpers";
 
 type Tab = "themes" | "topics" | "episodes";
@@ -202,19 +203,6 @@ function TopicsTab({ onToast }: { onToast: (m: string) => void }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function genEpisode(topicId: string) {
-    onToast("Generating dialogue… (Claude, ~20-40s)");
-    const token = await fetchToken();
-    if (!token) return;
-    try {
-      await api(token, `/episodes/generate-from-topic/${topicId}`, { method: "POST" });
-      onToast("✓ Episode generated — see Episodes tab");
-      await load();
-    } catch (e) {
-      onToast(`⚠ ${(e as Error).message}`);
-    }
-  }
-
   async function submitIdea() {
     if (!idea.trim()) return;
     setIdeaBusy(true);
@@ -282,23 +270,100 @@ function TopicsTab({ onToast }: { onToast: (m: string) => void }) {
       {loading ? <Loading /> : topics.length === 0 ? (
         <Empty>No topics. Generate some from a theme.</Empty>
       ) : topics.map((tp) => (
-        <div key={tp.id} className="bg-[#151B3D] border border-white/10 rounded-2xl p-4 space-y-2">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-[#B8C5E0] text-sm font-medium">{tp.title}</p>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLOR[tp.status] ?? ""}`}>{tp.status}</span>
-          </div>
-          {tp.angle && <p className="text-[#6B7799] text-xs italic">{tp.angle}</p>}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {tp.recommendedCharacters.map((c) => (
-              <span key={c} className={`text-[10px] px-2 py-0.5 rounded-full ${CHAR_COLOR[c] ?? ""}`}>{c}</span>
-            ))}
-            <span className="text-[10px] text-[#6B7799] ml-2">
-              {tp.topicType} · {tp.format} · {tp.difficulty} · ~{tp.estimatedDurationMinutes}min
-            </span>
-          </div>
-          <Btn label="🎬 Generate Episode" onClick={() => genEpisode(tp.id)} accent="#00F5A0" />
-        </div>
+        <TopicCard key={tp.id} tp={tp} onToast={onToast} onChange={load} />
       ))}
+    </div>
+  );
+}
+
+const CHAR_OPTIONS: { key: CharacterKey; label: string }[] = [
+  { key: "byte",         label: "BYTE" },
+  { key: "kira_serious", label: "KIRA · calm" },
+  { key: "kira_fun",     label: "KIRA · hyped" },
+  { key: "atlas",        label: "ATLAS" },
+  { key: "luna",         label: "LUNA" },
+];
+
+function TopicCard({ tp, onToast, onChange }: {
+  tp: Topic; onToast: (m: string) => void; onChange: () => void;
+}) {
+  const [chars, setChars] = useState<CharacterKey[]>(
+    tp.recommendedCharacters ?? [],
+  );
+  const [busy, setBusy] = useState(false);
+
+  function toggle(k: CharacterKey) {
+    setChars((cur) =>
+      cur.includes(k) ? cur.filter((c) => c !== k) : [...cur, k],
+    );
+  }
+
+  async function gen() {
+    setBusy(true);
+    onToast("Generating dialogue… (Claude, ~20-40s)");
+    const token = await fetchToken();
+    if (!token) { setBusy(false); return; }
+    try {
+      await api(token, `/episodes/generate-from-topic/${tp.id}`, {
+        method: "POST",
+        body: JSON.stringify({ characters: chars }),
+      });
+      onToast("✓ Dialogue generated — see Episodes tab");
+      onChange();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(false); }
+  }
+
+  const hint =
+    chars.length === 0
+      ? "None selected — Claude will pick 2–4 characters itself."
+      : chars.length === 1
+      ? "⚠ Pick at least 2 characters for a dialogue."
+      : `Locked: a ${chars.length}-character dialogue using exactly these.`;
+
+  return (
+    <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-4 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[#B8C5E0] text-sm font-medium">{tp.title}</p>
+        <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLOR[tp.status] ?? ""}`}>{tp.status}</span>
+      </div>
+      {tp.angle && <p className="text-[#6B7799] text-xs italic">{tp.angle}</p>}
+      <div className="text-[10px] text-[#6B7799]">
+        {tp.topicType} · {tp.format} · {tp.difficulty} · ~{tp.estimatedDurationMinutes}min
+      </div>
+
+      <div className="border-t border-white/5 pt-2 space-y-1.5">
+        <p className="text-[10px] text-[#6B7799] uppercase">
+          Cast — choose which characters ({chars.length} selected)
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {CHAR_OPTIONS.map(({ key, label }) => {
+            const on = chars.includes(key);
+            return (
+              <button
+                key={key}
+                onClick={() => toggle(key)}
+                className={`text-[10px] px-2.5 py-1 rounded-full border transition ${
+                  on
+                    ? `${CHAR_COLOR[key]} border-transparent`
+                    : "border-white/10 text-[#6B7799] hover:text-[#B8C5E0]"
+                }`}
+              >
+                {on ? "✓ " : ""}{label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[10px] text-[#6B7799]">{hint}</p>
+      </div>
+
+      <Btn
+        label={busy ? "Generating…" : "🎬 Generate Dialogue"}
+        onClick={gen}
+        accent="#00F5A0"
+        disabled={busy || chars.length === 1}
+      />
     </div>
   );
 }
