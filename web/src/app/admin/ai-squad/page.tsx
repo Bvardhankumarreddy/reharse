@@ -510,6 +510,9 @@ function EpisodeCard({ ep, onToast, onChange }: {
         {e.status !== "approved" && e.status !== "published" && (
           <Btn label="✅ Approve" accent="#00F5A0" onClick={() => act("Approved", `/episodes/${e.id}/approve`)} disabled={busy} />
         )}
+        {e.status !== "published" && e.status !== "rejected" && (
+          <Btn label="❌ Reject" accent="#FF6B6B" onClick={() => act("Rejected", `/episodes/${e.id}/reject`)} disabled={busy} />
+        )}
         {e.status !== "published" && (
           <Btn label="📲 Mark Published" onClick={async () => {
             const url = prompt("Published YouTube URL?") ?? "";

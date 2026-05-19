@@ -182,6 +182,14 @@ export class EpisodesController {
     return { success: true };
   }
 
+  @Post(':id/reject')
+  async reject(@Param('id') id: string) {
+    const ep = await this.episodeRepo.findOne({ where: { id } });
+    if (!ep) throw new NotFoundException('Episode not found');
+    await this.episodeRepo.update(id, { status: 'rejected' });
+    return { success: true };
+  }
+
   @Post(':id/published')
   async published(
     @Param('id') id: string,
