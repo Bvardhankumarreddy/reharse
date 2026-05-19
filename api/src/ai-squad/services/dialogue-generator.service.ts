@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Topic } from '../entities/topic.entity';
 import { Episode } from '../entities/episode.entity';
 import { DialogueSegment } from '../entities/dialogue-segment.entity';
+import { LanguageVersion } from '../entities/language-version.entity';
 import { AnthropicClientService } from './anthropic-client.service';
 import { TranslationService } from './translation.service';
 import { CharacterKey, SPEAKER_NAME, isCharacterKey } from '../config/cast.config';
@@ -57,24 +58,68 @@ export class DialogueGeneratorService {
     @InjectRepository(Topic) private readonly topicRepo: Repository<Topic>,
     @InjectRepository(Episode) private readonly episodeRepo: Repository<Episode>,
     @InjectRepository(DialogueSegment) private readonly segmentRepo: Repository<DialogueSegment>,
+    @InjectRepository(LanguageVersion) private readonly langRepo: Repository<LanguageVersion>,
     private readonly claude: AnthropicClientService,
     private readonly translation: TranslationService,
   ) {}
 
   /**
-   * @param opts.characters — explicit cast chosen in the admin UI. When given,
-   * it LOCKS the cast: Claude is told to use exactly these and no others.
-   * Empty/absent → fall back to the topic's recommended cast (Claude may adjust).
+   * Topics page → create a NEW (empty) episode from a topic. No dialogue yet;
+   * status stays "planning" until dialogue is generated on the Episodes page.
    */
-  async generateEpisode(
-    topicId: string,
-    opts: { characters?: CharacterKey[] } = {},
-  ): Promise<Episode> {
+  async createEpisode(topicId: string): Promise<Episode> {
     const topic = await this.topicRepo.findOne({
       where: { id: topicId },
       relations: ['theme'],
     });
     if (!topic) throw new NotFoundException('Topic not found');
+
+    const episodeNumber = await this.getNextEpisodeNumber();
+    const episode = await this.episodeRepo.save(
+      this.episodeRepo.create({
+        topicId,
+        episodeNumber,
+        title: topic.title,
+        status: 'planning',
+        charactersUsed: topic.recommendedCharacters,
+        characterCount: topic.recommendedCharacters.length || 2,
+        format: topic.format,
+      }),
+    );
+    await this.topicRepo.update(topicId, { status: 'in_production' });
+
+    const saved = await this.episodeRepo.findOne({
+      where: { id: episode.id },
+      relations: ['topic'],
+    });
+    if (!saved) throw new Error('Episode vanished after save');
+    // Primary (English) version exists from the start so the per-language
+    // readiness/publish flow works even before any dialogue is written.
+    await this.translation.ensureEnglishVersion(saved);
+    this.logger.log(
+      `Episode ${episodeNumber} created (planning) for topic "${topic.title}"`,
+    );
+    return saved;
+  }
+
+  /**
+   * Episodes page → write (or rewrite) the dialogue for an existing episode.
+   * @param opts.characters — explicit cast chosen in the admin UI. When given,
+   * it LOCKS the cast: Claude is told to use exactly these and no others.
+   * Empty/absent → fall back to the topic's recommended cast (Claude may adjust).
+   * Re-running discards prior dialogue + any stale translations.
+   */
+  async generateDialogue(
+    episodeId: string,
+    opts: { characters?: CharacterKey[] } = {},
+  ): Promise<Episode> {
+    const episode = await this.episodeRepo.findOne({
+      where: { id: episodeId },
+      relations: ['topic'],
+    });
+    if (!episode) throw new NotFoundException('Episode not found');
+    const topic = episode.topic;
+    if (!topic) throw new Error('Episode has no linked topic');
     if (!this.claude.isConfigured()) {
       throw new Error('Anthropic not configured — cannot generate dialogue');
     }
@@ -86,19 +131,7 @@ export class DialogueGeneratorService {
       throw new Error('Pick at least 2 characters for a dialogue');
     }
     const cast = lockedCast.length > 0 ? lockedCast : topic.recommendedCharacters;
-
-    const episodeNumber = await this.getNextEpisodeNumber();
-    const episode = await this.episodeRepo.save(
-      this.episodeRepo.create({
-        topicId,
-        episodeNumber,
-        title: topic.title,
-        status: 'planning',
-        charactersUsed: cast,
-        characterCount: cast.length || 2,
-        format: topic.format,
-      }),
-    );
+    const episodeNumber = episode.episodeNumber;
 
     const targetDuration =
       topic.format === 'short' ? '30-60 seconds' : '7-10 minutes';
@@ -127,6 +160,10 @@ export class DialogueGeneratorService {
       isCharacterKey(d.character_key),
     );
     const cost = this.claude.cost(model, usage);
+
+    // Regenerate-safe: drop any prior dialogue + now-stale translations.
+    await this.segmentRepo.delete({ episodeId: episode.id });
+    await this.langRepo.delete({ episodeId: episode.id, isPrimary: false });
 
     const segments = await this.segmentRepo.save(
       rawDialogue.map((d, i) =>
@@ -177,9 +214,11 @@ export class DialogueGeneratorService {
       charactersUsed: charsUsed,
       characterCount: charsUsed.length,
       llmCostUsd: cost,
+      languages: ['english'],
+      translationCostUsd: 0,
       status: 'dialogue_generated',
     });
-    await this.topicRepo.update(topicId, { status: 'in_production' });
+    await this.topicRepo.update(episode.topicId, { status: 'in_production' });
 
     const saved = await this.episodeRepo.findOne({
       where: { id: episode.id },
@@ -187,9 +226,13 @@ export class DialogueGeneratorService {
     });
     if (!saved) throw new Error('Episode vanished after save');
 
-    // Primary (English) language version — exists from the start so the
-    // per-language readiness/publish flow works before any translation.
+    // Refresh the primary English version's text (ensureEnglishVersion only
+    // creates a row — it never updates an existing one on regenerate).
     await this.translation.ensureEnglishVersion(saved);
+    await this.langRepo.update(
+      { episodeId: episode.id, languageCode: 'english' },
+      { translatedFullText: fullText, status: 'translated' },
+    );
     this.logger.log(
       `Episode ${episodeNumber} "${saved.title}" — ${segments.length} segments, ` +
       `${charsUsed.length} chars (cost $${cost.toFixed(4)})`,

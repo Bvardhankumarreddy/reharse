@@ -287,20 +287,11 @@ const CHAR_OPTIONS: { key: CharacterKey; label: string }[] = [
 function TopicCard({ tp, onToast, onChange }: {
   tp: Topic; onToast: (m: string) => void; onChange: () => void;
 }) {
-  const [chars, setChars] = useState<CharacterKey[]>(
-    tp.recommendedCharacters ?? [],
-  );
   const [busy, setBusy] = useState(false);
-
-  function toggle(k: CharacterKey) {
-    setChars((cur) =>
-      cur.includes(k) ? cur.filter((c) => c !== k) : [...cur, k],
-    );
-  }
 
   async function gen() {
     setBusy(true);
-    onToast("Generating dialogue… (Claude, ~20-40s)");
+    onToast("Creating episode…");
     const token = await fetchToken();
     if (!token) {
       onToast("⚠ Not signed in (auth token unavailable) — reload and sign in again");
@@ -308,23 +299,13 @@ function TopicCard({ tp, onToast, onChange }: {
       return;
     }
     try {
-      await api(token, `/episodes/generate-from-topic/${tp.id}`, {
-        method: "POST",
-        body: JSON.stringify({ characters: chars }),
-      });
-      onToast("✓ Dialogue generated — see Episodes tab");
+      await api(token, `/episodes/from-topic/${tp.id}`, { method: "POST" });
+      onToast("✓ Episode created — open the Episodes tab to generate its dialogue");
       onChange();
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setBusy(false); }
   }
-
-  const hint =
-    chars.length === 0
-      ? "None selected — Claude will pick 2–4 characters itself."
-      : chars.length === 1
-      ? "⚠ Pick at least 2 characters for a dialogue."
-      : `Locked: a ${chars.length}-character dialogue using exactly these.`;
 
   return (
     <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-4 space-y-2">
@@ -333,40 +314,23 @@ function TopicCard({ tp, onToast, onChange }: {
         <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLOR[tp.status] ?? ""}`}>{tp.status}</span>
       </div>
       {tp.angle && <p className="text-[#6B7799] text-xs italic">{tp.angle}</p>}
-      <div className="text-[10px] text-[#6B7799]">
-        {tp.topicType} · {tp.format} · {tp.difficulty} · ~{tp.estimatedDurationMinutes}min
+      <div className="flex flex-wrap items-center gap-1.5">
+        {tp.recommendedCharacters.map((c) => (
+          <span key={c} className={`text-[10px] px-2 py-0.5 rounded-full ${CHAR_COLOR[c] ?? ""}`}>{c}</span>
+        ))}
+        <span className="text-[10px] text-[#6B7799] ml-2">
+          {tp.topicType} · {tp.format} · {tp.difficulty} · ~{tp.estimatedDurationMinutes}min
+        </span>
       </div>
-
-      <div className="border-t border-white/5 pt-2 space-y-1.5">
-        <p className="text-[10px] text-[#6B7799] uppercase">
-          Cast — choose which characters ({chars.length} selected)
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {CHAR_OPTIONS.map(({ key, label }) => {
-            const on = chars.includes(key);
-            return (
-              <button
-                key={key}
-                onClick={() => toggle(key)}
-                className={`text-[10px] px-2.5 py-1 rounded-full border transition ${
-                  on
-                    ? `${CHAR_COLOR[key]} border-transparent`
-                    : "border-white/10 text-[#6B7799] hover:text-[#B8C5E0]"
-                }`}
-              >
-                {on ? "✓ " : ""}{label}
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-[10px] text-[#6B7799]">{hint}</p>
-      </div>
-
+      <p className="text-[10px] text-[#6B7799]">
+        Creates an episode (no dialogue yet). Pick the cast & write the dialogue
+        on the Episodes tab.
+      </p>
       <Btn
-        label={busy ? "Generating…" : "🎬 Generate Dialogue"}
+        label={busy ? "Creating…" : "🎬 Generate Episode"}
         onClick={gen}
         accent="#00F5A0"
-        disabled={busy || chars.length === 1}
+        disabled={busy}
       />
     </div>
   );
@@ -419,6 +383,7 @@ function EpisodeCard({ ep, onToast, onChange }: {
   const [langs, setLangs] = useState<LanguageVersion[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cast, setCast] = useState<CharacterKey[]>(ep.charactersUsed ?? []);
 
   async function loadFull() {
     const token = await fetchToken();
@@ -483,6 +448,32 @@ function EpisodeCard({ ep, onToast, onChange }: {
     } finally { setBusy(false); }
   }
 
+  function toggleCast(k: CharacterKey) {
+    setCast((cur) => (cur.includes(k) ? cur.filter((c) => c !== k) : [...cur, k]));
+  }
+  async function genDialogue() {
+    setBusy(true);
+    onToast("Generating dialogue… (Claude, ~20-40s)");
+    const token = await fetchToken();
+    if (!token) {
+      onToast("⚠ Not signed in (auth token unavailable) — reload and sign in again");
+      setBusy(false);
+      return;
+    }
+    try {
+      await api(token, `/episodes/${ep.id}/generate-dialogue`, {
+        method: "POST",
+        body: JSON.stringify({ characters: cast }),
+      });
+      onToast("✓ Dialogue generated");
+      setOpen(true);
+      await loadFull();
+      onChange();
+    } catch (err) {
+      onToast(`⚠ ${(err as Error).message}`);
+    } finally { setBusy(false); }
+  }
+
   const e = full ?? ep;
   const dist = e.distributionPackage as
     | Record<string, { full_text?: string; title?: string; description?: string; tags?: string[] }>
@@ -499,14 +490,47 @@ function EpisodeCard({ ep, onToast, onChange }: {
           {e.format} · {e.totalSegments} seg · ${Number(e.llmCostUsd).toFixed(3)}
         </span>
       </div>
-      <div className="px-4 pb-2 flex flex-wrap gap-1.5">
-        {e.charactersUsed.map((c) => (
-          <span key={c} className={`text-[10px] px-2 py-0.5 rounded-full ${CHAR_COLOR[c] ?? ""}`}>{c}</span>
-        ))}
+      <div className="px-4 pb-3 space-y-1.5">
+        <p className="text-[10px] text-[#6B7799] uppercase">
+          Cast — choose characters ({cast.length} selected)
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {CHAR_OPTIONS.map(({ key, label }) => {
+            const on = cast.includes(key);
+            return (
+              <button
+                key={key}
+                onClick={() => toggleCast(key)}
+                className={`text-[10px] px-2.5 py-1 rounded-full border transition ${
+                  on
+                    ? `${CHAR_COLOR[key]} border-transparent`
+                    : "border-white/10 text-[#6B7799] hover:text-[#B8C5E0]"
+                }`}
+              >
+                {on ? "✓ " : ""}{label}
+              </button>
+            );
+          })}
+        </div>
+        <Btn
+          label={
+            busy
+              ? "Working…"
+              : e.totalSegments > 0
+              ? "🔁 Regenerate Dialogue"
+              : "🎬 Generate Dialogue"
+          }
+          accent="#00F5A0"
+          onClick={genDialogue}
+          disabled={busy || cast.length === 1}
+        />
+        {cast.length === 1 && (
+          <p className="text-[10px] text-[#FF6B6B]">Pick at least 2 characters for a dialogue.</p>
+        )}
       </div>
 
       <div className="px-4 py-2 border-t border-white/5 flex flex-wrap gap-2">
-        <Btn label={open ? "Hide" : "📂 Open"} onClick={toggle} />
+        <Btn label={open ? "Hide" : "📜 View Script"} onClick={toggle} />
         <Btn label="🎥 Gen Videos" onClick={() => act("Videos queued", `/episodes/${e.id}/generate-videos`)} disabled={busy} />
         <Btn label="🖼 Thumbnails" onClick={() => act("Thumbnails", `/episodes/${e.id}/generate-thumbnails`)} disabled={busy} />
         <Btn label="📦 Distribution" onClick={() => act("Distribution", `/episodes/${e.id}/generate-distribution`)} disabled={busy} />
@@ -538,19 +562,31 @@ function EpisodeCard({ ep, onToast, onChange }: {
 
       {open && (
         <div className="px-4 py-4 border-t border-white/5 bg-[#0F1330] space-y-4">
-          {full?.segments && full.segments.length > 0 && (
-            <Block title={`💬 Dialogue (${full.segments.length} segments)`}>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {full.segments.map((s) => (
-                  <div key={s.id} className="text-[12px]">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded mr-2 ${CHAR_COLOR[s.characterKey] ?? ""}`}>
-                      {s.speakerName}{s.emotionTag ? ` · ${s.emotionTag}` : ""}
-                    </span>
-                    <span className="text-[#B8C5E0]">{s.textWithPauses ?? s.text}</span>
+          {full?.segments && full.segments.length > 0 ? (
+            <Block title={`💬 Dialogue — who reads which line (${full.segments.length} lines)`}>
+              <div className="space-y-3 max-h-[30rem] overflow-y-auto pr-1">
+                {full.segments.map((s, i) => (
+                  <div key={s.id} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-[#6B7799] w-6 shrink-0">{i + 1}.</span>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${CHAR_COLOR[s.characterKey] ?? ""}`}>
+                        {s.speakerName}{s.emotionTag ? ` · ${s.emotionTag}` : ""}
+                      </span>
+                    </div>
+                    <p className="text-[13px] text-[#B8C5E0] leading-relaxed pl-8 whitespace-pre-wrap">
+                      {s.textWithPauses ?? s.text}
+                    </p>
                   </div>
                 ))}
               </div>
               <CopyField label="Full script" value={full.fullDialogueText ?? ""} multiline />
+            </Block>
+          ) : (
+            <Block title="💬 Dialogue">
+              <p className="text-[12px] text-[#6B7799]">
+                No dialogue written yet. Pick the cast above and click{" "}
+                <span className="text-[#00F5A0] font-semibold">🎬 Generate Dialogue</span>.
+              </p>
             </Block>
           )}
 

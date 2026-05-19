@@ -111,19 +111,25 @@ export class EpisodesController {
     return ep;
   }
 
+  /** Topics page → create a new (empty) episode from a topic. No dialogue. */
+  @Post('from-topic/:topicId')
+  createFromTopic(@Param('topicId') topicId: string) {
+    return this.dialogue.createEpisode(topicId);
+  }
+
   /**
-   * Stage 3: generate dialogue for a topic → new episode.
+   * Episodes page → write (or rewrite) the dialogue for an episode.
    * Optional `characters` body locks the cast (which + how many).
    */
-  @Post('generate-from-topic/:topicId')
-  generateFromTopic(
-    @Param('topicId') topicId: string,
+  @Post(':id/generate-dialogue')
+  generateDialogue(
+    @Param('id') id: string,
     @Body() body?: { characters?: string[] },
   ) {
     const characters = Array.from(
       new Set((body?.characters ?? []).filter(isCharacterKey)),
     ) as CharacterKey[];
-    return this.dialogue.generateEpisode(topicId, { characters });
+    return this.dialogue.generateDialogue(id, { characters });
   }
 
   /** Trigger HeyGen for every segment (dormant until creds set). */
