@@ -302,7 +302,11 @@ function TopicCard({ tp, onToast, onChange }: {
     setBusy(true);
     onToast("Generating dialogue… (Claude, ~20-40s)");
     const token = await fetchToken();
-    if (!token) { setBusy(false); return; }
+    if (!token) {
+      onToast("⚠ Not signed in (auth token unavailable) — reload and sign in again");
+      setBusy(false);
+      return;
+    }
     try {
       await api(token, `/episodes/generate-from-topic/${tp.id}`, {
         method: "POST",
