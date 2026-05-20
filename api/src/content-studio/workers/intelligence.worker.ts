@@ -5,6 +5,7 @@ import { CompetitorFetcherService } from '../services/competitor-fetcher.service
 import { MetricsFetcherService } from '../services/metrics-fetcher.service';
 import { PostmortemAgent } from '../agents/postmortem.agent';
 import { ImprovementAgent } from '../agents/improvement.agent';
+import { NotificationService } from '../services/notification.service';
 
 export const CS_INTELLIGENCE_QUEUE = 'content-studio-intelligence';
 
@@ -31,6 +32,7 @@ export class IntelligenceWorker implements OnModuleInit {
     private readonly metrics: MetricsFetcherService,
     private readonly postmortem: PostmortemAgent,
     private readonly improvement: ImprovementAgent,
+    private readonly notify: NotificationService,
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -70,21 +72,45 @@ export class IntelligenceWorker implements OnModuleInit {
 
   @Process('competitor-sweep')
   async competitorSweep() {
-    return this.competitor.fetchAll();
+    const r = await this.competitor.fetchAll();
+    if (r.saved > 0) {
+      await this.notify.notify(
+        `:robot_face: cs · competitor-sweep · ${r.saved} new videos across ${r.scanned} channel(s)`,
+      );
+    }
+    return r;
   }
 
   @Process('metrics-sweep')
   async metricsSweep() {
-    return this.metrics.fetchAll();
+    const r = await this.metrics.fetchAll();
+    if (r.saved > 0) {
+      await this.notify.notify(
+        `:robot_face: cs · metrics-sweep · refreshed ${r.saved}/${r.scanned} lessons`,
+      );
+    }
+    return r;
   }
 
   @Process('postmortem-sweep')
   async postmortemSweep() {
-    return this.postmortem.runDailyBatch();
+    const r = await this.postmortem.runDailyBatch();
+    if (r.generated > 0) {
+      await this.notify.notify(
+        `:robot_face: cs · postmortem-sweep · ${r.generated}/${r.scanned} postmortems written`,
+      );
+    }
+    return r;
   }
 
   @Process('improvement-sweep')
   async improvementSweep() {
-    return this.improvement.runForAllBrands();
+    const r = await this.improvement.runForAllBrands();
+    // Weekly cron — always notify so you know it ran, even when nothing
+    // qualified for promotion. Low frequency, not noisy.
+    await this.notify.notify(
+      `:robot_face: cs · improvement-sweep · scanned ${r.scanned} brand(s), promoted ${r.promoted} hook pattern(s) into BrandMemory`,
+    );
+    return r;
   }
 }

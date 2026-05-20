@@ -79,6 +79,11 @@ export default registerAs('contentStudio', () => ({
     oauthClientSecret: process.env.CS_YT_OAUTH_CLIENT_SECRET,
   },
 
+  /** Slack incoming-webhook for cron + pipeline run notifications. */
+  notifications: {
+    slackWebhookUrl: process.env.CS_SLACK_WEBHOOK_URL,
+  },
+
   /** Reported back to the admin UI for visibility. */
   tier: TIER,
 

@@ -71,15 +71,16 @@ function makeFixtures() {
     drawSaturdayQuiz: jest.fn().mockResolvedValue({}),
   };
   const dlq: any = { recordPipelineFailure: jest.fn().mockResolvedValue({}) };
+  const notify: any = { notify: jest.fn().mockResolvedValue(undefined) };
 
   const service = new PipelineOrchestratorService(
     runRepo, planRepo, lessonRepo, queue,
-    script, ppt, seo, thumbnail, promo, quiz, dlq,
+    script, ppt, seo, thumbnail, promo, quiz, dlq, notify,
   );
 
   return {
     service, runRepo, planRepo, lessonRepo, queue,
-    script, ppt, seo, thumbnail, promo, quiz, dlq, runStore,
+    script, ppt, seo, thumbnail, promo, quiz, dlq, notify, runStore,
   };
 }
 

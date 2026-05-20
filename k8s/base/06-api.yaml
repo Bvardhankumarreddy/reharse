@@ -241,6 +241,13 @@ spec:
                   name: rehearse-secrets
                   key: CS_YT_OAUTH_REFRESH_TOKEN
                   optional: true
+            # ── Content Studio: Slack incoming-webhook (cron + pipeline notifications) ──
+            - name: CS_SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: CS_SLACK_WEBHOOK_URL
+                  optional: true
           resources:
             requests:
               cpu: 50m

@@ -17,6 +17,7 @@ import { ThumbnailAgent } from '../agents/thumbnail.agent';
 import { PromoAgent } from '../agents/promo.agent';
 import { QuizAgent } from '../agents/quiz.agent';
 import { DlqService } from './dlq.service';
+import { NotificationService } from './notification.service';
 
 export const CS_PIPELINE_QUEUE = 'content-studio-pipeline';
 
@@ -42,6 +43,7 @@ export class PipelineOrchestratorService {
     private readonly promo: PromoAgent,
     private readonly quiz: QuizAgent,
     private readonly dlq: DlqService,
+    private readonly notify: NotificationService,
   ) {}
 
   /** Enqueue a new (or resumed) pipeline run for a plan. */
@@ -182,15 +184,18 @@ export class PipelineOrchestratorService {
 
     const plan = await this.planRepo.findOne({ where: { id: payload.planId } });
     const finalCost = Number(plan?.totalCostUsd ?? 0);
+    const delta = finalCost - Number(run.costAtStart ?? 0);
     await this.runRepo.update(run.id, {
       status: 'completed',
       currentStage: null,
       resumableFrom: null,
       finishedAt: new Date(),
-      costDelta: finalCost - Number(run.costAtStart ?? 0),
+      costDelta: delta,
     });
-    this.logger.log(
-      `Run ${run.id} completed — cost delta $${(finalCost - Number(run.costAtStart ?? 0)).toFixed(4)}`,
+    this.logger.log(`Run ${run.id} completed — cost delta $${delta.toFixed(4)}`);
+    await this.notify.notify(
+      `:white_check_mark: cs · pipeline run done · plan ${payload.planId.slice(0, 8)} · ` +
+      `7 stages · +$${delta.toFixed(3)}`,
     );
   }
 
@@ -276,6 +281,10 @@ export class PipelineOrchestratorService {
     } catch (e) {
       this.logger.warn(`DLQ write failed: ${(e as Error).message}`);
     }
+    await this.notify.notify(
+      `:x: cs · pipeline FAILED · plan ${run.planId.slice(0, 8)} · stage \`${stage}\` · ` +
+      `${error.slice(0, 200).replace(/\n/g, ' ')}`,
+    );
   }
 
   async listForPlan(planId: string, limit = 20): Promise<PipelineRun[]> {

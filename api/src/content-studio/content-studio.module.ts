@@ -57,6 +57,7 @@ import { YouTubePublishService } from './services/youtube-publish.service';
 import { YouTubeCommentService } from './services/youtube-comment.service';
 import { SpamDetectionService } from './services/spam-detection.service';
 import { CommentReplyAgent } from './agents/comment-reply.agent';
+import { NotificationService } from './services/notification.service';
 import {
   IntelligenceWorker, CS_INTELLIGENCE_QUEUE,
 } from './workers/intelligence.worker';
@@ -117,6 +118,7 @@ import { ContentStudioController } from './content-studio.controller';
     YouTubePublishService,
     YouTubeCommentService,
     SpamDetectionService,
+    NotificationService,
     CommentReplyAgent,
     PipelineWorker,
     IntelligenceWorker,
