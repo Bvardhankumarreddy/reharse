@@ -132,4 +132,48 @@ export class PostmortemAgent {
       order: { createdAt: 'DESC' },
     });
   }
+
+  /**
+   * Daily cron entry point. Finds published lessons that:
+   *   • have been live for ≥ 7 days, AND
+   *   • have ≥1 metric row (so the postmortem has data to anchor on), AND
+   *   • have no postmortem yet (idempotent — never re-writes a postmortem).
+   * Generates a postmortem for each. Sequential to be polite on LLM quotas.
+   */
+  async runDailyBatch(): Promise<{ scanned: number; generated: number }> {
+    const rows: Array<{ lessonId: string }> = await this.lessonRepo.query(`
+      SELECT l.id AS "lessonId"
+        FROM cs_published_videos pv
+        JOIN cs_lessons l ON l.id = pv."lessonId"
+       WHERE pv."publishedAt" IS NOT NULL
+         AND pv."publishedAt" < NOW() - INTERVAL '7 days'
+         AND EXISTS (
+           SELECT 1 FROM cs_lesson_metrics lm WHERE lm."lessonId" = l.id
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM cs_lesson_postmortems pm WHERE pm."lessonId" = l.id
+         )
+       ORDER BY pv."publishedAt" ASC
+       LIMIT 50
+    `);
+    if (rows.length === 0) {
+      this.logger.log('Postmortem batch — nothing eligible');
+      return { scanned: 0, generated: 0 };
+    }
+    let generated = 0;
+    for (const r of rows) {
+      try {
+        await this.generateFor(r.lessonId);
+        generated++;
+      } catch (e) {
+        this.logger.warn(
+          `Postmortem batch — lesson ${r.lessonId} failed: ${(e as Error).message}`,
+        );
+      }
+    }
+    this.logger.log(
+      `Postmortem batch — ${generated}/${rows.length} written`,
+    );
+    return { scanned: rows.length, generated };
+  }
 }
