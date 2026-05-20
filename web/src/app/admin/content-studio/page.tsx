@@ -6,7 +6,8 @@
 import { useEffect, useState, useCallback, type ReactNode } from "react";
 import {
   fetchToken, api, STATUS_COLOR,
-  type Brand, type BrandMemory, type WeeklyPlan, type Lesson, type ScriptAsset,
+  type Brand, type BrandMemory, type WeeklyPlan, type Lesson,
+  type ScriptAsset, type PptAsset,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -262,8 +263,11 @@ function LessonBlock({ lesson, onToast }: {
   lesson: Lesson; onToast: (m: string) => void;
 }) {
   const [script, setScript] = useState<ScriptAsset | null>(null);
+  const [ppt, setPpt] = useState<PptAsset | null>(null);
   const [open, setOpen] = useState(false);
+  const [openSlides, setOpenSlides] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyPpt, setBusyPpt] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -274,9 +278,11 @@ function LessonBlock({ lesson, onToast }: {
       try {
         const s = await api<ScriptAsset>(token, `/lessons/${lesson.id}/script`);
         if (!cancelled) setScript(s);
-      } catch {
-        /* 404 — no script yet */
-      }
+      } catch { /* 404 — no script yet */ }
+      try {
+        const p = await api<PptAsset>(token, `/lessons/${lesson.id}/ppt`);
+        if (!cancelled) setPpt(p);
+      } catch { /* 404 — no ppt yet */ }
     })();
     return () => { cancelled = true; };
   }, [lesson.id]);
@@ -300,6 +306,57 @@ function LessonBlock({ lesson, onToast }: {
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setBusy(false); }
+  }
+
+  async function generatePpt() {
+    setBusyPpt(true);
+    onToast("PPT Agent drafting 13 slides… (Claude, ~30-60s)");
+    const token = await fetchToken();
+    if (!token) {
+      onToast("⚠ Not signed in — reload and sign in again");
+      setBusyPpt(false);
+      return;
+    }
+    try {
+      const p = await api<PptAsset>(token, `/lessons/${lesson.id}/ppt/generate`, {
+        method: "POST",
+      });
+      setPpt(p);
+      setOpenSlides(true);
+      onToast(`✓ Slides v${p.version} ready (${p.content?.slideCount ?? "?"} slides)`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusyPpt(false); }
+  }
+
+  async function downloadPptx() {
+    const token = await fetchToken();
+    if (!token) {
+      onToast("⚠ Not signed in — reload and sign in again");
+      return;
+    }
+    onToast("Rendering .pptx…");
+    try {
+      const res = await fetch(
+        `/api/v1/admin/content-studio/lessons/${lesson.id}/ppt/download`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const cd = res.headers.get("content-disposition") ?? "";
+      const m = /filename="?([^";]+)"?/i.exec(cd);
+      const filename = m?.[1] ?? `lesson-${lesson.lessonNumber}.pptx`;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      onToast(`⬇ Downloaded ${filename}`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    }
   }
 
   const c = script?.content ?? null;
@@ -388,6 +445,63 @@ function LessonBlock({ lesson, onToast }: {
               {c?.fullScript || "—"}
             </pre>
           </div>
+        )}
+
+        {/* ── Slides (Slice 3) ─────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+          <PrimaryBtn
+            label={
+              busyPpt
+                ? "Drafting slides…"
+                : ppt
+                ? `🔁 Regenerate Slides (v${ppt.version + 1})`
+                : "🎨 Generate Slides (13)"
+            }
+            busy={busyPpt}
+            onClick={generatePpt}
+          />
+          {ppt && (
+            <>
+              <Btn
+                label={openSlides ? "Hide slides" : `👀 View slides (v${ppt.version})`}
+                onClick={() => setOpenSlides((v) => !v)}
+              />
+              <Btn label="⬇ Download .pptx" onClick={downloadPptx} />
+              <span className="text-[10px] text-[#6B7799] ml-auto">
+                {ppt.content?.slideCount ?? "?"} slides
+                {ppt.content?.model ? ` · ${ppt.content.model}` : ""}
+                {ppt.content?.costUsd != null
+                  ? ` · $${Number(ppt.content.costUsd).toFixed(4)}`
+                  : ""}
+              </span>
+            </>
+          )}
+        </div>
+
+        {openSlides && ppt && (
+          <ol className="space-y-1 list-decimal list-inside text-[12px] text-[#B8C5E0]">
+            {(ppt.content?.slides ?? []).map((s, i) => (
+              <li key={i} className="break-words">
+                {s.kicker && (
+                  <span className="text-[10px] uppercase tracking-wide text-[#FFB800] mr-1.5">
+                    {s.kicker}
+                  </span>
+                )}
+                <span className="font-semibold">{s.title ?? "(untitled)"}</span>
+                {s.subtitle && (
+                  <span className="text-[#6B7799]"> — {s.subtitle}</span>
+                )}
+                {s.body && (
+                  <span className="text-[#6B7799]"> — {s.body}</span>
+                )}
+                {s.bullets && s.bullets.length > 0 && (
+                  <span className="text-[#6B7799]">
+                    {" "}· {s.bullets.length} bullets
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
         )}
       </div>
     </div>

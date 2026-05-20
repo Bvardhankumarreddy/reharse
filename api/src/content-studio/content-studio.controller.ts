@@ -1,7 +1,8 @@
 import {
-  Controller, Get, Post, Param, Query, Body, UseGuards,
+  Controller, Get, Post, Param, Query, Body, Res, UseGuards,
   NotFoundException, BadRequestException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AdminGuard } from '../auth/admin.guard';
@@ -11,6 +12,7 @@ import { WeeklyContentPlan } from './entities/weekly-content-plan.entity';
 import { AgentRun } from './entities/agent-run.entity';
 import { StrategyAgent } from './agents/strategy.agent';
 import { ScriptAgent } from './agents/script.agent';
+import { PptAgent } from './agents/ppt.agent';
 
 @Controller('admin/content-studio')
 @UseGuards(AdminGuard)
@@ -22,6 +24,7 @@ export class ContentStudioController {
     @InjectRepository(AgentRun) private readonly runRepo: Repository<AgentRun>,
     private readonly strategy: StrategyAgent,
     private readonly script: ScriptAgent,
+    private readonly ppt: PptAgent,
   ) {}
 
   @Get('brands')
@@ -75,6 +78,32 @@ export class ContentStudioController {
     const asset = await this.script.latestScript(id);
     if (!asset) throw new NotFoundException('No script generated yet');
     return asset;
+  }
+
+  /** Slice 3: PPT Agent → 13-slide JSON. */
+  @Post('lessons/:id/ppt/generate')
+  generatePpt(@Param('id') id: string) {
+    return this.ppt.generatePpt(id);
+  }
+
+  @Get('lessons/:id/ppt')
+  async lessonPpt(@Param('id') id: string) {
+    const asset = await this.ppt.latestPpt(id);
+    if (!asset) throw new NotFoundException('No slides generated yet');
+    return asset;
+  }
+
+  /** Render the latest slides as a branded .pptx and stream it. */
+  @Get('lessons/:id/ppt/download')
+  async downloadPpt(@Param('id') id: string, @Res() res: Response) {
+    const { buf, filename } = await this.ppt.renderLatest(id);
+    res.set({
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(buf.length),
+    });
+    res.send(buf);
   }
 
   @Get('plans/:id')

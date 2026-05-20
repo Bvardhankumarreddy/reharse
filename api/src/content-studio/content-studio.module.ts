@@ -18,6 +18,8 @@ import { GeminiAdapter } from './services/gemini.adapter';
 import { ModelRouterService } from './services/model-router.service';
 import { StrategyAgent } from './agents/strategy.agent';
 import { ScriptAgent } from './agents/script.agent';
+import { PptAgent } from './agents/ppt.agent';
+import { PptxRendererService } from './services/pptx-renderer.service';
 import { ContentStudioController } from './content-studio.controller';
 
 /**
@@ -40,8 +42,10 @@ import { ContentStudioController } from './content-studio.controller';
     AnthropicAdapter,
     GeminiAdapter,
     ModelRouterService,
+    PptxRendererService,
     StrategyAgent,
     ScriptAgent,
+    PptAgent,
   ],
 })
 export class ContentStudioModule {}

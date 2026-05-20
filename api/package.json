@@ -47,6 +47,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.13.3",
+    "pptxgenjs": "^3.12.0",
     "razorpay": "^2.9.6",
     "reflect-metadata": "^0.2.2",
     "rss-parser": "^3.13.0",

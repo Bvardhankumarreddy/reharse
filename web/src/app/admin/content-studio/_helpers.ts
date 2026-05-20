@@ -67,6 +67,32 @@ export interface ScriptAsset {
   createdAt: string;
 }
 
+export interface SlideJson {
+  layout: "title" | "kicker" | "bullets" | "end";
+  title?: string;
+  subtitle?: string;
+  kicker?: string;
+  body?: string;
+  bullets?: string[];
+}
+
+export interface PptAsset {
+  id: string;
+  lessonId: string | null;
+  planId: string | null;
+  assetType: string;
+  version: number;
+  content: {
+    slides?: SlideJson[];
+    slideCount?: number;
+    model?: string;
+    provider?: string;
+    costUsd?: number;
+  } | null;
+  status: string;
+  createdAt: string;
+}
+
 export interface WeeklyPlan {
   id: string;
   brandId: string;
