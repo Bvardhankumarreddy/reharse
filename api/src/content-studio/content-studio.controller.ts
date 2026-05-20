@@ -22,6 +22,7 @@ import { QuizAgent } from './agents/quiz.agent';
 import { PipelineOrchestratorService } from './services/pipeline-orchestrator.service';
 import { DlqService } from './services/dlq.service';
 import { AuditService } from './services/audit.service';
+import { ContentStudioStatsService } from './services/stats.service';
 import type { AuditEntityType } from './entities/audit-log.entity';
 import type { PipelineStage } from './entities/pipeline-run.entity';
 import { PIPELINE_STAGES } from './entities/pipeline-run.entity';
@@ -47,6 +48,7 @@ export class ContentStudioController {
     private readonly orchestrator: PipelineOrchestratorService,
     private readonly dlq: DlqService,
     private readonly audit: AuditService,
+    private readonly stats: ContentStudioStatsService,
   ) {}
 
   private writerFrom(req: Request) {
@@ -360,6 +362,13 @@ export class ContentStudioController {
       );
     }
     return at;
+  }
+
+  // ── Slice C3: stats dashboard ──────────────────────────────────────────
+
+  @Get('stats')
+  getStats() {
+    return this.stats.all();
   }
 
   // ── Slice C2: audit timeline ────────────────────────────────────────────

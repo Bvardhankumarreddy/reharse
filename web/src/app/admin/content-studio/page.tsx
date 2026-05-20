@@ -13,6 +13,7 @@ import {
   type PipelineRun, type PipelineStage, PIPELINE_STAGE_ORDER,
   type DlqJob,
   type AuditEntry, type AssetVersionMeta, type RollbackableAssetType,
+  type StatsBundle, type QualityPoint,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -63,6 +64,7 @@ export default function ContentStudioPage() {
         <Loading />
       ) : (
         <>
+          <DashboardPanel />
           <DlqPanel onToast={setToast} />
           <AuditPanel />
           <section className="space-y-3">
@@ -1006,6 +1008,186 @@ function DlqPanel({ onToast }: { onToast: (m: string) => void }) {
         ))}
       </div>
     </section>
+  );
+}
+
+function DashboardPanel() {
+  const [stats, setStats] = useState<StatsBundle | null>(null);
+  const [open, setOpen] = useState(true);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const token = await fetchToken();
+    if (!token) { setLoading(false); return; }
+    try {
+      const s = await api<StatsBundle>(token, "/stats");
+      setStats(s);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  return (
+    <section className="bg-[#151B3D] border border-white/10 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-[#B8C5E0] uppercase tracking-wide">
+          📊 Dashboard
+          {stats && (
+            <span className="ml-2 text-[10px] text-[#6B7799] font-normal normal-case">
+              · updated {new Date(stats.generatedAt).toLocaleTimeString()}
+            </span>
+          )}
+        </h2>
+        <div className="flex items-center gap-2">
+          <button onClick={() => void load()} className="text-[10px] text-[#6B7799] hover:text-white">refresh</button>
+          <button onClick={() => setOpen((v) => !v)} className="text-[10px] text-[#00D4FF] hover:underline">
+            {open ? "Hide" : "Show"}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        loading || !stats ? (
+          <p className="text-[12px] text-[#6B7799]">Loading…</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <CostChart rows={stats.costPerWeek} />
+            <QualityChart points={stats.qualityTrend} />
+            <SuccessChart rows={stats.successRate} />
+            <FailuresList rows={stats.topFailures} />
+            <MemoryTable rows={stats.memoryPool} />
+          </div>
+        )
+      )}
+    </section>
+  );
+}
+
+function CostChart({ rows }: { rows: { weekStart: string; costUsd: number }[] }) {
+  const max = Math.max(0.01, ...rows.map((r) => r.costUsd));
+  const total = rows.reduce((s, r) => s + r.costUsd, 0);
+  return (
+    <div className="border border-white/5 rounded-xl p-3">
+      <p className="text-[10px] text-[#6B7799] uppercase">
+        Cost per week (last 12) · total ${total.toFixed(2)}
+      </p>
+      {rows.length === 0 ? (
+        <p className="text-[11px] text-[#6B7799] mt-2">No spend yet.</p>
+      ) : (
+        <div className="flex items-end gap-1 h-24 mt-2">
+          {rows.map((r) => (
+            <div key={r.weekStart} className="flex-1 flex flex-col items-center gap-1" title={`${r.weekStart} — $${r.costUsd.toFixed(3)}`}>
+              <div
+                className="w-full bg-[#00D4FF]/70 hover:bg-[#00D4FF] rounded-t"
+                style={{ height: `${Math.max(2, (r.costUsd / max) * 90)}%` }}
+              />
+              <span className="text-[8px] text-[#6B7799] truncate w-full text-center">
+                {r.weekStart.slice(5)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QualityChart({ points }: { points: QualityPoint[] }) {
+  // Group by assetType.
+  const byType = new Map<string, QualityPoint[]>();
+  points.forEach((p) => {
+    if (!byType.has(p.assetType)) byType.set(p.assetType, []);
+    byType.get(p.assetType)!.push(p);
+  });
+  return (
+    <div className="border border-white/5 rounded-xl p-3 space-y-1.5">
+      <p className="text-[10px] text-[#6B7799] uppercase">Quality trend per agent</p>
+      {byType.size === 0 ? (
+        <p className="text-[11px] text-[#6B7799]">No graded assets yet.</p>
+      ) : Array.from(byType.entries()).map(([type, series]) => {
+        const latest = series[series.length - 1];
+        const tone =
+          latest.avgScore >= 80 ? "text-emerald-300"
+          : latest.avgScore >= 70 ? "text-blue-300"
+          : "text-amber-300";
+        const max = Math.max(...series.map((s) => s.avgScore));
+        const min = Math.min(...series.map((s) => s.avgScore));
+        return (
+          <div key={type} className="text-[11px] flex items-center gap-2">
+            <span className="text-[#B8C5E0] w-20">{type}</span>
+            <span className={`font-mono font-semibold w-12 ${tone}`}>
+              {Math.round(latest.avgScore)}
+            </span>
+            <span className="text-[10px] text-[#6B7799] flex-1">
+              {series.length} wk · min {Math.round(min)} · max {Math.round(max)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SuccessChart({ rows }: { rows: { agentType: string; success: number; failed: number; total: number; rate: number }[] }) {
+  return (
+    <div className="border border-white/5 rounded-xl p-3 space-y-1.5">
+      <p className="text-[10px] text-[#6B7799] uppercase">Success rate (last 30d)</p>
+      {rows.length === 0 ? (
+        <p className="text-[11px] text-[#6B7799]">No runs yet.</p>
+      ) : rows.map((r) => (
+        <div key={r.agentType} className="text-[11px]">
+          <div className="flex items-center justify-between">
+            <span className="text-[#B8C5E0]">{r.agentType}</span>
+            <span className="text-[#6B7799]">
+              {r.success}/{r.total} · {(r.rate * 100).toFixed(0)}%
+            </span>
+          </div>
+          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-emerald-400"
+              style={{ width: `${(r.rate * 100).toFixed(1)}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FailuresList({ rows }: { rows: { error: string; count: number; lastAt: string; agentType: string }[] }) {
+  return (
+    <div className="border border-white/5 rounded-xl p-3 space-y-1">
+      <p className="text-[10px] text-[#6B7799] uppercase">Top failures (last 30d)</p>
+      {rows.length === 0 ? (
+        <p className="text-[11px] text-[#6B7799]">No failures 🎉</p>
+      ) : rows.map((r, i) => (
+        <div key={i} className="text-[11px] text-[#B8C5E0]">
+          <span className="text-[10px] uppercase text-red-300 mr-1.5">{r.agentType}</span>
+          <span className="text-red-300/80 mr-1.5">×{r.count}</span>
+          <span className="text-[#B8C5E0] break-words">{r.error}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MemoryTable({ rows }: { rows: { agentType: string; applicable: number; total: number }[] }) {
+  return (
+    <div className="border border-white/5 rounded-xl p-3 space-y-1">
+      <p className="text-[10px] text-[#6B7799] uppercase">Memory pool per agent</p>
+      {rows.map((r) => (
+        <div key={r.agentType} className="text-[11px] flex items-center gap-2">
+          <span className="text-[#B8C5E0] w-20">{r.agentType}</span>
+          <span className="text-[#6B7799] font-mono">
+            {r.applicable} / {r.total}
+          </span>
+          <span className="text-[10px] text-[#6B7799]">
+            ({r.total === 0 ? "no memories" : `${Math.round((r.applicable / r.total) * 100)}%`})
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 

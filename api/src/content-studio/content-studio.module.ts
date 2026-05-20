@@ -39,6 +39,7 @@ import {
 } from './services/pipeline-orchestrator.service';
 import { DlqService } from './services/dlq.service';
 import { AuditService } from './services/audit.service';
+import { ContentStudioStatsService } from './services/stats.service';
 import { PipelineWorker } from './workers/pipeline.worker';
 import { ContentStudioController } from './content-studio.controller';
 
@@ -79,6 +80,7 @@ import { ContentStudioController } from './content-studio.controller';
     PipelineOrchestratorService,
     DlqService,
     AuditService,
+    ContentStudioStatsService,
     PipelineWorker,
   ],
 })

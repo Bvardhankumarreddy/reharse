@@ -135,6 +135,30 @@ export const PIPELINE_STAGE_ORDER: PipelineStage[] = [
   "script", "ppt", "seo", "thumbnail", "promo", "quiz", "draw",
 ];
 
+// ── Phase C / Slice C3: stats dashboard ──────────────────────────────────
+
+export interface CostPerWeek { weekStart: string; costUsd: number }
+export interface QualityPoint {
+  assetType: string; weekStart: string; avgScore: number; samples: number;
+}
+export interface SuccessRow {
+  agentType: string; success: number; failed: number; total: number; rate: number;
+}
+export interface TopFailure {
+  error: string; count: number; lastAt: string; agentType: string;
+}
+export interface MemoryPoolRow {
+  agentType: string; applicable: number; total: number;
+}
+export interface StatsBundle {
+  costPerWeek: CostPerWeek[];
+  qualityTrend: QualityPoint[];
+  successRate: SuccessRow[];
+  topFailures: TopFailure[];
+  memoryPool: MemoryPoolRow[];
+  generatedAt: string;
+}
+
 // ── Phase C / Slice C2: audit + asset versions ───────────────────────────
 
 export interface AuditEntry {
