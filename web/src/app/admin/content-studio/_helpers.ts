@@ -135,6 +135,35 @@ export const PIPELINE_STAGE_ORDER: PipelineStage[] = [
   "script", "ppt", "seo", "thumbnail", "promo", "quiz", "draw",
 ];
 
+// ── Phase C / Slice C2: audit + asset versions ───────────────────────────
+
+export interface AuditEntry {
+  id: string;
+  entityType: "brand" | "asset" | "plan" | "memory";
+  entityId: string | null;
+  userId: string | null;
+  userEmail: string | null;
+  action: "created" | "updated" | "deleted" | "rolled_back";
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  summary: string | null;
+  createdAt: string;
+}
+
+export interface AssetVersionMeta {
+  id: string;
+  version: number;
+  qualityScore: number | null;
+  revisions: number;
+  critique: string | null;
+  confidence: number | null;
+  status: string;
+  createdAt: string;
+}
+
+export type RollbackableAssetType =
+  | "script" | "ppt" | "seo" | "thumbnail_prompt" | "promo";
+
 export type DlqStatus = "pending" | "retried" | "abandoned";
 
 export interface DlqJob {

@@ -1,14 +1,16 @@
 import {
-  Controller, Get, Post, Patch, Param, Query, Body, Res, UseGuards,
+  Controller, Get, Post, Patch, Param, Query, Body, Req, Res, UseGuards,
   NotFoundException, BadRequestException,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AdminGuard } from '../auth/admin.guard';
 import { Brand } from './entities/brand.entity';
 import { BrandMemory } from './entities/brand-memory.entity';
 import { WeeklyContentPlan } from './entities/weekly-content-plan.entity';
+import { Lesson } from './entities/lesson.entity';
+import { ContentAsset, AssetType } from './entities/content-asset.entity';
 import { AgentRun } from './entities/agent-run.entity';
 import { StrategyAgent } from './agents/strategy.agent';
 import { ScriptAgent } from './agents/script.agent';
@@ -19,6 +21,8 @@ import { PromoAgent } from './agents/promo.agent';
 import { QuizAgent } from './agents/quiz.agent';
 import { PipelineOrchestratorService } from './services/pipeline-orchestrator.service';
 import { DlqService } from './services/dlq.service';
+import { AuditService } from './services/audit.service';
+import type { AuditEntityType } from './entities/audit-log.entity';
 import type { PipelineStage } from './entities/pipeline-run.entity';
 import { PIPELINE_STAGES } from './entities/pipeline-run.entity';
 import type { DlqStatus } from './entities/dead-letter-job.entity';
@@ -31,6 +35,8 @@ export class ContentStudioController {
     @InjectRepository(BrandMemory) private readonly memoryRepo: Repository<BrandMemory>,
     @InjectRepository(WeeklyContentPlan) private readonly planRepo: Repository<WeeklyContentPlan>,
     @InjectRepository(AgentRun) private readonly runRepo: Repository<AgentRun>,
+    @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
+    @InjectRepository(ContentAsset) private readonly assetRepo: Repository<ContentAsset>,
     private readonly strategy: StrategyAgent,
     private readonly script: ScriptAgent,
     private readonly ppt: PptAgent,
@@ -40,7 +46,13 @@ export class ContentStudioController {
     private readonly quiz: QuizAgent,
     private readonly orchestrator: PipelineOrchestratorService,
     private readonly dlq: DlqService,
+    private readonly audit: AuditService,
   ) {}
+
+  private writerFrom(req: Request) {
+    const u = (req as Request & { user?: { sub?: string; email?: string } }).user;
+    return { userId: u?.sub ?? null, userEmail: u?.email ?? null };
+  }
 
   @Get('brands')
   async brands() {
@@ -65,6 +77,7 @@ export class ContentStudioController {
   async updateBrand(
     @Param('id') id: string,
     @Body() body: { modelOverrides?: Record<string, string> },
+    @Req() req: Request,
   ) {
     const brand = await this.brandRepo.findOne({ where: { id } });
     if (!brand) throw new NotFoundException('Brand not found');
@@ -81,7 +94,17 @@ export class ContentStudioController {
         const value = String(v ?? '').trim();
         if (value) next[k] = value.slice(0, 120);
       }
+      const before = { modelOverrides: brand.modelOverrides ?? {} };
       await this.brandRepo.update(id, { modelOverrides: next });
+      await this.audit.log({
+        entityType: 'brand',
+        entityId: id,
+        action: 'updated',
+        before,
+        after: { modelOverrides: next },
+        summary: `Updated model overrides on brand "${brand.name}"`,
+        writer: this.writerFrom(req),
+      });
     }
     return this.brandRepo.findOne({ where: { id } });
   }
@@ -246,6 +269,114 @@ export class ContentStudioController {
   @Get('runs/:id')
   getRun(@Param('id') id: string) {
     return this.orchestrator.get(id);
+  }
+
+  // ── Slice C2: asset version history + rollback ─────────────────────────
+
+  /** Roll-back-able asset types (versioned per (lessonId, assetType)). */
+  private static readonly ROLLBACK_TYPES: AssetType[] = [
+    'script', 'ppt', 'seo', 'thumbnail_prompt', 'promo',
+  ];
+
+  @Get('lessons/:id/assets/:assetType/versions')
+  async listVersions(
+    @Param('id') lessonId: string,
+    @Param('assetType') assetType: string,
+  ) {
+    const at = this.resolveAssetType(assetType);
+    const data = await this.assetRepo.find({
+      where: { lessonId, assetType: at },
+      order: { version: 'DESC' },
+      select: [
+        'id', 'version', 'qualityScore', 'revisions', 'critique',
+        'confidence', 'status', 'createdAt',
+      ],
+    });
+    return { data, count: data.length };
+  }
+
+  @Post('lessons/:id/assets/:assetType/versions/:version/rollback')
+  async rollbackToVersion(
+    @Param('id') lessonId: string,
+    @Param('assetType') assetType: string,
+    @Param('version') version: string,
+    @Req() req: Request,
+  ) {
+    const at = this.resolveAssetType(assetType);
+    const v = parseInt(version, 10);
+    if (!Number.isFinite(v) || v < 1) {
+      throw new BadRequestException('version must be a positive integer');
+    }
+    const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+
+    const target = await this.assetRepo.findOne({
+      where: { lessonId, assetType: at, version: v },
+    });
+    if (!target) {
+      throw new NotFoundException(`No ${at} v${v} for this lesson`);
+    }
+    const latest = await this.assetRepo.findOne({
+      where: { lessonId, assetType: at },
+      order: { version: 'DESC' },
+    });
+    if (latest && latest.version === v) {
+      throw new BadRequestException(`v${v} is already the latest`);
+    }
+
+    const newAsset = await this.assetRepo.save(
+      this.assetRepo.create({
+        planId: target.planId,
+        lessonId: target.lessonId,
+        assetType: target.assetType,
+        version: (latest?.version ?? target.version) + 1,
+        content: target.content as Record<string, unknown> | null,
+        qualityScore: target.qualityScore,
+        revisions: target.revisions ?? 0,
+        critique: target.critique ?? null,
+        confidence: target.confidence ?? null,
+        status: 'draft',
+      }),
+    );
+
+    await this.audit.log({
+      entityType: 'asset',
+      entityId: newAsset.id,
+      action: 'rolled_back',
+      before: { fromVersion: latest?.version ?? null, latestAssetId: latest?.id ?? null },
+      after: { toSourceVersion: target.version, sourceAssetId: target.id, newVersion: newAsset.version },
+      summary: `Rolled back ${at} on lesson "${lesson.title}" to v${target.version} (now v${newAsset.version})`,
+      writer: this.writerFrom(req),
+    });
+
+    return newAsset;
+  }
+
+  private resolveAssetType(raw: string): AssetType {
+    const at = raw as AssetType;
+    if (!ContentStudioController.ROLLBACK_TYPES.includes(at)) {
+      throw new BadRequestException(
+        `assetType must be one of ${ContentStudioController.ROLLBACK_TYPES.join(', ')}`,
+      );
+    }
+    return at;
+  }
+
+  // ── Slice C2: audit timeline ────────────────────────────────────────────
+
+  @Get('audit')
+  async auditList(
+    @Query('entityType') entityType?: string,
+    @Query('entityId') entityId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const t = entityType as AuditEntityType | undefined;
+    const data = await this.audit.list({
+      entityType: t,
+      entityId: entityId,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+    return { data, count: data.length };
   }
 
   // ── Slice 6: Dead-letter queue (failure triage) ────────────────────────

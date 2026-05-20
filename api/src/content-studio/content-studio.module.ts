@@ -16,6 +16,7 @@ import { QuestionPool } from './entities/question-pool.entity';
 import { DeliveredQuiz } from './entities/delivered-quiz.entity';
 import { PipelineRun } from './entities/pipeline-run.entity';
 import { DeadLetterJob } from './entities/dead-letter-job.entity';
+import { AuditLog } from './entities/audit-log.entity';
 
 import { OpenAIAdapter } from './services/openai.adapter';
 import { AnthropicAdapter } from './services/anthropic.adapter';
@@ -37,6 +38,7 @@ import {
   PipelineOrchestratorService, CS_PIPELINE_QUEUE,
 } from './services/pipeline-orchestrator.service';
 import { DlqService } from './services/dlq.service';
+import { AuditService } from './services/audit.service';
 import { PipelineWorker } from './workers/pipeline.worker';
 import { ContentStudioController } from './content-studio.controller';
 
@@ -51,7 +53,7 @@ import { ContentStudioController } from './content-studio.controller';
     ConfigModule.forFeature(contentStudioConfig),
     TypeOrmModule.forFeature([
       Brand, Channel, WeeklyContentPlan, Lesson, AgentRun, BrandMemory,
-      ContentAsset, QuestionPool, DeliveredQuiz, PipelineRun, DeadLetterJob,
+      ContentAsset, QuestionPool, DeliveredQuiz, PipelineRun, DeadLetterJob, AuditLog,
     ]),
     BullModule.registerQueue({ name: CS_PIPELINE_QUEUE }),
     AdminModule,
@@ -76,6 +78,7 @@ import { ContentStudioController } from './content-studio.controller';
     QuizAgent,
     PipelineOrchestratorService,
     DlqService,
+    AuditService,
     PipelineWorker,
   ],
 })

@@ -12,6 +12,7 @@ import {
   type QuizPoolListResponse, type DeliveredQuizSummary,
   type PipelineRun, type PipelineStage, PIPELINE_STAGE_ORDER,
   type DlqJob,
+  type AuditEntry, type AssetVersionMeta, type RollbackableAssetType,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -63,6 +64,7 @@ export default function ContentStudioPage() {
       ) : (
         <>
           <DlqPanel onToast={setToast} />
+          <AuditPanel />
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-[#B8C5E0] uppercase tracking-wide">Brands</h2>
             {brands.length === 0 ? (
@@ -557,6 +559,12 @@ function LessonBlock({ lesson, onToast }: {
             </span>
           )}
           {script && <QualityBadge q={script} />}
+          {script && (
+            <VersionsPanel<ScriptAsset>
+              lessonId={lesson.id} assetType="script"
+              current={script} onToast={onToast} onRolledBack={setScript}
+            />
+          )}
         </div>
         {script && <CritiqueLine critique={script.critique} />}
 
@@ -612,6 +620,10 @@ function LessonBlock({ lesson, onToast }: {
                   : ""}
               </span>
               <QualityBadge q={ppt} />
+              <VersionsPanel<PptAsset>
+                lessonId={lesson.id} assetType="ppt"
+                current={ppt} onToast={onToast} onRolledBack={setPpt}
+              />
             </>
           )}
         </div>
@@ -670,6 +682,12 @@ function LessonBlock({ lesson, onToast }: {
             </span>
           )}
           {seo && <QualityBadge q={seo} />}
+          {seo && (
+            <VersionsPanel<SeoAsset>
+              lessonId={lesson.id} assetType="seo"
+              current={seo} onToast={onToast} onRolledBack={setSeo}
+            />
+          )}
         </div>
         {seo && <CritiqueLine critique={seo.critique} />}
         {openSeo && seo && (
@@ -734,6 +752,12 @@ function LessonBlock({ lesson, onToast }: {
             </span>
           )}
           {thumb && <QualityBadge q={thumb} />}
+          {thumb && (
+            <VersionsPanel<ThumbnailAsset>
+              lessonId={lesson.id} assetType="thumbnail_prompt"
+              current={thumb} onToast={onToast} onRolledBack={setThumb}
+            />
+          )}
         </div>
         {thumb && <CritiqueLine critique={thumb.critique} />}
         {openThumb && thumb && (
@@ -787,6 +811,12 @@ function LessonBlock({ lesson, onToast }: {
             </span>
           )}
           {promo && <QualityBadge q={promo} />}
+          {promo && (
+            <VersionsPanel<PromoAsset>
+              lessonId={lesson.id} assetType="promo"
+              current={promo} onToast={onToast} onRolledBack={setPromo}
+            />
+          )}
         </div>
         {promo && <CritiqueLine critique={promo.critique} />}
         {openPromo && promo && (
@@ -976,6 +1006,149 @@ function DlqPanel({ onToast }: { onToast: (m: string) => void }) {
         ))}
       </div>
     </section>
+  );
+}
+
+function AuditPanel() {
+  const [items, setItems] = useState<AuditEntry[]>([]);
+  const [open, setOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    const token = await fetchToken();
+    if (!token) return;
+    try {
+      const r = await api<{ data: AuditEntry[] }>(token, "/audit?limit=30");
+      setItems(r.data);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  if (items.length === 0 && !open) return null;
+
+  return (
+    <section className="bg-[#151B3D] border border-white/10 rounded-2xl p-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-[#B8C5E0] uppercase tracking-wide">
+          📜 Audit log · {items.length} recent
+        </h2>
+        <div className="flex items-center gap-2">
+          <button onClick={() => void load()} className="text-[10px] text-[#6B7799] hover:text-white">refresh</button>
+          <button onClick={() => setOpen((v) => !v)} className="text-[10px] text-[#00D4FF] hover:underline">
+            {open ? "Hide" : "Show"}
+          </button>
+        </div>
+      </div>
+      {open && (
+        <div className="space-y-1.5 max-h-72 overflow-y-auto">
+          {items.length === 0 ? (
+            <p className="text-[12px] text-[#6B7799]">No audit entries yet.</p>
+          ) : items.map((a) => (
+            <div key={a.id} className="text-[11px] text-[#B8C5E0] flex gap-2 items-start">
+              <span className="text-[10px] text-[#6B7799] shrink-0 w-32">
+                {new Date(a.createdAt).toLocaleString()}
+              </span>
+              <span className="text-[10px] uppercase text-[#FFB800] shrink-0 w-24">
+                {a.entityType} · {a.action}
+              </span>
+              <span className="flex-1 break-words">{a.summary ?? "(no summary)"}</span>
+              <span className="text-[10px] text-[#6B7799] shrink-0">
+                {a.userEmail ?? a.userId?.slice(0, 8) ?? "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function VersionsPanel<T extends { version: number }>({
+  lessonId, assetType, current, onToast, onRolledBack,
+}: {
+  lessonId: string;
+  assetType: RollbackableAssetType;
+  current: T | null;
+  onToast: (m: string) => void;
+  onRolledBack: (newAsset: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [versions, setVersions] = useState<AssetVersionMeta[] | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
+
+  async function load() {
+    const token = await fetchToken();
+    if (!token) return;
+    try {
+      const r = await api<{ data: AssetVersionMeta[] }>(
+        token, `/lessons/${lessonId}/assets/${assetType}/versions`,
+      );
+      setVersions(r.data);
+    } catch { setVersions([]); }
+  }
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && versions === null) await load();
+  }
+  async function rollback(version: number) {
+    setBusy(version);
+    onToast(`Rolling back ${assetType} → v${version}…`);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<T>(
+        token, `/lessons/${lessonId}/assets/${assetType}/versions/${version}/rollback`,
+        { method: "POST" },
+      );
+      onToast(`✓ Rolled back ${assetType} to v${version} (created v${r.version})`);
+      onRolledBack(r);
+      await load();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(null); }
+  }
+
+  if (!current) return null;
+  return (
+    <>
+      <Btn
+        label={open ? "Hide versions" : "🕘 Versions"}
+        onClick={toggle}
+      />
+      {open && (
+        <div className="w-full mt-2 border-t border-white/5 pt-2 space-y-1">
+          {versions === null ? (
+            <p className="text-[11px] text-[#6B7799]">Loading…</p>
+          ) : versions.length <= 1 ? (
+            <p className="text-[11px] text-[#6B7799]">No earlier versions — nothing to roll back to.</p>
+          ) : versions.map((v) => (
+            <div key={v.id} className="text-[11px] flex items-center gap-2">
+              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                v.version === current.version
+                  ? "bg-emerald-500/20 text-emerald-300"
+                  : "bg-slate-500/15 text-slate-400"
+              }`}>
+                v{v.version}{v.version === current.version ? " · latest" : ""}
+              </span>
+              <span className="text-[#6B7799]">
+                {v.qualityScore != null ? `score ${v.qualityScore} · ` : ""}
+                {v.revisions} rev · {new Date(v.createdAt).toLocaleString()}
+              </span>
+              {v.version !== current.version && (
+                <button
+                  onClick={() => rollback(v.version)}
+                  disabled={busy === v.version}
+                  className="ml-auto px-2 py-0.5 text-[10px] font-semibold rounded-md border border-[#FFB800]/40 text-[#FFB800] hover:bg-[#FFB800]/10 disabled:opacity-40 transition"
+                >
+                  {busy === v.version ? "Rolling back…" : "↩ Rollback"}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
