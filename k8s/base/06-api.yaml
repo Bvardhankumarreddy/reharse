@@ -215,6 +215,32 @@ spec:
                   name: rehearse-secrets
                   key: GEMINI_API_KEY
                   optional: true
+            # ── Content Studio / Phase D: YouTube Data API (read-only) ──
+            - name: CS_YT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: CS_YT_API_KEY
+                  optional: true
+            # ── Content Studio / Phase D: YouTube OAuth (publish + replies) ──
+            - name: CS_YT_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: CS_YT_OAUTH_CLIENT_ID
+                  optional: true
+            - name: CS_YT_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: CS_YT_OAUTH_CLIENT_SECRET
+                  optional: true
+            - name: CS_YT_OAUTH_REFRESH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: rehearse-secrets
+                  key: CS_YT_OAUTH_REFRESH_TOKEN
+                  optional: true
           resources:
             requests:
               cpu: 50m
