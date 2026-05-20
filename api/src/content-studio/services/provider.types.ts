@@ -1,4 +1,4 @@
-export type ProviderName = 'openai' | 'anthropic';
+export type ProviderName = 'openai' | 'anthropic' | 'gemini';
 
 export interface LlmRequest {
   model: string;
@@ -25,9 +25,11 @@ export interface ProviderAdapter {
   complete(req: LlmRequest): Promise<LlmResult>;
 }
 
-/** Claude ids → anthropic, gpt/o-series → openai. */
+/** claude* → anthropic, gemini* → gemini, gpt/o-series → openai. */
 export function providerForModel(model: string): ProviderName {
-  return /^claude/i.test(model) ? 'anthropic' : 'openai';
+  if (/^claude/i.test(model)) return 'anthropic';
+  if (/^gemini/i.test(model)) return 'gemini';
+  return 'openai';
 }
 
 /** Strip ```json … ``` fences (Claude often wraps JSON). */

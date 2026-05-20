@@ -49,6 +49,24 @@ export interface AgentRun {
   createdAt: string;
 }
 
+export interface ScriptAsset {
+  id: string;
+  lessonId: string | null;
+  planId: string | null;
+  assetType: string;
+  version: number;
+  content: {
+    fullScript?: string;
+    wordCount?: number;
+    durationEstimateSeconds?: number;
+    model?: string;
+    provider?: string;
+    costUsd?: number;
+  } | null;
+  status: string;
+  createdAt: string;
+}
+
 export interface WeeklyPlan {
   id: string;
   brandId: string;

@@ -10,6 +10,7 @@ import { registerAs } from '@nestjs/config';
 export default registerAs('contentStudio', () => ({
   openai: { apiKey: process.env.OPENAI_API_KEY },
   anthropic: { apiKey: process.env.ANTHROPIC_API_KEY },
+  gemini: { apiKey: process.env.GEMINI_API_KEY },
 
   // task → model. Provider is inferred from the model id prefix.
   models: {
@@ -34,8 +35,11 @@ export default registerAs('contentStudio', () => ({
 
 /** Approx USD per 1M tokens [input, output]. Unknown model → 0 (logged). */
 export const MODEL_PRICING: Record<string, { in: number; out: number }> = {
-  'claude-sonnet-4-6': { in: 3, out: 15 },
-  'claude-opus-4-7':   { in: 15, out: 75 },
-  'gpt-4o':            { in: 2.5, out: 10 },
+  'claude-sonnet-4-6': { in: 3,    out: 15 },
+  'claude-opus-4-7':   { in: 15,   out: 75 },
+  'gpt-4o':            { in: 2.5,  out: 10 },
   'gpt-4o-mini':       { in: 0.15, out: 0.6 },
+  'gemini-1.5-pro':    { in: 1.25, out: 5 },
+  'gemini-1.5-flash':  { in: 0.075, out: 0.30 },
+  'gemini-2.0-flash':  { in: 0.10,  out: 0.40 },
 };

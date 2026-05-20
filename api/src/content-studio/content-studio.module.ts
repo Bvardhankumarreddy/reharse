@@ -10,11 +10,14 @@ import { WeeklyContentPlan } from './entities/weekly-content-plan.entity';
 import { Lesson } from './entities/lesson.entity';
 import { AgentRun } from './entities/agent-run.entity';
 import { BrandMemory } from './entities/brand-memory.entity';
+import { ContentAsset } from './entities/content-asset.entity';
 
 import { OpenAIAdapter } from './services/openai.adapter';
 import { AnthropicAdapter } from './services/anthropic.adapter';
+import { GeminiAdapter } from './services/gemini.adapter';
 import { ModelRouterService } from './services/model-router.service';
 import { StrategyAgent } from './agents/strategy.agent';
+import { ScriptAgent } from './agents/script.agent';
 import { ContentStudioController } from './content-studio.controller';
 
 /**
@@ -27,7 +30,7 @@ import { ContentStudioController } from './content-studio.controller';
   imports: [
     ConfigModule.forFeature(contentStudioConfig),
     TypeOrmModule.forFeature([
-      Brand, Channel, WeeklyContentPlan, Lesson, AgentRun, BrandMemory,
+      Brand, Channel, WeeklyContentPlan, Lesson, AgentRun, BrandMemory, ContentAsset,
     ]),
     AdminModule,
   ],
@@ -35,8 +38,10 @@ import { ContentStudioController } from './content-studio.controller';
   providers: [
     OpenAIAdapter,
     AnthropicAdapter,
+    GeminiAdapter,
     ModelRouterService,
     StrategyAgent,
+    ScriptAgent,
   ],
 })
 export class ContentStudioModule {}

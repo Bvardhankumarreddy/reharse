@@ -6,6 +6,7 @@ import { AgentRun, AgentType } from '../entities/agent-run.entity';
 import { MODEL_PRICING } from '../config/content-studio.config';
 import { OpenAIAdapter } from './openai.adapter';
 import { AnthropicAdapter } from './anthropic.adapter';
+import { GeminiAdapter } from './gemini.adapter';
 import {
   LlmResult, ProviderAdapter, providerForModel,
 } from './provider.types';
@@ -35,7 +36,8 @@ export interface RouterResult {
 
 const FALLBACK_MODEL: Record<string, string> = {
   anthropic: 'gpt-4o-mini',
-  openai: 'claude-sonnet-4-6',
+  openai:    'claude-sonnet-4-6',
+  gemini:    'claude-sonnet-4-6',
 };
 
 @Injectable()
@@ -48,8 +50,9 @@ export class ModelRouterService {
     private readonly config: ConfigService,
     openai: OpenAIAdapter,
     anthropic: AnthropicAdapter,
+    gemini: GeminiAdapter,
   ) {
-    this.adapters = [openai, anthropic];
+    this.adapters = [openai, anthropic, gemini];
   }
 
   private adapterFor(model: string): ProviderAdapter | undefined {

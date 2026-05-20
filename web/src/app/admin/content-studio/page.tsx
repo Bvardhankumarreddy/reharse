@@ -6,7 +6,7 @@
 import { useEffect, useState, useCallback, type ReactNode } from "react";
 import {
   fetchToken, api, STATUS_COLOR,
-  type Brand, type BrandMemory, type WeeklyPlan,
+  type Brand, type BrandMemory, type WeeklyPlan, type Lesson, type ScriptAsset,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -75,7 +75,9 @@ export default function ContentStudioPage() {
             {plans.length === 0 ? (
               <Empty>No plans yet. Generate a week from a brand above.</Empty>
             ) : (
-              plans.map((p) => <PlanCard key={p.id} plan={p} brands={brands} />)
+              plans.map((p) => (
+                <PlanCard key={p.id} plan={p} brands={brands} onToast={setToast} />
+              ))
             )}
           </section>
         </>
@@ -180,7 +182,9 @@ function BrandCard({ brand, onToast, onChange }: {
   );
 }
 
-function PlanCard({ plan, brands }: { plan: WeeklyPlan; brands: Brand[] }) {
+function PlanCard({ plan, brands, onToast }: {
+  plan: WeeklyPlan; brands: Brand[]; onToast: (m: string) => void;
+}) {
   const [full, setFull] = useState<WeeklyPlan | null>(null);
   const [open, setOpen] = useState(false);
   const brandName = brands.find((b) => b.id === plan.brandId)?.name ?? "—";
@@ -226,26 +230,7 @@ function PlanCard({ plan, brands }: { plan: WeeklyPlan; brands: Brand[] }) {
             </Block>
           )}
           {(full.lessons ?? []).map((l) => (
-            <Block key={l.id} title={`🎓 Lesson ${l.lessonNumber}: ${l.title}`}>
-              {l.hook && (
-                <p className="text-[12px] text-[#B8C5E0] mb-2">
-                  <span className="text-[#6B7799]">Hook: </span>{l.hook}
-                </p>
-              )}
-              <p className="text-[10px] text-[#6B7799] mb-1">
-                ~{l.targetDurationMinutes} min · {l.outline?.length ?? 0} sections
-              </p>
-              <ul className="space-y-1.5">
-                {(l.outline ?? []).map((s, i) => (
-                  <li key={i} className="text-[12px] text-[#B8C5E0]">
-                    <span className="font-semibold">{s.heading}</span>
-                    <ul className="list-disc list-inside text-[#6B7799] mt-0.5">
-                      {(s.points ?? []).map((pt, j) => <li key={j}>{pt}</li>)}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            </Block>
+            <LessonBlock key={l.id} lesson={l} onToast={onToast} />
           ))}
           {full.agentRuns && full.agentRuns.length > 0 && (
             <Block title={`⚙️ Agent runs (${full.agentRuns.length})`}>
@@ -269,6 +254,142 @@ function PlanCard({ plan, brands }: { plan: WeeklyPlan; brands: Brand[] }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function LessonBlock({ lesson, onToast }: {
+  lesson: Lesson; onToast: (m: string) => void;
+}) {
+  const [script, setScript] = useState<ScriptAsset | null>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const token = await fetchToken();
+      if (!token || cancelled) return;
+      try {
+        const s = await api<ScriptAsset>(token, `/lessons/${lesson.id}/script`);
+        if (!cancelled) setScript(s);
+      } catch {
+        /* 404 — no script yet */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [lesson.id]);
+
+  async function generate() {
+    setBusy(true);
+    onToast("Script Agent writing the lesson… (Claude, ~30-90s)");
+    const token = await fetchToken();
+    if (!token) {
+      onToast("⚠ Not signed in — reload and sign in again");
+      setBusy(false);
+      return;
+    }
+    try {
+      const s = await api<ScriptAsset>(token, `/lessons/${lesson.id}/script/generate`, {
+        method: "POST",
+      });
+      setScript(s);
+      setOpen(true);
+      onToast(`✓ Script v${s.version} ready (${s.content?.wordCount ?? "?"} words)`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(false); }
+  }
+
+  const c = script?.content ?? null;
+  const mins =
+    c?.durationEstimateSeconds != null
+      ? (c.durationEstimateSeconds / 60).toFixed(1)
+      : null;
+
+  return (
+    <div className="border border-white/10 rounded-xl overflow-hidden">
+      <div className="px-3 py-2 bg-white/5 flex items-center justify-between gap-2">
+        <span className="text-[#B8C5E0] text-xs font-semibold">
+          🎓 Lesson {lesson.lessonNumber}: {lesson.title}
+        </span>
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-[#6B7799] shrink-0">
+          {lesson.status}
+        </span>
+      </div>
+      <div className="p-3 space-y-2">
+        {lesson.hook && (
+          <p className="text-[12px] text-[#B8C5E0]">
+            <span className="text-[#6B7799]">Hook: </span>{lesson.hook}
+          </p>
+        )}
+        <p className="text-[10px] text-[#6B7799]">
+          ~{lesson.targetDurationMinutes} min target · {lesson.outline?.length ?? 0} sections
+        </p>
+        <ul className="space-y-1.5">
+          {(lesson.outline ?? []).map((s, i) => (
+            <li key={i} className="text-[12px] text-[#B8C5E0]">
+              <span className="font-semibold">{s.heading}</span>
+              <ul className="list-disc list-inside text-[#6B7799] mt-0.5">
+                {(s.points ?? []).map((pt, j) => <li key={j}>{pt}</li>)}
+              </ul>
+            </li>
+          ))}
+        </ul>
+
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+          <PrimaryBtn
+            label={
+              busy
+                ? "Writing…"
+                : script
+                ? `🔁 Regenerate Script (v${script.version + 1})`
+                : "✍️ Generate Script"
+            }
+            busy={busy}
+            onClick={generate}
+          />
+          {script && (
+            <Btn
+              label={open ? "Hide script" : `📜 View script (v${script.version})`}
+              onClick={() => setOpen((v) => !v)}
+            />
+          )}
+          {script && (
+            <span className="text-[10px] text-[#6B7799] ml-auto">
+              {c?.wordCount ?? "?"} words
+              {mins ? ` · ~${mins} min` : ""}
+              {c?.model ? ` · ${c.model}` : ""}
+              {c?.costUsd != null ? ` · $${Number(c.costUsd).toFixed(4)}` : ""}
+            </span>
+          )}
+        </div>
+
+        {open && script && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-[#6B7799] uppercase">
+                Full audio script · v{script.version}
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard
+                    .writeText(c?.fullScript ?? "")
+                    .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+                }}
+                disabled={!c?.fullScript}
+                className="text-[10px] font-semibold text-[#00D4FF] hover:underline disabled:opacity-40"
+              >
+                {copied ? "✓ Copied" : "Copy"}
+              </button>
+            </div>
+            <pre className="bg-[#0A0E27] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-[#B8C5E0] whitespace-pre-wrap font-mono max-h-[28rem] overflow-y-auto">
+              {c?.fullScript || "—"}
+            </pre>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

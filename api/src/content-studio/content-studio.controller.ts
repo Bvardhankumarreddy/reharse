@@ -10,6 +10,7 @@ import { BrandMemory } from './entities/brand-memory.entity';
 import { WeeklyContentPlan } from './entities/weekly-content-plan.entity';
 import { AgentRun } from './entities/agent-run.entity';
 import { StrategyAgent } from './agents/strategy.agent';
+import { ScriptAgent } from './agents/script.agent';
 
 @Controller('admin/content-studio')
 @UseGuards(AdminGuard)
@@ -20,6 +21,7 @@ export class ContentStudioController {
     @InjectRepository(WeeklyContentPlan) private readonly planRepo: Repository<WeeklyContentPlan>,
     @InjectRepository(AgentRun) private readonly runRepo: Repository<AgentRun>,
     private readonly strategy: StrategyAgent,
+    private readonly script: ScriptAgent,
   ) {}
 
   @Get('brands')
@@ -59,6 +61,20 @@ export class ContentStudioController {
   generate(@Body() body: { brandId?: string; weekOf?: string }) {
     if (!body?.brandId) throw new BadRequestException('brandId is required');
     return this.strategy.generateWeek(body.brandId, body.weekOf);
+  }
+
+  /** Slice 2: Script Agent → 8-12 min audio script for ONE lesson. */
+  @Post('lessons/:id/script/generate')
+  generateScript(@Param('id') id: string) {
+    return this.script.generateScript(id);
+  }
+
+  /** Latest script asset for the lesson, or null if none generated yet. */
+  @Get('lessons/:id/script')
+  async lessonScript(@Param('id') id: string) {
+    const asset = await this.script.latestScript(id);
+    if (!asset) throw new NotFoundException('No script generated yet');
+    return asset;
   }
 
   @Get('plans/:id')
