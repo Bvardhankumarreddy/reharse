@@ -10,6 +10,8 @@ export interface Brand {
   colorPrimary: string | null;
   colorSecondary: string | null;
   isActive: boolean;
+  /** Phase C: per-brand model overrides ({ task → modelId }). */
+  modelOverrides: Record<string, string>;
 }
 
 export interface BrandMemory {

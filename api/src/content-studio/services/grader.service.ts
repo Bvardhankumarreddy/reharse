@@ -92,6 +92,8 @@ export class GraderService {
     writerProvider?: ProviderName;
     /** Compact context to anchor the grader (title, hook, brand voice). */
     context: string;
+    /** Per-brand grader model override (Phase C). */
+    modelOverride?: string;
   }): Promise<GradeResult> {
     const threshold = this.threshold;
     const rubric = RUBRIC_BY_AGENT[opts.agentType] ??
@@ -102,6 +104,7 @@ export class GraderService {
       planId: opts.planId ?? null,
       lessonId: opts.lessonId ?? null,
       excludeProvider: opts.writerProvider, // cross-provider when known
+      modelOverride: opts.modelOverride,
       jsonOutput: true,
       maxTokens: 800,
       temperature: 0.1,

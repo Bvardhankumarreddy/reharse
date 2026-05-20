@@ -86,6 +86,7 @@ export class ScriptAgent {
       planId: plan.id,
       lessonId: lesson.id,
       memoryCount: memories.length,
+      graderModelOverride: brand.modelOverrides?.grader,
       context:
         `Lesson: ${lesson.title} (${lesson.targetDurationMinutes} min) · ` +
         `Brand: ${brand.name} · Voice: ${(brand.voiceStyle ?? '').slice(0, 200)}`,
@@ -98,6 +99,7 @@ export class ScriptAgent {
           agentType: 'script',
           planId: plan.id,
           lessonId: lesson.id,
+          modelOverride: brand.modelOverrides?.script,
           maxTokens: 6000,
           temperature: 0.75,
           system: SYSTEM,

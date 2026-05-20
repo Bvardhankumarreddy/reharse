@@ -85,6 +85,7 @@ export class StrategyAgent {
         task: 'strategy',
         agentType: 'strategy',
         planId: plan.id,
+        modelOverride: brand.modelOverrides?.strategy,
         jsonOutput: true,
         maxTokens: 3000,
         temperature: 0.8,

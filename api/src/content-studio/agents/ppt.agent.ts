@@ -104,6 +104,7 @@ export class PptAgent {
       planId: plan.id,
       lessonId: lesson.id,
       memoryCount: memories.length,
+      graderModelOverride: brand.modelOverrides?.grader,
       context: `Lesson: ${lesson.title} · Brand: ${brand.name}`,
       draftFn: async (critique) => {
         const user = critique
@@ -114,6 +115,7 @@ export class PptAgent {
           agentType: 'ppt',
           planId: plan.id,
           lessonId: lesson.id,
+          modelOverride: brand.modelOverrides?.ppt,
           jsonOutput: true,
           maxTokens: 4000,
           temperature: 0.5,

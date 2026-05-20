@@ -103,6 +103,7 @@ export class ThumbnailAgent {
       planId: plan.id,
       lessonId: lesson.id,
       memoryCount: memories.length,
+      graderModelOverride: brand.modelOverrides?.grader,
       context: `Lesson: ${lesson.title} · Brand colours: ${brand.colorPrimary}/${brand.colorSecondary}`,
       draftFn: async (critique) => {
         const user = critique
@@ -113,6 +114,7 @@ export class ThumbnailAgent {
           agentType: 'thumbnail',
           planId: plan.id,
           lessonId: lesson.id,
+          modelOverride: brand.modelOverrides?.thumbnail,
           jsonOutput: true,
           maxTokens: 1500,
           temperature: 0.8,

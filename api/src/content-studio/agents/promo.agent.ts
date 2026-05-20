@@ -112,6 +112,7 @@ export class PromoAgent {
       planId: plan.id,
       lessonId: lesson.id,
       memoryCount: memories.length,
+      graderModelOverride: brand.modelOverrides?.grader,
       context: `Lesson: ${lesson.title} · Brand: ${brand.name}`,
       draftFn: async (critique) => {
         const user = critique
@@ -122,6 +123,7 @@ export class PromoAgent {
           agentType: 'promo',
           planId: plan.id,
           lessonId: lesson.id,
+          modelOverride: brand.modelOverrides?.promo,
           jsonOutput: true,
           maxTokens: 2200,
           temperature: 0.75,

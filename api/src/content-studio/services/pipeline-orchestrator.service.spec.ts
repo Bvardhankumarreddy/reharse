@@ -137,6 +137,8 @@ describe('PipelineOrchestratorService.runPipeline', () => {
 
   it('marks failed + sets resumableFrom + writes a DLQ row on stage error', async () => {
     const fx = makeFixtures();
+    // PPT runs IN PARALLEL with seo/thumbnail/promo — only ppt fails;
+    // the siblings still complete and the run halts before quiz/draw.
     fx.ppt.generatePpt.mockRejectedValueOnce(new Error('boom'));
     const run = await fx.service.enqueueRun('plan-1');
     await fx.service.runPipeline({ runId: run.id, planId: 'plan-1' });
@@ -144,9 +146,19 @@ describe('PipelineOrchestratorService.runPipeline', () => {
     const final = fx.runStore[run.id];
     expect(final.status).toBe('failed');
     expect(final.resumableFrom).toBe<PipelineStage>('ppt');
-    expect(final.stagesCompleted).toEqual(['script']);
+    expect(new Set(final.stagesCompleted ?? [])).toEqual(
+      new Set<PipelineStage>(['script', 'seo', 'thumbnail', 'promo']),
+    );
+    expect((final.stagesCompleted ?? []).includes('ppt' as PipelineStage)).toBe(false);
     expect(final.stagesFailed?.[0]?.stage).toBe<PipelineStage>('ppt');
+    // Sibling stages within the failed phase still ran:
+    expect(fx.seo.generateSeo).toHaveBeenCalledTimes(2);
+    expect(fx.thumbnail.generateThumbnail).toHaveBeenCalledTimes(2);
+    expect(fx.promo.generatePromo).toHaveBeenCalledTimes(2);
+    // …but the next phase didn't:
     expect(fx.quiz.generatePool).not.toHaveBeenCalled();
+    expect(fx.quiz.drawSaturdayQuiz).not.toHaveBeenCalled();
+
     expect(fx.dlq.recordPipelineFailure).toHaveBeenCalledTimes(1);
     expect(fx.dlq.recordPipelineFailure.mock.calls[0][0]).toMatchObject({
       planId: 'plan-1',

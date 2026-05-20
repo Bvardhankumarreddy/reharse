@@ -48,6 +48,8 @@ export class ImprovementLoopService {
     context: string;
     /** How many *applicable* memories were injected — feeds the confidence score. */
     memoryCount: number;
+    /** Optional per-brand override for the grader model (Phase C). */
+    graderModelOverride?: string;
     /** Produces a draft. Called with the previous critique on revise passes. */
     draftFn: (critique: string | null) => Promise<DraftResult<TParsed>>;
   }): Promise<ImprovedResult<TParsed>> {
@@ -85,6 +87,7 @@ export class ImprovementLoopService {
       rawContent: current.rawForGrader,
       writerProvider: current.provider,
       context: opts.context,
+      modelOverride: opts.graderModelOverride,
     });
     totalCost += grade.costUsd;
 

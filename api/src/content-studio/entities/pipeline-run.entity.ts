@@ -63,3 +63,15 @@ export class PipelineRun {
 export const PIPELINE_STAGES: PipelineStage[] = [
   'script', 'ppt', 'seo', 'thumbnail', 'promo', 'quiz', 'draw',
 ];
+
+/**
+ * Phase C: stages grouped into phases that run sequentially, but stages
+ * within a phase run in parallel. Layout: produce the script first, then
+ * fan out everything that depends on it, then quiz, then the draw.
+ */
+export const PIPELINE_PHASES: PipelineStage[][] = [
+  ['script'],
+  ['ppt', 'seo', 'thumbnail', 'promo'],
+  ['quiz'],
+  ['draw'],
+];

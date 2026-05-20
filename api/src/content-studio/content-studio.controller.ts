@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Param, Query, Body, Res, UseGuards,
+  Controller, Get, Post, Patch, Param, Query, Body, Res, UseGuards,
   NotFoundException, BadRequestException,
 } from '@nestjs/common';
 import type { Response } from 'express';
@@ -54,6 +54,36 @@ export class ContentStudioController {
       where: { brandId: id },
       order: { weight: 'DESC' },
     });
+  }
+
+  /**
+   * Phase C: per-brand model overrides. Body shape:
+   *   { modelOverrides: { strategy?: "claude-opus-4-7", script?: "...", ... } }
+   * Pass an empty value to clear an entry.
+   */
+  @Patch('brands/:id')
+  async updateBrand(
+    @Param('id') id: string,
+    @Body() body: { modelOverrides?: Record<string, string> },
+  ) {
+    const brand = await this.brandRepo.findOne({ where: { id } });
+    if (!brand) throw new NotFoundException('Brand not found');
+    if (body.modelOverrides) {
+      const valid = new Set([
+        'strategy', 'script', 'ppt', 'seo', 'thumbnail',
+        'promo', 'quiz', 'quiz_validator', 'grader',
+      ]);
+      const next: Record<string, string> = {};
+      for (const [k, v] of Object.entries(body.modelOverrides)) {
+        if (!valid.has(k)) {
+          throw new BadRequestException(`Unknown task "${k}"`);
+        }
+        const value = String(v ?? '').trim();
+        if (value) next[k] = value.slice(0, 120);
+      }
+      await this.brandRepo.update(id, { modelOverrides: next });
+    }
+    return this.brandRepo.findOne({ where: { id } });
   }
 
   @Get('plans')

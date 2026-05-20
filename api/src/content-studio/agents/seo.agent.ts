@@ -98,6 +98,7 @@ export class SeoAgent {
       planId: plan.id,
       lessonId: lesson.id,
       memoryCount: memories.length,
+      graderModelOverride: brand.modelOverrides?.grader,
       context: `Lesson: ${lesson.title} · Brand: ${brand.name}`,
       draftFn: async (critique) => {
         const user = critique
@@ -108,6 +109,7 @@ export class SeoAgent {
           agentType: 'seo',
           planId: plan.id,
           lessonId: lesson.id,
+          modelOverride: brand.modelOverrides?.seo,
           jsonOutput: true,
           maxTokens: 1800,
           temperature: 0.6,

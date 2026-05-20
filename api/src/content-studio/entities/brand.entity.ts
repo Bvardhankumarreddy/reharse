@@ -30,6 +30,14 @@ export class Brand {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
+  /**
+   * Per-brand model overrides — { [task]: modelId }. Wins over env / tier
+   * defaults. Tasks: strategy / script / ppt / seo / thumbnail / promo /
+   * quiz / quiz_validator / grader. Empty object = no overrides.
+   */
+  @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
+  modelOverrides: Record<string, string>;
+
   @CreateDateColumn()
   createdAt: Date;
 

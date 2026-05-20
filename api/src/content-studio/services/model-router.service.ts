@@ -30,6 +30,11 @@ export interface RouterRequest {
    * to guarantee it never runs on the same provider that wrote the question.
    */
   excludeProvider?: ProviderName;
+  /**
+   * Per-call model override — wins over env / tier defaults. Used by every
+   * agent to apply `brand.modelOverrides[task]` (Phase C / Slice C1).
+   */
+  modelOverride?: string;
 }
 
 export interface RouterResult {
@@ -121,7 +126,8 @@ export class ModelRouterService {
     await this.assertWithinBudget(req.planId);
 
     let primaryModel =
-      this.config.get<string>(`contentStudio.models.${req.task}`) ??
+      req.modelOverride?.trim() ||
+      this.config.get<string>(`contentStudio.models.${req.task}`) ||
       'claude-sonnet-4-6';
     // Cross-provider enforcement: if the configured primary is on the
     // excluded provider, swap to that provider's fallback model.

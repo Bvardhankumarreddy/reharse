@@ -144,6 +144,7 @@ export class QuizAgent {
       task: 'quiz',
       agentType: 'quiz',
       planId,
+      modelOverride: brand.modelOverrides?.quiz,
       jsonOutput: true,
       maxTokens: 8000,
       temperature: 0.7,
@@ -185,11 +186,14 @@ export class QuizAgent {
     );
 
     // ── Cross-provider validation (in small parallel batches) ──
+    const validatorOverride = brand.modelOverrides?.quiz_validator;
     let totalValidatorCost = 0;
     for (let i = 0; i < drafts.length; i += VALIDATION_CONCURRENCY) {
       const batch = drafts.slice(i, i + VALIDATION_CONCURRENCY);
       const costs = await Promise.all(
-        batch.map((row) => this.validateOne(row, generatorProvider, planId)),
+        batch.map((row) =>
+          this.validateOne(row, generatorProvider, planId, validatorOverride),
+        ),
       );
       totalValidatorCost += costs.reduce((s, c) => s + c, 0);
     }
@@ -228,6 +232,7 @@ export class QuizAgent {
     row: QuestionPool,
     generatorProvider: ProviderName,
     planId: string,
+    validatorOverride?: string,
   ): Promise<number> {
     let validation: ValidationJson | null = null;
     let validatorModel = '';
@@ -238,6 +243,7 @@ export class QuizAgent {
         agentType: 'quiz',
         planId,
         excludeProvider: generatorProvider, // architectural guarantee
+        modelOverride: validatorOverride,
         jsonOutput: true,
         maxTokens: 800,
         temperature: 0.1,

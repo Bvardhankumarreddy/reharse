@@ -8,7 +8,7 @@ import type { Queue } from 'bull';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
 import { Lesson } from '../entities/lesson.entity';
 import {
-  PipelineRun, PipelineStage, PIPELINE_STAGES, StageFailure,
+  PipelineRun, PipelineStage, PIPELINE_STAGES, PIPELINE_PHASES, StageFailure,
 } from '../entities/pipeline-run.entity';
 import { ScriptAgent } from '../agents/script.agent';
 import { PptAgent } from '../agents/ppt.agent';
@@ -99,7 +99,12 @@ export class PipelineOrchestratorService {
     return run;
   }
 
-  /** Called by the Bull worker — runs the pipeline synchronously. */
+  /**
+   * Called by the Bull worker — runs the pipeline synchronously.
+   * Phase C: phases run in order; stages within a phase run in PARALLEL
+   * via Promise.allSettled. If any stage in a phase fails the run halts
+   * after the phase, with resumableFrom = first failed stage.
+   */
   async runPipeline(payload: JobPayload): Promise<void> {
     const run = await this.runRepo.findOne({ where: { id: payload.runId } });
     if (!run) {
@@ -107,10 +112,10 @@ export class PipelineOrchestratorService {
       return;
     }
 
-    const startIdx = payload.fromStage
-      ? PIPELINE_STAGES.indexOf(payload.fromStage)
+    const startPhase = payload.fromStage
+      ? PIPELINE_PHASES.findIndex((p) => p.includes(payload.fromStage!))
       : 0;
-    if (startIdx < 0) {
+    if (startPhase < 0) {
       await this.markFailed(run, 'script', 'invalid fromStage');
       return;
     }
@@ -120,23 +125,59 @@ export class PipelineOrchestratorService {
       startedAt: new Date(),
     });
 
-    const completed = [...(run.stagesCompleted ?? [])];
+    const completed: PipelineStage[] = [...(run.stagesCompleted ?? [])];
 
-    for (let i = startIdx; i < PIPELINE_STAGES.length; i++) {
-      const stage = PIPELINE_STAGES[i];
-      await this.runRepo.update(run.id, { currentStage: stage });
-      this.logger.log(`Run ${run.id} stage=${stage} starting…`);
-      try {
-        await this.runStage(stage, payload.planId);
-        if (!completed.includes(stage)) completed.push(stage);
-        await this.runRepo.update(run.id, { stagesCompleted: completed });
-        this.logger.log(`Run ${run.id} stage=${stage} ✓`);
-      } catch (e) {
-        const msg = (e as Error).message;
-        this.logger.error(`Run ${run.id} stage=${stage} failed: ${msg}`);
-        await this.markFailed(run, stage, msg);
+    for (let i = startPhase; i < PIPELINE_PHASES.length; i++) {
+      const phase = PIPELINE_PHASES[i];
+      const todo = phase.filter((s) => !completed.includes(s));
+      if (todo.length === 0) continue;
+
+      // Visible "current stage" while the phase runs.
+      await this.runRepo.update(run.id, { currentStage: todo[0] });
+
+      if (todo.length === 1) {
+        const stage = todo[0];
+        this.logger.log(`Run ${run.id} stage=${stage} starting…`);
+        try {
+          await this.runStage(stage, payload.planId);
+          completed.push(stage);
+          await this.runRepo.update(run.id, { stagesCompleted: [...completed] });
+          this.logger.log(`Run ${run.id} stage=${stage} ✓`);
+        } catch (e) {
+          await this.markFailed(run, stage, (e as Error).message);
+          return;
+        }
+        continue;
+      }
+
+      this.logger.log(
+        `Run ${run.id} phase ${i} [${todo.join(', ')}] starting in parallel…`,
+      );
+      const settled = await Promise.allSettled(
+        todo.map((s) => this.runStage(s, payload.planId)),
+      );
+      const failures: Array<{ stage: PipelineStage; error: string }> = [];
+      settled.forEach((r, idx) => {
+        const stage = todo[idx];
+        if (r.status === 'fulfilled') {
+          completed.push(stage);
+        } else {
+          const msg = (r.reason as Error)?.message ?? 'unknown error';
+          failures.push({ stage, error: msg });
+        }
+      });
+      // Persist successful siblings even if some failed.
+      await this.runRepo.update(run.id, { stagesCompleted: [...completed] });
+      if (failures.length > 0) {
+        const firstFail = todo.find((s) => failures.some((f) => f.stage === s))!;
+        const summary = failures.map((f) => `${f.stage}: ${f.error}`).join(' | ');
+        this.logger.error(
+          `Run ${run.id} phase ${i} had ${failures.length} failure(s): ${summary}`,
+        );
+        await this.markFailed(run, firstFail, summary);
         return;
       }
+      this.logger.log(`Run ${run.id} phase ${i} ✓ (${todo.length} parallel)`);
     }
 
     const plan = await this.planRepo.findOne({ where: { id: payload.planId } });

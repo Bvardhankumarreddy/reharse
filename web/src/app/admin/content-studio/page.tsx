@@ -99,6 +99,35 @@ function BrandCard({ brand, onToast, onChange }: {
   const [open, setOpen] = useState(false);
   const [weekOf, setWeekOf] = useState("");
   const [busy, setBusy] = useState(false);
+  const [openOverrides, setOpenOverrides] = useState(false);
+  const [overridesText, setOverridesText] = useState(
+    JSON.stringify(brand.modelOverrides ?? {}, null, 2),
+  );
+  const [savingOverrides, setSavingOverrides] = useState(false);
+
+  async function saveOverrides() {
+    let parsed: Record<string, string>;
+    try {
+      parsed = JSON.parse(overridesText || "{}");
+      if (typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+    } catch (e) {
+      onToast(`⚠ Invalid JSON: ${(e as Error).message}`);
+      return;
+    }
+    setSavingOverrides(true);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setSavingOverrides(false); return; }
+    try {
+      await api(token, `/brands/${brand.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ modelOverrides: parsed }),
+      });
+      onToast("✓ Brand overrides saved");
+      onChange();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setSavingOverrides(false); }
+  }
 
   async function toggle() {
     const next = !open;
@@ -165,7 +194,42 @@ function BrandCard({ brand, onToast, onChange }: {
           onClick={generate}
         />
         <Btn label={open ? "Hide memories" : "🧠 Brand memories"} onClick={toggle} />
+        <Btn
+          label={
+            openOverrides
+              ? "Hide overrides"
+              : Object.keys(brand.modelOverrides ?? {}).length > 0
+              ? `🎛 Model overrides (${Object.keys(brand.modelOverrides).length})`
+              : "🎛 Model overrides"
+          }
+          onClick={() => setOpenOverrides((v) => !v)}
+        />
       </div>
+      {openOverrides && (
+        <div className="px-4 py-3 border-t border-white/5 bg-[#0F1330] space-y-2">
+          <p className="text-[10px] text-[#6B7799] uppercase">
+            Per-brand model overrides (JSON: task → model id). Wins over env / tier defaults.
+          </p>
+          <textarea
+            value={overridesText}
+            onChange={(e) => setOverridesText(e.target.value)}
+            rows={6}
+            spellCheck={false}
+            className="w-full bg-[#0A0E27] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-[#B8C5E0] font-mono"
+            placeholder={`{\n  "strategy": "claude-opus-4-7",\n  "script": "claude-sonnet-4-6"\n}`}
+          />
+          <div className="flex items-center gap-2">
+            <PrimaryBtn
+              label={savingOverrides ? "Saving…" : "💾 Save overrides"}
+              busy={savingOverrides}
+              onClick={saveOverrides}
+            />
+            <span className="text-[10px] text-[#6B7799]">
+              Valid keys: strategy · script · ppt · seo · thumbnail · promo · quiz · quiz_validator · grader
+            </span>
+          </div>
+        </div>
+      )}
       {open && (
         <div className="px-4 py-3 border-t border-white/5 bg-[#0F1330] space-y-1.5">
           {mem === null ? (
