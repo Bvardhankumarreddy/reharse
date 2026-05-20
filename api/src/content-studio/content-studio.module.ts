@@ -37,6 +37,9 @@ import { SeoAgent } from './agents/seo.agent';
 import { ThumbnailAgent } from './agents/thumbnail.agent';
 import { PromoAgent } from './agents/promo.agent';
 import { QuizAgent } from './agents/quiz.agent';
+import { PostmortemAgent } from './agents/postmortem.agent';
+import { ImprovementAgent } from './agents/improvement.agent';
+import { ThumbnailImageAgent } from './agents/thumbnail-image.agent';
 import { PptxRendererService } from './services/pptx-renderer.service';
 import { XlsxRendererService } from './services/xlsx-renderer.service';
 import {
@@ -94,6 +97,9 @@ import { ContentStudioController } from './content-studio.controller';
     ThumbnailAgent,
     PromoAgent,
     QuizAgent,
+    PostmortemAgent,
+    ImprovementAgent,
+    ThumbnailImageAgent,
     PipelineOrchestratorService,
     DlqService,
     AuditService,

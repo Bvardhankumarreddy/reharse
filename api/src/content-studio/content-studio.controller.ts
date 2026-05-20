@@ -21,6 +21,9 @@ import { SeoAgent } from './agents/seo.agent';
 import { ThumbnailAgent } from './agents/thumbnail.agent';
 import { PromoAgent } from './agents/promo.agent';
 import { QuizAgent } from './agents/quiz.agent';
+import { PostmortemAgent } from './agents/postmortem.agent';
+import { ImprovementAgent } from './agents/improvement.agent';
+import { ThumbnailImageAgent } from './agents/thumbnail-image.agent';
 import { PipelineOrchestratorService } from './services/pipeline-orchestrator.service';
 import { DlqService } from './services/dlq.service';
 import { AuditService } from './services/audit.service';
@@ -64,6 +67,9 @@ export class ContentStudioController {
     private readonly thumbnail: ThumbnailAgent,
     private readonly promo: PromoAgent,
     private readonly quiz: QuizAgent,
+    private readonly postmortem: PostmortemAgent,
+    private readonly improvement: ImprovementAgent,
+    private readonly thumbnailImage: ThumbnailImageAgent,
     private readonly orchestrator: PipelineOrchestratorService,
     private readonly dlq: DlqService,
     private readonly audit: AuditService,
@@ -530,6 +536,47 @@ export class ContentStudioController {
     const latest = await this.metricsFetcher.latestFor(lessonId);
     if (!latest) throw new NotFoundException('No metrics fetched yet');
     return latest;
+  }
+
+  // ── Phase D / D2: Postmortem + Improvement + Thumbnail image ──────────
+
+  @Post('lessons/:id/postmortem/generate')
+  generatePostmortem(@Param('id') id: string) {
+    return this.postmortem.generateFor(id);
+  }
+
+  @Get('lessons/:id/postmortem')
+  async lessonPostmortem(@Param('id') id: string) {
+    const a = await this.postmortem.latestFor(id);
+    if (!a) throw new NotFoundException('No postmortem yet');
+    return a;
+  }
+
+  /** Run the Improvement Agent — auto-promotes winning hooks into BrandMemory. */
+  @Post('improvement/run')
+  async runImprovement(@Req() req: Request) {
+    const result = await this.improvement.runForAllBrands();
+    await this.audit.log({
+      entityType: 'brand', entityId: null, action: 'updated',
+      after: { promoted: result.promoted, scanned: result.scanned },
+      summary: `Improvement Agent: scanned ${result.scanned} brand(s), promoted ${result.promoted} hook pattern(s) into BrandMemory`,
+      writer: this.writerFrom(req),
+    });
+    return result;
+  }
+
+  @Post('lessons/:id/thumbnail-image/generate')
+  generateThumbnailImage(@Param('id') id: string) {
+    return this.thumbnailImage.generateFor(id);
+  }
+
+  @Get('lessons/:id/thumbnail-image')
+  async lessonThumbnailImage(@Param('id') id: string) {
+    const v = await this.thumbnailImage.latestFor(id);
+    if (!v || !v.thumbnailB64) {
+      throw new NotFoundException('No thumbnail image generated yet');
+    }
+    return v;
   }
 
   /** Manually trigger both intelligence crons (otherwise scheduled). */
