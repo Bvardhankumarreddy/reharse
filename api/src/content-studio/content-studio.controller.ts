@@ -13,6 +13,9 @@ import { AgentRun } from './entities/agent-run.entity';
 import { StrategyAgent } from './agents/strategy.agent';
 import { ScriptAgent } from './agents/script.agent';
 import { PptAgent } from './agents/ppt.agent';
+import { SeoAgent } from './agents/seo.agent';
+import { ThumbnailAgent } from './agents/thumbnail.agent';
+import { PromoAgent } from './agents/promo.agent';
 import { QuizAgent } from './agents/quiz.agent';
 import { PipelineOrchestratorService } from './services/pipeline-orchestrator.service';
 import { DlqService } from './services/dlq.service';
@@ -31,6 +34,9 @@ export class ContentStudioController {
     private readonly strategy: StrategyAgent,
     private readonly script: ScriptAgent,
     private readonly ppt: PptAgent,
+    private readonly seo: SeoAgent,
+    private readonly thumbnail: ThumbnailAgent,
+    private readonly promo: PromoAgent,
     private readonly quiz: QuizAgent,
     private readonly orchestrator: PipelineOrchestratorService,
     private readonly dlq: DlqService,
@@ -113,6 +119,42 @@ export class ContentStudioController {
       'Content-Length': String(buf.length),
     });
     res.send(buf);
+  }
+
+  // ── Phase B (Slice B1): SEO / Thumbnail / Promo agents ────────────────
+
+  @Post('lessons/:id/seo/generate')
+  generateSeo(@Param('id') id: string) { return this.seo.generateSeo(id); }
+
+  @Get('lessons/:id/seo')
+  async lessonSeo(@Param('id') id: string) {
+    const a = await this.seo.latestSeo(id);
+    if (!a) throw new NotFoundException('No SEO generated yet');
+    return a;
+  }
+
+  @Post('lessons/:id/thumbnail/generate')
+  generateThumbnail(@Param('id') id: string) {
+    return this.thumbnail.generateThumbnail(id);
+  }
+
+  @Get('lessons/:id/thumbnail')
+  async lessonThumbnail(@Param('id') id: string) {
+    const a = await this.thumbnail.latestThumbnail(id);
+    if (!a) throw new NotFoundException('No thumbnail prompt yet');
+    return a;
+  }
+
+  @Post('lessons/:id/promo/generate')
+  generatePromo(@Param('id') id: string) {
+    return this.promo.generatePromo(id);
+  }
+
+  @Get('lessons/:id/promo')
+  async lessonPromo(@Param('id') id: string) {
+    const a = await this.promo.latestPromo(id);
+    if (!a) throw new NotFoundException('No promo posts yet');
+    return a;
   }
 
   // ── Slice 4: Quiz Agent + cross-provider validator + XLSX ──────────────

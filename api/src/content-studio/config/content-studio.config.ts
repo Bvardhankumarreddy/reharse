@@ -19,6 +19,8 @@ export default registerAs('contentStudio', () => ({
     ppt:      process.env.CS_PPT_MODEL       ?? 'claude-sonnet-4-6',
     quiz:     process.env.CS_QUIZ_MODEL      ?? 'claude-sonnet-4-6',
     seo:            process.env.CS_SEO_MODEL             ?? 'gpt-4o-mini',
+    /** Thumbnail prompts: Claude Sonnet writes detailed visual briefs well. */
+    thumbnail:      process.env.CS_THUMBNAIL_MODEL       ?? 'claude-sonnet-4-6',
     promo:          process.env.CS_PROMO_MODEL           ?? 'gpt-4o-mini',
     /** Quiz validator — MUST be on a different provider than the generator
      *  (router enforces this with excludeProvider). Default OpenAI. */
@@ -38,6 +40,7 @@ export default registerAs('contentStudio', () => ({
     quiz:           Number(process.env.CS_QUIZ_TIMEOUT_MS           ?? 180_000),
     quiz_validator: Number(process.env.CS_QUIZ_VALIDATOR_TIMEOUT_MS ?? 30_000),
     seo:            Number(process.env.CS_SEO_TIMEOUT_MS            ?? 45_000),
+    thumbnail:      Number(process.env.CS_THUMBNAIL_TIMEOUT_MS      ?? 45_000),
     promo:          Number(process.env.CS_PROMO_TIMEOUT_MS          ?? 45_000),
     /** Used when a task has no specific entry above. */
     default:        Number(process.env.CS_DEFAULT_TIMEOUT_MS        ?? 90_000),

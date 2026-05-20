@@ -3,7 +3,8 @@ import {
   CreateDateColumn, UpdateDateColumn,
 } from 'typeorm';
 
-export type PipelineStage = 'script' | 'ppt' | 'quiz' | 'draw';
+export type PipelineStage =
+  | 'script' | 'ppt' | 'seo' | 'thumbnail' | 'promo' | 'quiz' | 'draw';
 export type PipelineStatus =
   | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
@@ -59,4 +60,6 @@ export class PipelineRun {
   updatedAt: Date;
 }
 
-export const PIPELINE_STAGES: PipelineStage[] = ['script', 'ppt', 'quiz', 'draw'];
+export const PIPELINE_STAGES: PipelineStage[] = [
+  'script', 'ppt', 'seo', 'thumbnail', 'promo', 'quiz', 'draw',
+];

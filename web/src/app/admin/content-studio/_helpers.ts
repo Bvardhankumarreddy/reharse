@@ -100,7 +100,8 @@ export interface QuizPoolListResponse {
   passRate: number;
 }
 
-export type PipelineStage = "script" | "ppt" | "quiz" | "draw";
+export type PipelineStage =
+  | "script" | "ppt" | "seo" | "thumbnail" | "promo" | "quiz" | "draw";
 export type PipelineStatus =
   | "queued" | "running" | "completed" | "failed" | "cancelled";
 
@@ -120,7 +121,9 @@ export interface PipelineRun {
   updatedAt: string;
 }
 
-export const PIPELINE_STAGE_ORDER: PipelineStage[] = ["script", "ppt", "quiz", "draw"];
+export const PIPELINE_STAGE_ORDER: PipelineStage[] = [
+  "script", "ppt", "seo", "thumbnail", "promo", "quiz", "draw",
+];
 
 export type DlqStatus = "pending" | "retried" | "abandoned";
 
@@ -133,6 +136,67 @@ export interface DlqJob {
   status: DlqStatus;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SeoAsset {
+  id: string;
+  lessonId: string | null;
+  planId: string | null;
+  assetType: string;
+  version: number;
+  content: {
+    titleVariants?: string[];
+    chosenTitleIndex?: number;
+    chosenTitle?: string;
+    description?: string;
+    tags?: string[];
+    endScreenCards?: Array<{ label?: string; why?: string }>;
+    model?: string;
+    provider?: string;
+    costUsd?: number;
+  } | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface ThumbnailAsset {
+  id: string;
+  lessonId: string | null;
+  planId: string | null;
+  assetType: string;
+  version: number;
+  content: {
+    mainPrompt?: string;
+    facePosition?: string;
+    textOverlay?: string;
+    colorPalette?: string[];
+    mood?: string;
+    style?: string;
+    alternates?: string[];
+    model?: string;
+    provider?: string;
+    costUsd?: number;
+  } | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface PromoAsset {
+  id: string;
+  lessonId: string | null;
+  planId: string | null;
+  assetType: string;
+  version: number;
+  content: {
+    linkedin?: { hook?: string; body?: string; cta?: string; hashtags?: string[] };
+    instagram?: { caption?: string; hashtags?: string[] };
+    whatsappStatus?: { text?: string; chars?: number; lines?: number };
+    model?: string;
+    provider?: string;
+    costUsd?: number;
+  } | null;
+  status: string;
+  createdAt: string;
 }
 
 export interface PptAsset {

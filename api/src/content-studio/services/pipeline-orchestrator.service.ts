@@ -12,6 +12,9 @@ import {
 } from '../entities/pipeline-run.entity';
 import { ScriptAgent } from '../agents/script.agent';
 import { PptAgent } from '../agents/ppt.agent';
+import { SeoAgent } from '../agents/seo.agent';
+import { ThumbnailAgent } from '../agents/thumbnail.agent';
+import { PromoAgent } from '../agents/promo.agent';
 import { QuizAgent } from '../agents/quiz.agent';
 import { DlqService } from './dlq.service';
 
@@ -34,6 +37,9 @@ export class PipelineOrchestratorService {
     @InjectQueue(CS_PIPELINE_QUEUE) private readonly queue: Queue,
     private readonly script: ScriptAgent,
     private readonly ppt: PptAgent,
+    private readonly seo: SeoAgent,
+    private readonly thumbnail: ThumbnailAgent,
+    private readonly promo: PromoAgent,
     private readonly quiz: QuizAgent,
     private readonly dlq: DlqService,
   ) {}
@@ -164,6 +170,30 @@ export class PipelineOrchestratorService {
           order: { lessonNumber: 'ASC' },
         });
         for (const l of lessons) await this.ppt.generatePpt(l.id);
+        return;
+      }
+      case 'seo': {
+        const lessons = await this.lessonRepo.find({
+          where: { planId },
+          order: { lessonNumber: 'ASC' },
+        });
+        for (const l of lessons) await this.seo.generateSeo(l.id);
+        return;
+      }
+      case 'thumbnail': {
+        const lessons = await this.lessonRepo.find({
+          where: { planId },
+          order: { lessonNumber: 'ASC' },
+        });
+        for (const l of lessons) await this.thumbnail.generateThumbnail(l.id);
+        return;
+      }
+      case 'promo': {
+        const lessons = await this.lessonRepo.find({
+          where: { planId },
+          order: { lessonNumber: 'ASC' },
+        });
+        for (const l of lessons) await this.promo.generatePromo(l.id);
         return;
       }
       case 'quiz': {

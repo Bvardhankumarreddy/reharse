@@ -24,6 +24,9 @@ import { ModelRouterService } from './services/model-router.service';
 import { StrategyAgent } from './agents/strategy.agent';
 import { ScriptAgent } from './agents/script.agent';
 import { PptAgent } from './agents/ppt.agent';
+import { SeoAgent } from './agents/seo.agent';
+import { ThumbnailAgent } from './agents/thumbnail.agent';
+import { PromoAgent } from './agents/promo.agent';
 import { QuizAgent } from './agents/quiz.agent';
 import { PptxRendererService } from './services/pptx-renderer.service';
 import { XlsxRendererService } from './services/xlsx-renderer.service';
@@ -61,6 +64,9 @@ import { ContentStudioController } from './content-studio.controller';
     StrategyAgent,
     ScriptAgent,
     PptAgent,
+    SeoAgent,
+    ThumbnailAgent,
+    PromoAgent,
     QuizAgent,
     PipelineOrchestratorService,
     DlqService,

@@ -12,7 +12,8 @@ import {
 } from './provider.types';
 
 type Task =
-  | 'strategy' | 'script' | 'ppt' | 'quiz' | 'seo' | 'promo' | 'quiz_validator';
+  | 'strategy' | 'script' | 'ppt' | 'quiz' | 'seo' | 'thumbnail' | 'promo'
+  | 'quiz_validator';
 
 export interface RouterRequest {
   task: Task;

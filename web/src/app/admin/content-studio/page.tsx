@@ -8,6 +8,7 @@ import {
   fetchToken, api, STATUS_COLOR,
   type Brand, type BrandMemory, type WeeklyPlan, type Lesson,
   type ScriptAsset, type PptAsset,
+  type SeoAsset, type ThumbnailAsset, type PromoAsset,
   type QuizPoolListResponse, type DeliveredQuizSummary,
   type PipelineRun, type PipelineStage, PIPELINE_STAGE_ORDER,
   type DlqJob,
@@ -270,10 +271,19 @@ function LessonBlock({ lesson, onToast }: {
 }) {
   const [script, setScript] = useState<ScriptAsset | null>(null);
   const [ppt, setPpt] = useState<PptAsset | null>(null);
+  const [seo, setSeo] = useState<SeoAsset | null>(null);
+  const [thumb, setThumb] = useState<ThumbnailAsset | null>(null);
+  const [promo, setPromo] = useState<PromoAsset | null>(null);
   const [open, setOpen] = useState(false);
   const [openSlides, setOpenSlides] = useState(false);
+  const [openSeo, setOpenSeo] = useState(false);
+  const [openThumb, setOpenThumb] = useState(false);
+  const [openPromo, setOpenPromo] = useState(false);
   const [busy, setBusy] = useState(false);
   const [busyPpt, setBusyPpt] = useState(false);
+  const [busySeo, setBusySeo] = useState(false);
+  const [busyThumb, setBusyThumb] = useState(false);
+  const [busyPromo, setBusyPromo] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -289,6 +299,18 @@ function LessonBlock({ lesson, onToast }: {
         const p = await api<PptAsset>(token, `/lessons/${lesson.id}/ppt`);
         if (!cancelled) setPpt(p);
       } catch { /* 404 — no ppt yet */ }
+      try {
+        const s = await api<SeoAsset>(token, `/lessons/${lesson.id}/seo`);
+        if (!cancelled) setSeo(s);
+      } catch { /* 404 */ }
+      try {
+        const t = await api<ThumbnailAsset>(token, `/lessons/${lesson.id}/thumbnail`);
+        if (!cancelled) setThumb(t);
+      } catch { /* 404 */ }
+      try {
+        const pr = await api<PromoAsset>(token, `/lessons/${lesson.id}/promo`);
+        if (!cancelled) setPromo(pr);
+      } catch { /* 404 */ }
     })();
     return () => { cancelled = true; };
   }, [lesson.id]);
@@ -334,6 +356,49 @@ function LessonBlock({ lesson, onToast }: {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setBusyPpt(false); }
   }
+
+  async function generateAsset<T>(
+    kind: "seo" | "thumbnail" | "promo",
+    setBusyFn: (v: boolean) => void,
+    setAsset: (a: T) => void,
+    setOpenFn: (v: boolean) => void,
+    label: string,
+    versionFor: (a: T | null) => number,
+  ) {
+    setBusyFn(true);
+    onToast(`${label} agent working… (~20-60s)`);
+    const token = await fetchToken();
+    if (!token) {
+      onToast("⚠ Not signed in — reload and sign in again");
+      setBusyFn(false);
+      return;
+    }
+    try {
+      const a = await api<T>(token, `/lessons/${lesson.id}/${kind}/generate`, {
+        method: "POST",
+      });
+      setAsset(a);
+      setOpenFn(true);
+      onToast(`✓ ${label} v${versionFor(a)} ready`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusyFn(false); }
+  }
+  const generateSeo = () =>
+    generateAsset<SeoAsset>(
+      "seo", setBusySeo, setSeo, setOpenSeo, "SEO",
+      (a) => a?.version ?? 0,
+    );
+  const generateThumb = () =>
+    generateAsset<ThumbnailAsset>(
+      "thumbnail", setBusyThumb, setThumb, setOpenThumb, "Thumbnail prompt",
+      (a) => a?.version ?? 0,
+    );
+  const generatePromo = () =>
+    generateAsset<PromoAsset>(
+      "promo", setBusyPromo, setPromo, setOpenPromo, "Promo posts",
+      (a) => a?.version ?? 0,
+    );
 
   async function downloadPptx() {
     const token = await fetchToken();
@@ -509,7 +574,220 @@ function LessonBlock({ lesson, onToast }: {
             ))}
           </ol>
         )}
+
+        {/* ── SEO (Phase B / Slice B1) ─────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+          <PrimaryBtn
+            label={
+              busySeo
+                ? "SEO…"
+                : seo
+                ? `🔁 Regenerate SEO (v${seo.version + 1})`
+                : "🔎 Generate SEO"
+            }
+            busy={busySeo}
+            onClick={generateSeo}
+          />
+          {seo && (
+            <Btn
+              label={openSeo ? "Hide SEO" : `📑 View SEO (v${seo.version})`}
+              onClick={() => setOpenSeo((v) => !v)}
+            />
+          )}
+          {seo && (
+            <span className="text-[10px] text-[#6B7799] ml-auto">
+              {seo.content?.titleVariants?.length ?? 0} titles
+              {seo.content?.tags?.length ? ` · ${seo.content.tags.length} tags` : ""}
+              {seo.content?.costUsd != null ? ` · $${Number(seo.content.costUsd).toFixed(4)}` : ""}
+            </span>
+          )}
+        </div>
+        {openSeo && seo && (
+          <div className="space-y-2 text-[12px] text-[#B8C5E0]">
+            <p>
+              <span className="text-[10px] uppercase text-[#FFB800] mr-1.5">CHOSEN TITLE</span>
+              <span className="font-semibold">{seo.content?.chosenTitle ?? "—"}</span>
+            </p>
+            {seo.content?.titleVariants && (
+              <details>
+                <summary className="text-[10px] text-[#6B7799] cursor-pointer">
+                  All {seo.content.titleVariants.length} title variants
+                </summary>
+                <ol className="list-decimal list-inside text-[11px] mt-1">
+                  {seo.content.titleVariants.map((t, i) => (
+                    <li key={i} className={i === seo.content?.chosenTitleIndex ? "text-[#00F5A0]" : ""}>{t}</li>
+                  ))}
+                </ol>
+              </details>
+            )}
+            <CopyBox label="Description" value={seo.content?.description ?? ""} multiline />
+            {seo.content?.tags && (
+              <CopyBox label="Tags" value={seo.content.tags.join(", ")} />
+            )}
+            {seo.content?.endScreenCards && seo.content.endScreenCards.length > 0 && (
+              <ul className="text-[11px] space-y-0.5">
+                {seo.content.endScreenCards.map((c, i) => (
+                  <li key={i}>
+                    <span className="text-[10px] uppercase text-[#6B7799] mr-1">END</span>
+                    <span className="font-semibold">{c.label}</span>
+                    {c.why && <span className="text-[#6B7799]"> — {c.why}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* ── Thumbnail prompt ─────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+          <PrimaryBtn
+            label={
+              busyThumb
+                ? "Drafting…"
+                : thumb
+                ? `🔁 Regenerate Thumbnail (v${thumb.version + 1})`
+                : "🎨 Generate Thumbnail Prompt"
+            }
+            busy={busyThumb}
+            onClick={generateThumb}
+          />
+          {thumb && (
+            <Btn
+              label={openThumb ? "Hide prompt" : `🖼 View prompt (v${thumb.version})`}
+              onClick={() => setOpenThumb((v) => !v)}
+            />
+          )}
+          {thumb && (
+            <span className="text-[10px] text-[#6B7799] ml-auto">
+              face: {thumb.content?.facePosition ?? "—"} · {thumb.content?.style ?? "—"}
+              {thumb.content?.costUsd != null ? ` · $${Number(thumb.content.costUsd).toFixed(4)}` : ""}
+            </span>
+          )}
+        </div>
+        {openThumb && thumb && (
+          <div className="space-y-2 text-[12px] text-[#B8C5E0]">
+            <CopyBox label="Main prompt (paste into Midjourney / DALL-E)" value={thumb.content?.mainPrompt ?? ""} multiline />
+            <p className="text-[11px] text-[#6B7799]">
+              Text overlay: <span className="text-[#B8C5E0] font-semibold">{thumb.content?.textOverlay ?? "—"}</span>
+              {thumb.content?.mood && <> · Mood: {thumb.content.mood}</>}
+              {thumb.content?.colorPalette && thumb.content.colorPalette.length > 0 && (
+                <> · Palette: {thumb.content.colorPalette.join(" ")}</>
+              )}
+            </p>
+            {thumb.content?.alternates && thumb.content.alternates.length > 0 && (
+              <details>
+                <summary className="text-[10px] text-[#6B7799] cursor-pointer">
+                  {thumb.content.alternates.length} alternates
+                </summary>
+                <div className="space-y-1 mt-1">
+                  {thumb.content.alternates.map((a, i) => (
+                    <CopyBox key={i} label={`Alt ${i + 1}`} value={a} multiline />
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+
+        {/* ── Promotion posts ──────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+          <PrimaryBtn
+            label={
+              busyPromo
+                ? "Writing posts…"
+                : promo
+                ? `🔁 Regenerate Promo (v${promo.version + 1})`
+                : "📣 Generate Promo Posts"
+            }
+            busy={busyPromo}
+            onClick={generatePromo}
+          />
+          {promo && (
+            <Btn
+              label={openPromo ? "Hide promo" : `📨 View promo (v${promo.version})`}
+              onClick={() => setOpenPromo((v) => !v)}
+            />
+          )}
+          {promo && (
+            <span className="text-[10px] text-[#6B7799] ml-auto">
+              LI · IG · WhatsApp
+              {promo.content?.costUsd != null ? ` · $${Number(promo.content.costUsd).toFixed(4)}` : ""}
+            </span>
+          )}
+        </div>
+        {openPromo && promo && (
+          <div className="space-y-2 text-[12px] text-[#B8C5E0]">
+            {promo.content?.linkedin && (
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase text-[#6B7799]">LinkedIn</p>
+                <CopyBox
+                  label="Full LinkedIn post"
+                  value={[
+                    promo.content.linkedin.hook,
+                    "",
+                    promo.content.linkedin.body,
+                    "",
+                    promo.content.linkedin.cta,
+                    (promo.content.linkedin.hashtags ?? []).map((h) => `#${h}`).join(" "),
+                  ].filter(Boolean).join("\n")}
+                  multiline
+                />
+              </div>
+            )}
+            {promo.content?.instagram && (
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase text-[#6B7799]">Instagram</p>
+                <CopyBox
+                  label="Caption + tags"
+                  value={
+                    (promo.content.instagram.caption ?? "") +
+                    "\n\n" +
+                    (promo.content.instagram.hashtags ?? []).map((h) => `#${h}`).join(" ")
+                  }
+                  multiline
+                />
+              </div>
+            )}
+            {promo.content?.whatsappStatus && (
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase text-[#6B7799]">
+                  WhatsApp Status · {promo.content.whatsappStatus.chars ?? "?"}/700 chars ·
+                  {" "}{promo.content.whatsappStatus.lines ?? "?"}/10 lines
+                </p>
+                <CopyBox
+                  label="WhatsApp Status text"
+                  value={promo.content.whatsappStatus.text ?? ""}
+                  multiline
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+/** Small reusable "label + monospace box + copy" helper for asset previews. */
+function CopyBox({ label, value, multiline }: { label: string; value: string; multiline?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] text-[#6B7799] uppercase">{label}</span>
+        <button
+          onClick={() => navigator.clipboard.writeText(value).then(() => {
+            setCopied(true); setTimeout(() => setCopied(false), 1500);
+          })}
+          disabled={!value}
+          className="text-[10px] font-semibold text-[#00D4FF] hover:underline disabled:opacity-40"
+        >
+          {copied ? "✓ Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className={`bg-[#0A0E27] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-[#B8C5E0] whitespace-pre-wrap font-mono ${multiline ? "max-h-72 overflow-y-auto" : "truncate"}`}>
+        {value || "—"}
+      </pre>
     </div>
   );
 }
@@ -595,10 +873,13 @@ function DlqPanel({ onToast }: { onToast: (m: string) => void }) {
 }
 
 const STAGE_LABEL: Record<PipelineStage, string> = {
-  script: "Scripts",
-  ppt:    "Slides",
-  quiz:   "Quiz pool",
-  draw:   "Saturday draw",
+  script:    "Scripts",
+  ppt:       "Slides",
+  seo:       "SEO",
+  thumbnail: "Thumbnail",
+  promo:     "Promo",
+  quiz:      "Quiz pool",
+  draw:      "Saturday draw",
 };
 
 function StageChip({ stage, state }: {

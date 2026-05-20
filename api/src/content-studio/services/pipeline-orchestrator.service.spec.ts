@@ -63,6 +63,9 @@ function makeFixtures() {
   const queue: any = { add: jest.fn().mockResolvedValue({ id: 'job-1' }) };
   const script: any = { generateScript: jest.fn().mockResolvedValue({}) };
   const ppt: any = { generatePpt: jest.fn().mockResolvedValue({}) };
+  const seo: any = { generateSeo: jest.fn().mockResolvedValue({}) };
+  const thumbnail: any = { generateThumbnail: jest.fn().mockResolvedValue({}) };
+  const promo: any = { generatePromo: jest.fn().mockResolvedValue({}) };
   const quiz: any = {
     generatePool: jest.fn().mockResolvedValue({}),
     drawSaturdayQuiz: jest.fn().mockResolvedValue({}),
@@ -70,10 +73,14 @@ function makeFixtures() {
   const dlq: any = { recordPipelineFailure: jest.fn().mockResolvedValue({}) };
 
   const service = new PipelineOrchestratorService(
-    runRepo, planRepo, lessonRepo, queue, script, ppt, quiz, dlq,
+    runRepo, planRepo, lessonRepo, queue,
+    script, ppt, seo, thumbnail, promo, quiz, dlq,
   );
 
-  return { service, runRepo, planRepo, lessonRepo, queue, script, ppt, quiz, dlq, runStore };
+  return {
+    service, runRepo, planRepo, lessonRepo, queue,
+    script, ppt, seo, thumbnail, promo, quiz, dlq, runStore,
+  };
 }
 
 describe('PipelineOrchestratorService.enqueueRun', () => {
@@ -102,22 +109,27 @@ describe('PipelineOrchestratorService.enqueueRun', () => {
     const { service, runStore } = makeFixtures();
     const run = await service.enqueueRun('plan-1', 'quiz');
     const saved = runStore[run.id];
-    expect(saved.stagesCompleted).toEqual(['script', 'ppt']);
+    expect(saved.stagesCompleted).toEqual(['script', 'ppt', 'seo', 'thumbnail', 'promo']);
   });
 });
 
 describe('PipelineOrchestratorService.runPipeline', () => {
-  it('runs all four stages on the happy path and marks completed', async () => {
+  it('runs all seven stages on the happy path and marks completed', async () => {
     const fx = makeFixtures();
     const run = await fx.service.enqueueRun('plan-1');
     await fx.service.runPipeline({ runId: run.id, planId: 'plan-1' });
 
     const final = fx.runStore[run.id];
     expect(final.status).toBe('completed');
-    expect(final.stagesCompleted).toEqual(['script', 'ppt', 'quiz', 'draw']);
+    expect(final.stagesCompleted).toEqual(
+      ['script', 'ppt', 'seo', 'thumbnail', 'promo', 'quiz', 'draw'],
+    );
     expect(final.resumableFrom ?? null).toBeNull();
     expect(fx.script.generateScript).toHaveBeenCalledTimes(2); // per lesson
     expect(fx.ppt.generatePpt).toHaveBeenCalledTimes(2);
+    expect(fx.seo.generateSeo).toHaveBeenCalledTimes(2);
+    expect(fx.thumbnail.generateThumbnail).toHaveBeenCalledTimes(2);
+    expect(fx.promo.generatePromo).toHaveBeenCalledTimes(2);
     expect(fx.quiz.generatePool).toHaveBeenCalledTimes(1);
     expect(fx.quiz.drawSaturdayQuiz).toHaveBeenCalledTimes(1);
     expect(fx.dlq.recordPipelineFailure).not.toHaveBeenCalled();
@@ -152,11 +164,14 @@ describe('PipelineOrchestratorService.runPipeline', () => {
 
     expect(fx.script.generateScript).not.toHaveBeenCalled();
     expect(fx.ppt.generatePpt).not.toHaveBeenCalled();
+    expect(fx.seo.generateSeo).not.toHaveBeenCalled();
+    expect(fx.thumbnail.generateThumbnail).not.toHaveBeenCalled();
+    expect(fx.promo.generatePromo).not.toHaveBeenCalled();
     expect(fx.quiz.generatePool).toHaveBeenCalledTimes(1);
     expect(fx.quiz.drawSaturdayQuiz).toHaveBeenCalledTimes(1);
     expect(fx.runStore[run.id].status).toBe('completed');
     expect(fx.runStore[run.id].stagesCompleted).toEqual(
-      ['script', 'ppt', 'quiz', 'draw'],
+      ['script', 'ppt', 'seo', 'thumbnail', 'promo', 'quiz', 'draw'],
     );
   });
 });
