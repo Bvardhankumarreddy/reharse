@@ -24,6 +24,8 @@ import { QuizAgent } from './agents/quiz.agent';
 import { PostmortemAgent } from './agents/postmortem.agent';
 import { ImprovementAgent } from './agents/improvement.agent';
 import { ThumbnailImageAgent } from './agents/thumbnail-image.agent';
+import { YouTubePublishService } from './services/youtube-publish.service';
+import { CommentReplyAgent } from './agents/comment-reply.agent';
 import { PipelineOrchestratorService } from './services/pipeline-orchestrator.service';
 import { DlqService } from './services/dlq.service';
 import { AuditService } from './services/audit.service';
@@ -70,6 +72,8 @@ export class ContentStudioController {
     private readonly postmortem: PostmortemAgent,
     private readonly improvement: ImprovementAgent,
     private readonly thumbnailImage: ThumbnailImageAgent,
+    private readonly publishSvc: YouTubePublishService,
+    private readonly commentReply: CommentReplyAgent,
     private readonly orchestrator: PipelineOrchestratorService,
     private readonly dlq: DlqService,
     private readonly audit: AuditService,
@@ -577,6 +581,67 @@ export class ContentStudioController {
       throw new NotFoundException('No thumbnail image generated yet');
     }
     return v;
+  }
+
+  // ── Phase D / D3 + D4: publish + comments (OAuth-gated) ───────────────
+
+  /**
+   * Push SEO metadata + the generated thumbnail PNG to an existing YouTube
+   * upload (we don't stitch MP4s). Body: { youtubeVideoId }.
+   * Dormant unless CS_YT_OAUTH_* envs are set.
+   */
+  @Post('lessons/:id/publish')
+  async publishLesson(
+    @Param('id') lessonId: string,
+    @Body() body: { youtubeVideoId?: string },
+    @Req() req: Request,
+  ) {
+    const vid = body?.youtubeVideoId?.trim();
+    if (!vid) throw new BadRequestException('youtubeVideoId required');
+    const result = await this.publishSvc.publishMetadata(lessonId, vid);
+    await this.audit.log({
+      entityType: 'asset', entityId: result.id, action: 'updated',
+      after: { youtubeVideoId: vid, youtubeUrl: result.youtubeUrl },
+      summary: `Pushed SEO + thumbnail to ${result.youtubeUrl}`,
+      writer: this.writerFrom(req),
+    });
+    return result;
+  }
+
+  /**
+   * Fetch the latest top-level comments for a published lesson, spam-filter
+   * each, and draft a reply in the brand voice. Returns drafts as JSON —
+   * the admin reviews + posts via POST .../comments/post-reply.
+   * Reading requires CS_YT_API_KEY; posting requires OAuth (dormant).
+   */
+  @Get('lessons/:id/comments/drafts')
+  async commentDrafts(
+    @Param('id') lessonId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.commentReply.draftFor(
+      lessonId, limit ? Math.max(1, Math.min(100, parseInt(limit, 10))) : 25,
+    );
+  }
+
+  /** OAuth-only — actually posts an admin-approved reply to YouTube. */
+  @Post('lessons/:id/comments/post-reply')
+  async postReply(
+    @Param('id') lessonId: string,
+    @Body() body: { parentCommentId?: string; text?: string },
+    @Req() req: Request,
+  ) {
+    if (!body?.parentCommentId || !body?.text) {
+      throw new BadRequestException('parentCommentId + text required');
+    }
+    const result = await this.commentReply.postReply(body.parentCommentId, body.text);
+    await this.audit.log({
+      entityType: 'asset', entityId: null, action: 'created',
+      after: { lessonId, parentCommentId: body.parentCommentId, replyId: result.id },
+      summary: `Posted YouTube comment reply (parent ${body.parentCommentId})`,
+      writer: this.writerFrom(req),
+    });
+    return result;
   }
 
   /** Manually trigger both intelligence crons (otherwise scheduled). */

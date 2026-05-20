@@ -52,6 +52,11 @@ import { OpenAIEmbeddingService } from './services/openai-embedding.service';
 import { YouTubeDataService } from './services/youtube-data.service';
 import { CompetitorFetcherService } from './services/competitor-fetcher.service';
 import { MetricsFetcherService } from './services/metrics-fetcher.service';
+import { YouTubeOAuthService } from './services/youtube-oauth.service';
+import { YouTubePublishService } from './services/youtube-publish.service';
+import { YouTubeCommentService } from './services/youtube-comment.service';
+import { SpamDetectionService } from './services/spam-detection.service';
+import { CommentReplyAgent } from './agents/comment-reply.agent';
 import {
   IntelligenceWorker, CS_INTELLIGENCE_QUEUE,
 } from './workers/intelligence.worker';
@@ -108,6 +113,11 @@ import { ContentStudioController } from './content-studio.controller';
     YouTubeDataService,
     CompetitorFetcherService,
     MetricsFetcherService,
+    YouTubeOAuthService,
+    YouTubePublishService,
+    YouTubeCommentService,
+    SpamDetectionService,
+    CommentReplyAgent,
     PipelineWorker,
     IntelligenceWorker,
   ],
