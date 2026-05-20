@@ -14,6 +14,9 @@ import {
   type DlqJob,
   type AuditEntry, type AssetVersionMeta, type RollbackableAssetType,
   type StatsBundle, type QualityPoint,
+  type CompetitorChannel, type CompetitorVideo,
+  type LessonMetricsRow, type LessonPostmortemRow,
+  type PublishedVideoRow, type CommentDraftsResponse,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -65,12 +68,18 @@ export default function ContentStudioPage() {
       ) : (
         <>
           <DashboardPanel />
+          <IntelligencePanel brands={brands} onToast={setToast} />
           <DlqPanel onToast={setToast} />
           <AuditPanel />
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-[#B8C5E0] uppercase tracking-wide">Brands</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#B8C5E0] uppercase tracking-wide">
+                Brands
+              </h2>
+              <NewBrandButton onToast={setToast} onCreated={load} />
+            </div>
             {brands.length === 0 ? (
-              <Empty>No brands. Apply migration-001 (seeds AetherStackAI).</Empty>
+              <Empty>No brands. Apply migration-001 (seeds AetherStackAI) or click ➕ Add brand.</Empty>
             ) : (
               brands.map((b) => (
                 <BrandCard key={b.id} brand={b} onToast={setToast} onChange={load} />
@@ -167,6 +176,26 @@ function BrandCard({ brand, onToast, onChange }: {
     } finally { setBusy(false); }
   }
 
+  async function planAhead() {
+    const weeksStr = prompt("Plan how many future weeks?", "4");
+    if (!weeksStr) return;
+    const weeks = parseInt(weeksStr, 10);
+    if (!Number.isFinite(weeks) || weeks < 1) return;
+    setBusy(true);
+    onToast(`Planning next ${weeks} weeks… (Strategy × ${weeks})`);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(false); return; }
+    try {
+      const r = await api<{ weeks: Array<{ weekOf: string; theme: string | null }> }>(
+        token, `/brands/${brand.id}/plan-ahead`,
+        { method: "POST", body: JSON.stringify({ weeks }) },
+      );
+      onToast(`✓ ${r.weeks.length} weeks planned`);
+      onChange();
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(false); }
+  }
+
   return (
     <div className="bg-[#151B3D] border border-white/10 rounded-2xl overflow-hidden">
       <div className="px-4 py-3 flex items-center justify-between gap-3">
@@ -197,6 +226,7 @@ function BrandCard({ brand, onToast, onChange }: {
           busy={busy}
           onClick={generate}
         />
+        <Btn label="📅 Plan N weeks" onClick={planAhead} />
         <Btn label={open ? "Hide memories" : "🧠 Brand memories"} onClick={toggle} />
         <Btn
           label={
@@ -235,23 +265,129 @@ function BrandCard({ brand, onToast, onChange }: {
         </div>
       )}
       {open && (
-        <div className="px-4 py-3 border-t border-white/5 bg-[#0F1330] space-y-1.5">
+        <div className="px-4 py-3 border-t border-white/5 bg-[#0F1330] space-y-2">
           {mem === null ? (
             <p className="text-[#6B7799] text-xs">Loading…</p>
           ) : mem.length === 0 ? (
-            <p className="text-[#6B7799] text-xs">No memories.</p>
+            <p className="text-[#6B7799] text-xs">No memories yet.</p>
           ) : (
-            mem.map((m) => (
-              <div key={m.id} className="text-xs text-[#B8C5E0] flex gap-2">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-[#6B7799] shrink-0 uppercase">
-                  {m.memoryType} · {Number(m.weight).toFixed(1)}
-                </span>
-                <span>{m.content}</span>
-              </div>
-            ))
+            <div className="space-y-1">
+              {mem.map((m) => (
+                <div key={m.id} className="text-xs text-[#B8C5E0] flex gap-2 items-start">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-[#6B7799] shrink-0 uppercase">
+                    {m.memoryType} · {Number(m.weight).toFixed(1)}
+                  </span>
+                  <span className="flex-1">{m.content}</span>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Soft-delete this memory?")) return;
+                      const token = await fetchToken();
+                      if (!token) return;
+                      try {
+                        await api(token, `/brands/${brand.id}/memories/${m.id}`, { method: "DELETE" });
+                        onToast("✓ Memory removed");
+                        setMem((cur) => (cur ?? []).filter((x) => x.id !== m.id));
+                      } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+                    }}
+                    className="text-[10px] text-red-300 hover:underline shrink-0"
+                  >×</button>
+                </div>
+              ))}
+            </div>
           )}
+          <AddMemoryForm
+            brandId={brand.id} onToast={onToast}
+            onAdded={(m) => setMem((cur) => [m, ...(cur ?? [])])}
+          />
         </div>
       )}
+    </div>
+  );
+}
+
+function AddMemoryForm({ brandId, onToast, onAdded }: {
+  brandId: string;
+  onToast: (m: string) => void;
+  onAdded: (m: BrandMemory) => void;
+}) {
+  const [content, setContent] = useState("");
+  const [memoryType, setMemoryType] = useState("style");
+  const [weight, setWeight] = useState("1");
+  const [appliesTo, setAppliesTo] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const allAgents = ["strategy", "script", "ppt", "seo", "thumbnail", "promo", "quiz"];
+
+  function toggleApply(a: string) {
+    setAppliesTo((cur) => cur.includes(a) ? cur.filter((x) => x !== a) : [...cur, a]);
+  }
+
+  async function add() {
+    if (!content.trim()) { onToast("⚠ content required"); return; }
+    setBusy(true);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(false); return; }
+    try {
+      const created = await api<BrandMemory>(
+        token, `/brands/${brandId}/memories`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            memoryType, content: content.trim(),
+            weight: Number(weight) || 1,
+            appliesTo,
+          }),
+        },
+      );
+      onToast("✓ Memory added (embedding queued)");
+      setContent(""); setAppliesTo([]);
+      onAdded(created);
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="border border-white/5 rounded-lg p-2 space-y-1.5">
+      <p className="text-[10px] text-[#6B7799] uppercase">Add a memory</p>
+      <textarea
+        value={content} onChange={(e) => setContent(e.target.value)}
+        rows={2}
+        placeholder='e.g. "Open with concrete stakes — a number, a failure, or a contrarian claim."'
+        className="w-full bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-[#B8C5E0]"
+      />
+      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+        <select
+          value={memoryType} onChange={(e) => setMemoryType(e.target.value)}
+          className="bg-[#0A0E27] border border-white/10 rounded px-1.5 py-1 text-[11px] text-white"
+        >
+          {["voice", "style", "hook", "structure", "do", "dont"].map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+        <label className="text-[#6B7799] flex items-center gap-1">
+          weight
+          <input
+            type="number" step="0.1" min="0" max="5"
+            value={weight} onChange={(e) => setWeight(e.target.value)}
+            className="w-14 bg-[#0A0E27] border border-white/10 rounded px-1 py-0.5 text-[11px] text-white"
+          />
+        </label>
+        <span className="text-[#6B7799]">applies to:</span>
+        {allAgents.map((a) => (
+          <button
+            key={a}
+            onClick={() => toggleApply(a)}
+            className={`text-[10px] px-1.5 py-0.5 rounded border transition ${
+              appliesTo.includes(a)
+                ? "border-[#00F5A0] text-[#00F5A0]"
+                : "border-white/10 text-[#6B7799] hover:text-white"
+            }`}
+          >{a}</button>
+        ))}
+        <PrimaryBtn label={busy ? "Adding…" : "➕ Add"} busy={busy} onClick={add} />
+      </div>
+      <p className="text-[9px] text-[#6B7799]">
+        Empty applies-to = applies to every agent (backward compat).
+      </p>
     </div>
   );
 }
@@ -869,7 +1005,277 @@ function LessonBlock({ lesson, onToast }: {
             )}
           </div>
         )}
+
+        {/* ── Phase D: post-publish intelligence per lesson ────────────────── */}
+        <LessonPhaseDPanel lesson={lesson} onToast={onToast} />
       </div>
+    </div>
+  );
+}
+
+function LessonPhaseDPanel({ lesson, onToast }: {
+  lesson: Lesson; onToast: (m: string) => void;
+}) {
+  const [metrics, setMetrics] = useState<LessonMetricsRow | null>(null);
+  const [postmortem, setPostmortem] = useState<LessonPostmortemRow | null>(null);
+  const [published, setPublished] = useState<PublishedVideoRow | null>(null);
+  const [drafts, setDrafts] = useState<CommentDraftsResponse | null>(null);
+  const [openDrafts, setOpenDrafts] = useState(false);
+  const [openImage, setOpenImage] = useState(false);
+  const [openPostmortem, setOpenPostmortem] = useState(false);
+  const [openMetrics, setOpenMetrics] = useState(false);
+  const [openPublish, setOpenPublish] = useState(false);
+  const [videoId, setVideoId] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  // Auto-load all four lazily.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const token = await fetchToken();
+      if (!token || cancelled) return;
+      try {
+        const m = await api<LessonMetricsRow>(token, `/lessons/${lesson.id}/metrics`);
+        if (!cancelled) setMetrics(m);
+      } catch { /* 404 */ }
+      try {
+        const p = await api<LessonPostmortemRow>(token, `/lessons/${lesson.id}/postmortem`);
+        if (!cancelled) setPostmortem(p);
+      } catch { /* 404 */ }
+      try {
+        const t = await api<PublishedVideoRow>(token, `/lessons/${lesson.id}/thumbnail-image`);
+        if (!cancelled) setPublished(t);
+      } catch { /* 404 */ }
+    })();
+    return () => { cancelled = true; };
+  }, [lesson.id]);
+
+  async function generatePostmortem() {
+    setBusy("postmortem");
+    onToast("Generating postmortem… (gpt-4o-mini, ~10-20s)");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const p = await api<LessonPostmortemRow>(
+        token, `/lessons/${lesson.id}/postmortem/generate`, { method: "POST" },
+      );
+      setPostmortem(p); setOpenPostmortem(true);
+      onToast("✓ Postmortem ready");
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(null); }
+  }
+
+  async function generateThumbImage() {
+    setBusy("image");
+    onToast("Generating thumbnail PNG (DALL-E 3, ~10-30s)…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<PublishedVideoRow>(
+        token, `/lessons/${lesson.id}/thumbnail-image/generate`, { method: "POST" },
+      );
+      setPublished(r); setOpenImage(true);
+      onToast(`✓ Thumbnail PNG ready (${r.thumbnailModel})`);
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(null); }
+  }
+
+  async function publish() {
+    if (!videoId.trim()) { onToast("⚠ youtubeVideoId required"); return; }
+    setBusy("publish");
+    onToast("Pushing SEO + thumbnail to YouTube…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<PublishedVideoRow>(
+        token, `/lessons/${lesson.id}/publish`,
+        { method: "POST", body: JSON.stringify({ youtubeVideoId: videoId.trim() }) },
+      );
+      setPublished(r);
+      onToast(`✓ Published — ${r.youtubeUrl}`);
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(null); }
+  }
+
+  async function loadDrafts() {
+    setBusy("comments");
+    onToast("Drafting replies for top-level comments…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<CommentDraftsResponse>(
+        token, `/lessons/${lesson.id}/comments/drafts`,
+      );
+      setDrafts(r); setOpenDrafts(true);
+      onToast(`✓ ${r.drafts.length} drafts (${r.drafts.filter((d) => d.spam.isSpam).length} spam-flagged)`);
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(null); }
+  }
+
+  async function postReply(parentId: string, text: string) {
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); return; }
+    try {
+      await api(token, `/lessons/${lesson.id}/comments/post-reply`, {
+        method: "POST",
+        body: JSON.stringify({ parentCommentId: parentId, text }),
+      });
+      onToast("✓ Reply posted");
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+  }
+
+  return (
+    <div className="pt-2 border-t border-white/5 space-y-2">
+      <p className="text-[10px] text-[#6B7799] uppercase">📡 Phase D — publish + intelligence</p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Btn
+          label={metrics ? `📈 Metrics · ${metrics.views.toLocaleString()} v` : "📈 No metrics yet"}
+          onClick={() => setOpenMetrics((v) => !v)}
+        />
+        <PrimaryBtn
+          label={busy === "postmortem" ? "Writing…" : postmortem ? "🔁 Regenerate Postmortem" : "🪞 Generate Postmortem"}
+          busy={busy === "postmortem"}
+          onClick={generatePostmortem}
+        />
+        {postmortem && (
+          <Btn label={openPostmortem ? "Hide postmortem" : "📖 View postmortem"} onClick={() => setOpenPostmortem((v) => !v)} />
+        )}
+        <PrimaryBtn
+          label={busy === "image" ? "Drawing…" : published?.thumbnailB64 ? "🔁 Regenerate Thumbnail PNG" : "🖼 Generate Thumbnail PNG"}
+          busy={busy === "image"}
+          onClick={generateThumbImage}
+        />
+        {published?.thumbnailB64 && (
+          <Btn label={openImage ? "Hide image" : "🖼 View PNG"} onClick={() => setOpenImage((v) => !v)} />
+        )}
+        <Btn label={openPublish ? "Hide publish" : "🎯 Publish to YouTube"} onClick={() => setOpenPublish((v) => !v)} />
+        <Btn label={busy === "comments" ? "Drafting…" : "💬 Draft comment replies"} onClick={loadDrafts} />
+      </div>
+
+      {openMetrics && (
+        <div className="text-[11px] text-[#B8C5E0] border border-white/5 rounded-lg p-2">
+          {metrics ? (
+            <div className="space-y-0.5">
+              <p><b>{metrics.views.toLocaleString()}</b> views · {metrics.likes ?? "—"} likes · {metrics.comments ?? "—"} comments</p>
+              {metrics.ctr != null && <p>CTR: {(Number(metrics.ctr) * 100).toFixed(2)}%</p>}
+              {metrics.avgViewDurationSec != null && <p>Avg view: {metrics.avgViewDurationSec}s</p>}
+              {metrics.retentionPct != null && <p>Retention: {metrics.retentionPct}%</p>}
+              {metrics.subscribersGained != null && <p>Subscribers gained: {metrics.subscribersGained}</p>}
+              <p className="text-[10px] text-[#6B7799]">fetched {new Date(metrics.fetchedAt).toLocaleString()}</p>
+            </div>
+          ) : (
+            <p className="text-[#6B7799]">
+              No metrics yet — publish to YouTube + wait for the hourly cron (or click ▶ Sync now in Intelligence).
+            </p>
+          )}
+        </div>
+      )}
+
+      {openPostmortem && postmortem && (
+        <div className="text-[11px] text-[#B8C5E0] border border-white/5 rounded-lg p-2 space-y-1.5">
+          {(["worked", "didntWork", "next"] as const).map((k) => {
+            const list = (postmortem.content[k] ?? []) as string[];
+            const label = k === "worked" ? "✓ Worked" : k === "didntWork" ? "✗ Didn't work" : "→ Next time";
+            return list.length === 0 ? null : (
+              <div key={k}>
+                <p className="text-[10px] uppercase text-[#6B7799] mb-0.5">{label}</p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  {list.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            );
+          })}
+          {postmortem.content.reusableHookPattern && (
+            <p className="text-[#FFB800] text-[11px]">
+              <b>Reusable hook pattern:</b> {postmortem.content.reusableHookPattern}
+            </p>
+          )}
+          <p className="text-[10px] text-[#6B7799]">
+            {postmortem.modelUsed} · ${Number(postmortem.costUsd).toFixed(4)} · {new Date(postmortem.createdAt).toLocaleString()}
+          </p>
+        </div>
+      )}
+
+      {openImage && published?.thumbnailB64 && (
+        <div className="border border-white/5 rounded-lg p-2 space-y-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`data:image/png;base64,${published.thumbnailB64}`}
+            alt="Generated thumbnail"
+            className="rounded-lg max-w-full h-auto border border-white/10"
+          />
+          <p className="text-[10px] text-[#6B7799]">{published.thumbnailModel}</p>
+          <a
+            href={`data:image/png;base64,${published.thumbnailB64}`}
+            download={`thumbnail-${lesson.lessonNumber}.png`}
+            className="text-[10px] text-[#00D4FF] hover:underline"
+          >⬇ Download PNG</a>
+        </div>
+      )}
+
+      {openPublish && (
+        <div className="border border-white/5 rounded-lg p-2 space-y-1.5">
+          <p className="text-[10px] text-[#6B7799]">
+            Upload your video to YouTube manually first, then paste the video id below.
+            This sets the SEO title / description / tags and uploads the generated thumbnail.
+            Requires <span className="text-[#FFB800]">CS_YT_OAUTH_*</span> envs on the api Deployment.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              value={videoId} onChange={(e) => setVideoId(e.target.value)}
+              placeholder="YouTube videoId (e.g. dQw4w9WgXcQ)"
+              className="flex-1 bg-[#0A0E27] border border-white/10 rounded px-2 py-1 text-[12px] text-white"
+            />
+            <PrimaryBtn label={busy === "publish" ? "Publishing…" : "🎯 Publish"} busy={busy === "publish"} onClick={publish} />
+          </div>
+          {published?.youtubeUrl && (
+            <a href={published.youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-[#00D4FF] hover:underline">
+              {published.youtubeUrl}
+            </a>
+          )}
+        </div>
+      )}
+
+      {openDrafts && drafts && (
+        <div className="border border-white/5 rounded-lg p-2 space-y-1.5">
+          <p className="text-[10px] text-[#6B7799]">
+            {drafts.drafts.length} comment(s) · {drafts.drafts.filter((d) => d.spam.isSpam).length} flagged spam ·
+            {drafts.canPostReplies ? " posting LIVE" : " posting DORMANT (OAuth not set)"}
+          </p>
+          {drafts.drafts.map((d) => (
+            <div key={d.comment.id} className="border border-white/5 rounded-lg p-2 space-y-1 text-[11px]">
+              <p>
+                <span className="text-[#FFB800] mr-1.5">{d.comment.authorDisplayName}</span>
+                <span className="text-[10px] text-[#6B7799]">{new Date(d.comment.publishedAt).toLocaleDateString()}</span>
+                {d.spam.isSpam && (
+                  <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-red-500/20 text-red-300">
+                    spam ({(d.spam.confidence * 100).toFixed(0)}%)
+                  </span>
+                )}
+              </p>
+              <p className="text-[#B8C5E0]">{d.comment.textOriginal}</p>
+              {d.suggestedReply && (
+                <>
+                  <p className="text-[10px] text-[#6B7799] mt-1">Suggested reply:</p>
+                  <p className="text-[#00F5A0] italic">{d.suggestedReply}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => postReply(d.comment.id, d.suggestedReply!)}
+                      disabled={!drafts.canPostReplies}
+                      className="text-[10px] px-2 py-0.5 rounded border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 disabled:opacity-40 transition"
+                    >📤 Post reply</button>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(d.suggestedReply!)}
+                      className="text-[10px] text-[#00D4FF] hover:underline"
+                    >Copy</button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1242,6 +1648,334 @@ function AuditPanel() {
         </div>
       )}
     </section>
+  );
+}
+
+// ── Phase D: top-level Intelligence panel + brand-create button ────────────
+
+function IntelligencePanel({ brands, onToast }: {
+  brands: Brand[]; onToast: (m: string) => void;
+}) {
+  const [selected, setSelected] = useState<string>("");
+  const [open, setOpen] = useState(true);
+  const [openManage, setOpenManage] = useState(false);
+  const [topVideos, setTopVideos] = useState<CompetitorVideo[]>([]);
+  const [channels, setChannels] = useState<CompetitorChannel[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [improvement, setImprovement] = useState<{ scanned: number; promoted: number } | null>(null);
+
+  useEffect(() => {
+    if (!selected && brands.length > 0) setSelected(brands[0].id);
+  }, [brands, selected]);
+
+  const loadFor = useCallback(async (brandId: string) => {
+    if (!brandId) return;
+    const token = await fetchToken();
+    if (!token) return;
+    try {
+      const [top, list] = await Promise.all([
+        api<{ data: CompetitorVideo[] }>(token, `/brands/${brandId}/intelligence/competitor-top?days=30`),
+        api<{ data: CompetitorChannel[] }>(token, `/brands/${brandId}/competitors`),
+      ]);
+      setTopVideos(top.data);
+      setChannels(list.data);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { if (selected) void loadFor(selected); }, [selected, loadFor]);
+
+  async function syncNow() {
+    setBusy(true);
+    onToast("Triggering competitor + metrics sweeps…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(false); return; }
+    try {
+      await api(token, "/intelligence/sync-now", { method: "POST" });
+      onToast("✓ Sync queued — refresh in ~1 min");
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(false); }
+  }
+
+  async function runImprovement() {
+    setBusy(true);
+    onToast("Running Improvement Agent across all brands…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(false); return; }
+    try {
+      const r = await api<{ scanned: number; promoted: number }>(
+        token, "/improvement/run", { method: "POST" },
+      );
+      setImprovement(r);
+      onToast(`✓ Scanned ${r.scanned} brand(s) — promoted ${r.promoted} pattern(s) into BrandMemory`);
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(false); }
+  }
+
+  if (brands.length === 0) return null;
+  const brandName = brands.find((b) => b.id === selected)?.name ?? "—";
+
+  return (
+    <section className="bg-[#151B3D] border border-white/10 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-sm font-semibold text-[#B8C5E0] uppercase tracking-wide">
+          🔭 Intelligence
+        </h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            className="bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white"
+          >
+            {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+          <Btn label="▶ Sync now" onClick={syncNow} />
+          <Btn label="🔁 Run Improvement" onClick={runImprovement} />
+          <Btn label={openManage ? "Hide channels" : `🛠 Channels (${channels.length})`} onClick={() => setOpenManage((v) => !v)} />
+          <button onClick={() => setOpen((v) => !v)} className="text-[10px] text-[#00D4FF] hover:underline">
+            {open ? "Hide" : "Show"}
+          </button>
+        </div>
+      </div>
+
+      {improvement && (
+        <p className="text-[11px] text-[#FFB800]">
+          Last Improvement run — scanned {improvement.scanned} brand(s), promoted {improvement.promoted} hook pattern(s).
+        </p>
+      )}
+
+      {openManage && selected && (
+        <CompetitorManagePanel
+          brandId={selected}
+          channels={channels}
+          onToast={onToast}
+          onChanged={() => void loadFor(selected)}
+          busy={busy}
+        />
+      )}
+
+      {open && (
+        <div>
+          <p className="text-[10px] text-[#6B7799] uppercase">
+            {brandName} · competitor top videos (last 30 days)
+          </p>
+          {topVideos.length === 0 ? (
+            <p className="text-[11px] text-[#6B7799] mt-1">
+              No competitor data yet. Add competitor channels above, then click ▶ Sync now.
+              (Needs CS_YT_API_KEY bound on the api Deployment.)
+            </p>
+          ) : (
+            <ol className="space-y-1 max-h-72 overflow-y-auto mt-1">
+              {topVideos.map((v) => (
+                <li key={v.id} className="text-[11px] text-[#B8C5E0] flex items-center gap-2">
+                  <span className="text-[10px] text-[#FFB800] w-16 shrink-0 font-mono">
+                    {v.viewCount.toLocaleString()} v
+                  </span>
+                  <span className="text-[10px] text-[#6B7799] w-24 shrink-0">
+                    {v.publishedAt ? new Date(v.publishedAt).toLocaleDateString() : "—"}
+                  </span>
+                  <span className="flex-1 break-words">{v.title}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function CompetitorManagePanel({
+  brandId, channels, onToast, onChanged, busy,
+}: {
+  brandId: string;
+  channels: CompetitorChannel[];
+  onToast: (m: string) => void;
+  onChanged: () => void;
+  busy: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [handle, setHandle] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  async function add() {
+    if (!name.trim() || !handle.trim()) {
+      onToast("⚠ name + channel handle required");
+      return;
+    }
+    setAdding(true);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setAdding(false); return; }
+    try {
+      const payload = handle.startsWith("UC")
+        ? { name: name.trim(), youtubeChannelId: handle.trim() }
+        : { name: name.trim(), channelHandle: handle.trim() };
+      await api(token, `/brands/${brandId}/competitors`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setName(""); setHandle("");
+      onToast("✓ Competitor added");
+      onChanged();
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setAdding(false); }
+  }
+
+  async function sync(cid: string) {
+    onToast("Syncing competitor…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); return; }
+    try {
+      const r = await api<{ saved: number }>(token, `/brands/${brandId}/competitors/${cid}/sync`, { method: "POST" });
+      onToast(`✓ ${r.saved} new videos saved`);
+      onChanged();
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+  }
+
+  async function remove(cid: string) {
+    if (!confirm("Remove this competitor channel?")) return;
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); return; }
+    try {
+      await api(token, `/brands/${brandId}/competitors/${cid}`, { method: "DELETE" });
+      onToast("✓ Competitor removed");
+      onChanged();
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+  }
+
+  return (
+    <div className="border border-white/5 rounded-xl p-3 space-y-2">
+      <p className="text-[10px] text-[#6B7799] uppercase">Manage competitor channels</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Channel name"
+          className="bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white w-44"
+        />
+        <input
+          value={handle}
+          onChange={(e) => setHandle(e.target.value)}
+          placeholder="@handle or UCxxx"
+          className="bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white w-48"
+        />
+        <PrimaryBtn label={adding ? "Adding…" : "➕ Add"} busy={adding} onClick={add} />
+      </div>
+      {channels.length === 0 ? (
+        <p className="text-[11px] text-[#6B7799]">No competitor channels yet.</p>
+      ) : (
+        <div className="space-y-1">
+          {channels.map((c) => (
+            <div key={c.id} className="text-[11px] flex items-center gap-2 text-[#B8C5E0]">
+              <span className="font-semibold">{c.name}</span>
+              <span className="text-[#6B7799]">{c.channelHandle ?? c.youtubeChannelId ?? "—"}</span>
+              <span className="text-[10px] text-[#6B7799]">
+                {c.lastFetchedAt ? `synced ${new Date(c.lastFetchedAt).toLocaleDateString()}` : "never synced"}
+              </span>
+              {c.lastError && <span className="text-[10px] text-red-300">⚠ {c.lastError.slice(0, 60)}</span>}
+              <div className="ml-auto flex items-center gap-1">
+                <button
+                  onClick={() => sync(c.id)}
+                  disabled={busy}
+                  className="text-[10px] text-[#00D4FF] hover:underline disabled:opacity-40"
+                >sync</button>
+                <button
+                  onClick={() => remove(c.id)}
+                  className="text-[10px] text-red-300 hover:underline"
+                >remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewBrandButton({ onToast, onCreated }: {
+  onToast: (m: string) => void;
+  onCreated: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [description, setDescription] = useState("");
+  const [voiceStyle, setVoiceStyle] = useState("");
+  const [colorPrimary, setColorPrimary] = useState("#00D4FF");
+  const [colorSecondary, setColorSecondary] = useState("#FFB800");
+  const [busy, setBusy] = useState(false);
+
+  async function create() {
+    if (!name.trim() || !slug.trim()) {
+      onToast("⚠ name + slug required");
+      return;
+    }
+    setBusy(true);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(false); return; }
+    try {
+      await api(token, "/brands", {
+        method: "POST",
+        body: JSON.stringify({
+          name: name.trim(), slug: slug.trim(),
+          description: description.trim() || undefined,
+          voiceStyle: voiceStyle.trim() || undefined,
+          colorPrimary, colorSecondary,
+        }),
+      });
+      onToast(`✓ Brand "${name.trim()}" created`);
+      setName(""); setSlug(""); setDescription(""); setVoiceStyle("");
+      setOpen(false);
+      onCreated();
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(false); }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 transition"
+      >➕ Add brand</button>
+    );
+  }
+  return (
+    <div className="bg-[#151B3D] border border-[#00F5A0]/30 rounded-2xl p-3 space-y-2 w-full">
+      <p className="text-[10px] text-[#6B7799] uppercase">Create a new brand</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <input
+          value={name} onChange={(e) => setName(e.target.value)}
+          placeholder="Name (e.g. Stride)"
+          className="bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white"
+        />
+        <input
+          value={slug} onChange={(e) => setSlug(e.target.value)}
+          placeholder="slug (e.g. stride)"
+          className="bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white"
+        />
+      </div>
+      <textarea
+        value={description} onChange={(e) => setDescription(e.target.value)}
+        rows={2} placeholder="What is this brand about?"
+        className="w-full bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white"
+      />
+      <textarea
+        value={voiceStyle} onChange={(e) => setVoiceStyle(e.target.value)}
+        rows={2} placeholder="Voice / style summary (used by every agent prompt)"
+        className="w-full bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white"
+      />
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="text-[10px] text-[#6B7799] flex items-center gap-1.5">
+          Primary
+          <input type="color" value={colorPrimary} onChange={(e) => setColorPrimary(e.target.value)} className="bg-transparent" />
+        </label>
+        <label className="text-[10px] text-[#6B7799] flex items-center gap-1.5">
+          Secondary
+          <input type="color" value={colorSecondary} onChange={(e) => setColorSecondary(e.target.value)} className="bg-transparent" />
+        </label>
+        <PrimaryBtn label={busy ? "Creating…" : "Create"} busy={busy} onClick={create} />
+        <Btn label="Cancel" onClick={() => setOpen(false)} />
+      </div>
+    </div>
   );
 }
 

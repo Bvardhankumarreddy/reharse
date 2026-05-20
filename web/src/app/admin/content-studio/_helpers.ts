@@ -159,6 +159,95 @@ export interface StatsBundle {
   generatedAt: string;
 }
 
+// ── Phase D: intelligence (competitors / metrics / postmortems / publish / comments)
+
+export interface CompetitorChannel {
+  id: string;
+  brandId: string;
+  name: string;
+  channelHandle: string | null;
+  youtubeChannelId: string | null;
+  isActive: boolean;
+  notes: string | null;
+  lastFetchedAt: string | null;
+  lastError: string | null;
+  errorCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompetitorVideo {
+  id: string;
+  competitorChannelId: string;
+  externalId: string;
+  title: string;
+  description: string | null;
+  publishedAt: string | null;
+  viewCount: number;
+  likeCount: number | null;
+  commentCount: number | null;
+  durationSeconds: number | null;
+  fetchedAt: string;
+}
+
+export interface LessonMetricsRow {
+  id: string;
+  lessonId: string;
+  youtubeVideoId: string;
+  views: number;
+  likes: number | null;
+  comments: number | null;
+  ctr: number | null;
+  avgViewDurationSec: number | null;
+  retentionPct: number | null;
+  subscribersGained: number | null;
+  fetchedAt: string;
+}
+
+export interface LessonPostmortemRow {
+  id: string;
+  lessonId: string;
+  content: {
+    worked?: string[];
+    didntWork?: string[];
+    next?: string[];
+    reusableHookPattern?: string;
+  };
+  modelUsed: string | null;
+  costUsd: number;
+  createdAt: string;
+}
+
+export interface PublishedVideoRow {
+  id: string;
+  lessonId: string;
+  youtubeVideoId: string | null;
+  youtubeUrl: string | null;
+  publishedAt: string | null;
+  thumbnailB64: string | null;
+  thumbnailPrompt: string | null;
+  thumbnailModel: string | null;
+  status: "pending" | "uploaded" | "live" | "failed";
+  error: string | null;
+}
+
+export interface CommentDraft {
+  comment: {
+    id: string;
+    authorDisplayName: string;
+    textOriginal: string;
+    publishedAt: string;
+    likeCount: number;
+  };
+  spam: { isSpam: boolean; confidence: number; reason: string };
+  suggestedReply: string | null;
+}
+
+export interface CommentDraftsResponse {
+  drafts: CommentDraft[];
+  canPostReplies: boolean;
+}
+
 // ── Phase C / Slice C2: audit + asset versions ───────────────────────────
 
 export interface AuditEntry {
