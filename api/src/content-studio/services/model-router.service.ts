@@ -8,10 +8,11 @@ import { OpenAIAdapter } from './openai.adapter';
 import { AnthropicAdapter } from './anthropic.adapter';
 import { GeminiAdapter } from './gemini.adapter';
 import {
-  LlmResult, ProviderAdapter, providerForModel,
+  LlmResult, ProviderAdapter, ProviderName, providerForModel,
 } from './provider.types';
 
-type Task = 'strategy' | 'script' | 'ppt' | 'quiz' | 'seo' | 'promo';
+type Task =
+  | 'strategy' | 'script' | 'ppt' | 'quiz' | 'seo' | 'promo' | 'quiz_validator';
 
 export interface RouterRequest {
   task: Task;
@@ -23,6 +24,11 @@ export interface RouterRequest {
   temperature?: number;
   planId?: string | null;
   lessonId?: string | null;
+  /**
+   * Skip any model belonging to this provider. Used by the quiz validator
+   * to guarantee it never runs on the same provider that wrote the question.
+   */
+  excludeProvider?: ProviderName;
 }
 
 export interface RouterResult {
@@ -113,9 +119,14 @@ export class ModelRouterService {
   async run(req: RouterRequest): Promise<RouterResult> {
     await this.assertWithinBudget(req.planId);
 
-    const primaryModel =
+    let primaryModel =
       this.config.get<string>(`contentStudio.models.${req.task}`) ??
       'claude-sonnet-4-6';
+    // Cross-provider enforcement: if the configured primary is on the
+    // excluded provider, swap to that provider's fallback model.
+    if (req.excludeProvider && providerForModel(primaryModel) === req.excludeProvider) {
+      primaryModel = FALLBACK_MODEL[req.excludeProvider];
+    }
     const fbModel = FALLBACK_MODEL[providerForModel(primaryModel)];
     const timeoutMs =
       req.task === 'strategy'
@@ -126,7 +137,7 @@ export class ModelRouterService {
       { model: primaryModel, attempt: 'primary' },
       { model: primaryModel, attempt: 'retry' },
       { model: fbModel, attempt: 'fallback' },
-    ];
+    ].filter((s) => !req.excludeProvider || providerForModel(s.model) !== req.excludeProvider);
 
     let lastErr = '';
     for (const step of plan) {

@@ -13,6 +13,7 @@ import { AgentRun } from './entities/agent-run.entity';
 import { StrategyAgent } from './agents/strategy.agent';
 import { ScriptAgent } from './agents/script.agent';
 import { PptAgent } from './agents/ppt.agent';
+import { QuizAgent } from './agents/quiz.agent';
 
 @Controller('admin/content-studio')
 @UseGuards(AdminGuard)
@@ -25,6 +26,7 @@ export class ContentStudioController {
     private readonly strategy: StrategyAgent,
     private readonly script: ScriptAgent,
     private readonly ppt: PptAgent,
+    private readonly quiz: QuizAgent,
   ) {}
 
   @Get('brands')
@@ -100,6 +102,53 @@ export class ContentStudioController {
     res.set({
       'Content-Type':
         'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(buf.length),
+    });
+    res.send(buf);
+  }
+
+  // ── Slice 4: Quiz Agent + cross-provider validator + XLSX ──────────────
+
+  /** Generate (and cross-provider validate) a 50-question pool for the plan. */
+  @Post('plans/:id/quiz/generate')
+  generateQuizPool(@Param('id') id: string) {
+    return this.quiz.generatePool(id);
+  }
+
+  @Get('plans/:id/quiz/pool')
+  async quizPool(@Param('id') id: string) {
+    const data = await this.quiz.listPool(id);
+    const valid = data.filter((q) => q.validationPassed).length;
+    return {
+      data, count: data.length, valid,
+      passRate: data.length === 0 ? 0 : valid / data.length,
+    };
+  }
+
+  /** Draw the Saturday quiz (4 easy + 3 medium + 2 hard). */
+  @Post('plans/:id/quiz/draw')
+  drawQuiz(@Param('id') id: string) {
+    return this.quiz.drawSaturdayQuiz(id);
+  }
+
+  @Get('plans/:id/quiz')
+  quizLatest(@Param('id') id: string) {
+    return this.quiz.latestDelivered(id);
+  }
+
+  /** Stream the latest drawn quiz as an .xlsx (variant=public|private). */
+  @Get('plans/:id/quiz/download')
+  async downloadQuiz(
+    @Param('id') id: string,
+    @Query('variant') variant: string | undefined,
+    @Res() res: Response,
+  ) {
+    const v = variant === 'private' ? 'private' : 'public';
+    const { buf, filename } = await this.quiz.renderLatestXlsx(id, v);
+    res.set({
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Length': String(buf.length),
     });

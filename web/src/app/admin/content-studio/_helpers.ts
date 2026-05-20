@@ -76,6 +76,30 @@ export interface SlideJson {
   bullets?: string[];
 }
 
+export interface QuizPoolItem {
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number | null;
+  difficulty: string | null;
+  validationPassed: boolean | null;
+  validatedBy: string | null;
+  status: string;
+  explanation: string | null;
+}
+
+export interface DeliveredQuizSummary {
+  delivered: { id: string; weekOf: string; createdAt: string } | null;
+  questions: QuizPoolItem[];
+}
+
+export interface QuizPoolListResponse {
+  data: QuizPoolItem[];
+  count: number;
+  valid: number;
+  passRate: number;
+}
+
 export interface PptAsset {
   id: string;
   lessonId: string | null;

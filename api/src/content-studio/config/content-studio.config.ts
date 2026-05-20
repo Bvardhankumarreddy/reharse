@@ -18,8 +18,11 @@ export default registerAs('contentStudio', () => ({
     script:   process.env.CS_SCRIPT_MODEL   ?? 'claude-sonnet-4-6',
     ppt:      process.env.CS_PPT_MODEL       ?? 'claude-sonnet-4-6',
     quiz:     process.env.CS_QUIZ_MODEL      ?? 'claude-sonnet-4-6',
-    seo:      process.env.CS_SEO_MODEL       ?? 'gpt-4o-mini',
-    promo:    process.env.CS_PROMO_MODEL     ?? 'gpt-4o-mini',
+    seo:            process.env.CS_SEO_MODEL             ?? 'gpt-4o-mini',
+    promo:          process.env.CS_PROMO_MODEL           ?? 'gpt-4o-mini',
+    /** Quiz validator — MUST be on a different provider than the generator
+     *  (router enforces this with excludeProvider). Default OpenAI. */
+    quiz_validator: process.env.CS_QUIZ_VALIDATOR_MODEL  ?? 'gpt-4o-mini',
   },
 
   budgets: {

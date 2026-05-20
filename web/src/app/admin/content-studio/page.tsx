@@ -8,6 +8,7 @@ import {
   fetchToken, api, STATUS_COLOR,
   type Brand, type BrandMemory, type WeeklyPlan, type Lesson,
   type ScriptAsset, type PptAsset,
+  type QuizPoolListResponse, type DeliveredQuizSummary,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -230,6 +231,7 @@ function PlanCard({ plan, brands, onToast }: {
               <p className="text-[12px] text-[#B8C5E0]">{full.quizScope}</p>
             </Block>
           )}
+          <QuizPanel planId={full.id} onToast={onToast} />
           {(full.lessons ?? []).map((l) => (
             <LessonBlock key={l.id} lesson={l} onToast={onToast} />
           ))}
@@ -502,6 +504,176 @@ function LessonBlock({ lesson, onToast }: {
               </li>
             ))}
           </ol>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) => void }) {
+  const [pool, setPool] = useState<QuizPoolListResponse | null>(null);
+  const [drawn, setDrawn] = useState<DeliveredQuizSummary | null>(null);
+  const [genBusy, setGenBusy] = useState(false);
+  const [drawBusy, setDrawBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const reload = useCallback(async () => {
+    const token = await fetchToken();
+    if (!token) return;
+    try {
+      const p = await api<QuizPoolListResponse>(token, `/plans/${planId}/quiz/pool`);
+      setPool(p);
+    } catch { /* ignore */ }
+    try {
+      const d = await api<DeliveredQuizSummary>(token, `/plans/${planId}/quiz`);
+      setDrawn(d);
+    } catch { /* ignore */ }
+  }, [planId]);
+
+  useEffect(() => { void reload(); }, [reload]);
+
+  async function generate() {
+    setGenBusy(true);
+    onToast("Generating 50 questions + cross-provider validation… (~60-120s)");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setGenBusy(false); return; }
+    try {
+      const r = await api<{ generated: number; valid: number; passRate: number; generatorProvider: string }>(
+        token, `/plans/${planId}/quiz/generate`, { method: "POST" },
+      );
+      onToast(`✓ Pool ready: ${r.valid}/${r.generated} valid (${Math.round(r.passRate * 100)}%) · validated by NON-${r.generatorProvider}`);
+      await reload();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setGenBusy(false); }
+  }
+
+  async function draw() {
+    setDrawBusy(true);
+    onToast("Drawing Saturday quiz (4 easy + 3 med + 2 hard)…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setDrawBusy(false); return; }
+    try {
+      await api(token, `/plans/${planId}/quiz/draw`, { method: "POST" });
+      onToast("✓ Saturday quiz drawn");
+      await reload();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setDrawBusy(false); }
+  }
+
+  async function download(variant: "public" | "private") {
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); return; }
+    onToast(`Rendering ${variant} .xlsx…`);
+    try {
+      const res = await fetch(
+        `/api/v1/admin/content-studio/plans/${planId}/quiz/download?variant=${variant}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const cd = res.headers.get("content-disposition") ?? "";
+      const m = /filename="?([^";]+)"?/i.exec(cd);
+      const filename = m?.[1] ?? `quiz-${variant}.xlsx`;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      onToast(`⬇ Downloaded ${filename}`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    }
+  }
+
+  const validCount = pool?.valid ?? 0;
+  const totalCount = pool?.count ?? 0;
+  const canDraw = validCount >= 9 && !drawBusy;
+
+  return (
+    <div className="border border-white/10 rounded-xl overflow-hidden">
+      <div className="px-3 py-2 bg-white/5 text-[#B8C5E0] text-xs font-semibold flex items-center justify-between gap-2">
+        <span>📚 Saturday Quiz</span>
+        <span className="text-[10px] text-[#6B7799]">
+          {totalCount > 0
+            ? `${validCount}/${totalCount} valid · ${Math.round((pool?.passRate ?? 0) * 100)}% pass`
+            : "no pool yet"}
+        </span>
+      </div>
+      <div className="p-3 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <PrimaryBtn
+            label={
+              genBusy
+                ? "Generating + validating…"
+                : totalCount === 0
+                ? "📝 Generate Pool (50)"
+                : "🔁 Regenerate Pool"
+            }
+            busy={genBusy}
+            onClick={generate}
+          />
+          <button
+            onClick={draw}
+            disabled={!canDraw || genBusy}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 disabled:opacity-40 transition"
+            title={
+              validCount < 9
+                ? `Need ≥9 validated questions to draw (have ${validCount})`
+                : "Draw 4 easy + 3 medium + 2 hard"
+            }
+          >
+            {drawBusy ? "Drawing…" : "🎲 Draw Saturday Quiz"}
+          </button>
+          {drawn?.delivered && (
+            <>
+              <Btn label="⬇ Public .xlsx" onClick={() => download("public")} />
+              <Btn label="⬇ Private .xlsx (answers)" onClick={() => download("private")} />
+            </>
+          )}
+          {totalCount > 0 && (
+            <Btn
+              label={open ? "Hide pool" : `👀 View pool (${totalCount})`}
+              onClick={() => setOpen((v) => !v)}
+            />
+          )}
+        </div>
+
+        {drawn?.delivered && drawn.questions.length > 0 && (
+          <div className="text-[11px] text-[#6B7799] space-y-0.5">
+            <p className="text-[#B8C5E0] font-semibold">
+              Drawn for week of {drawn.delivered.weekOf}:
+            </p>
+            <ol className="list-decimal list-inside text-[#B8C5E0] space-y-0.5">
+              {drawn.questions.map((q) => (
+                <li key={q.id} className="break-words">
+                  <span className="text-[10px] uppercase mr-1.5 text-[#FFB800]">
+                    {q.difficulty}
+                  </span>
+                  {q.question}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        {open && pool && (
+          <div className="max-h-72 overflow-y-auto space-y-1.5 border-t border-white/5 pt-2">
+            {pool.data.map((q, i) => (
+              <div key={q.id} className="text-[11px] text-[#B8C5E0]">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded mr-1.5 ${
+                  q.validationPassed ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"
+                }`}>
+                  {q.validationPassed ? "valid" : "invalid"}
+                </span>
+                <span className="text-[10px] uppercase mr-1.5 text-[#6B7799]">{q.difficulty}</span>
+                {i + 1}. {q.question}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
