@@ -4,11 +4,13 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
-import { BrandMemory } from '../entities/brand-memory.entity';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { ContentAsset } from '../entities/content-asset.entity';
 import { ModelRouterService } from '../services/model-router.service';
+import { ImprovementLoopService } from '../services/improvement-loop.service';
+import { BrandMemoryService } from '../services/brand-memory.service';
+import { ProviderName } from '../services/provider.types';
 import { PptxRendererService, SlideJson } from '../services/pptx-renderer.service';
 
 const SYSTEM = `
@@ -49,11 +51,12 @@ export class PptAgent {
 
   constructor(
     @InjectRepository(Brand) private readonly brandRepo: Repository<Brand>,
-    @InjectRepository(BrandMemory) private readonly memoryRepo: Repository<BrandMemory>,
     @InjectRepository(WeeklyContentPlan) private readonly planRepo: Repository<WeeklyContentPlan>,
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
     @InjectRepository(ContentAsset) private readonly assetRepo: Repository<ContentAsset>,
     private readonly router: ModelRouterService,
+    private readonly loop: ImprovementLoopService,
+    private readonly memories: BrandMemoryService,
     private readonly renderer: PptxRendererService,
   ) {}
 
@@ -65,13 +68,8 @@ export class PptAgent {
     const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
     if (!brand) throw new BadRequestException('Plan has no brand');
 
-    const memories = await this.memoryRepo.find({
-      where: { brandId: brand.id, isActive: true },
-      order: { weight: 'DESC' },
-    });
-    const memoryBlock = memories.length
-      ? memories.map((m) => `- [${m.memoryType}] ${m.content}`).join('\n')
-      : '(no brand memories yet)';
+    const memories = await this.memories.relevantFor(brand.id, 'ppt');
+    const memoryBlock = this.memories.format(memories);
 
     const script = await this.assetRepo.findOne({
       where: { lessonId, assetType: 'script' },
@@ -89,41 +87,59 @@ export class PptAgent {
       )
       .join('\n');
 
-    const result = await this.router.run({
-      task: 'ppt',
+    const userBase =
+      `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
+      `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
+      `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n\n` +
+      `LESSON ${lesson.lessonNumber}: ${lesson.title}\nHook: ${lesson.hook ?? '(none)'}\n` +
+      `Outline:\n${outlineBlock || '  (no outline)'}\n\n` +
+      (scriptText
+        ? `LESSON AUDIO SCRIPT (mine real names/numbers from this):\n${scriptText.slice(0, 8000)}\n\n`
+        : `(No script yet — work from the outline.)\n\n`) +
+      `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
+      `Output the JSON object only. Exactly 13 slides in the fixed order.`;
+
+    const result = await this.loop.run<{ slides: SlideJson[] }>({
       agentType: 'ppt',
       planId: plan.id,
       lessonId: lesson.id,
-      jsonOutput: true,
-      maxTokens: 4000,
-      temperature: 0.5,
-      system: SYSTEM,
-      user:
-        `BRAND: ${brand.name}\n` +
-        `Voice/style: ${brand.voiceStyle ?? ''}\n\n` +
-        `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
-        `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n\n` +
-        `LESSON ${lesson.lessonNumber}: ${lesson.title}\n` +
-        `Hook: ${lesson.hook ?? '(none)'}\n` +
-        `Outline:\n${outlineBlock || '  (no outline)'}\n\n` +
-        (scriptText
-          ? `LESSON AUDIO SCRIPT (mine real names/numbers from this):\n${scriptText.slice(0, 8000)}\n\n`
-          : `(No script yet — work from the outline.)\n\n`) +
-        `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
-        `Output the JSON object only. Exactly 13 slides in the fixed order.`,
+      memoryCount: memories.length,
+      context: `Lesson: ${lesson.title} · Brand: ${brand.name}`,
+      draftFn: async (critique) => {
+        const user = critique
+          ? `${userBase}\n\nREVISION REQUESTED — your previous slide JSON scored below the quality bar. Fix these:\n${critique}\nReturn the full 13-slide JSON only.`
+          : userBase;
+        const r = await this.router.run({
+          task: 'ppt',
+          agentType: 'ppt',
+          planId: plan.id,
+          lessonId: lesson.id,
+          jsonOutput: true,
+          maxTokens: 4000,
+          temperature: 0.5,
+          system: SYSTEM,
+          user,
+        });
+        const parsed = JSON.parse(r.text || '{}') as PptJson;
+        const slides = (parsed.slides ?? []).slice(0, 13);
+        if (slides.length < 13) {
+          throw new Error(`PPT agent returned ${slides.length} slides, expected 13`);
+        }
+        return {
+          parsed: { slides },
+          rawForGrader: JSON.stringify({ slides }),
+          model: r.model,
+          provider: r.provider as ProviderName,
+          costUsd: r.costUsd,
+        };
+      },
     });
 
-    const parsed = JSON.parse(result.text || '{}') as PptJson;
-    const slides = (parsed.slides ?? []).slice(0, 13);
-    if (slides.length < 13) {
-      throw new Error(`PPT agent returned ${slides.length} slides, expected 13`);
-    }
-
+    const slides = result.parsed.slides;
     const latest = await this.assetRepo.findOne({
       where: { lessonId, assetType: 'ppt' },
       order: { version: 'DESC' },
     });
-
     const asset = await this.assetRepo.save(
       this.assetRepo.create({
         planId: plan.id,
@@ -135,19 +151,23 @@ export class PptAgent {
           slideCount: slides.length,
           model: result.model,
           provider: result.provider,
-          costUsd: result.costUsd,
+          costUsd: result.totalCostUsd,
         },
+        qualityScore: result.qualityScore,
+        revisions: result.revisions,
+        critique: result.critique,
+        confidence: result.confidence,
         status: 'draft',
       }),
     );
 
     await this.planRepo.update(plan.id, {
-      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.costUsd,
+      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.totalCostUsd,
     });
-
     this.logger.log(
-      `PPT v${asset.version} for lesson "${lesson.title}" — ` +
-      `${slides.length} slides ($${result.costUsd.toFixed(4)}, ${result.model})`,
+      `PPT v${asset.version} for "${lesson.title}" — ${slides.length} slides, ` +
+      `${result.revisions} revision(s), score ${result.qualityScore ?? 'n/a'} ` +
+      `($${result.totalCostUsd.toFixed(4)})`,
     );
     return asset;
   }
@@ -159,7 +179,6 @@ export class PptAgent {
     });
   }
 
-  /** Render the latest PPT asset to a .pptx Buffer with brand colours. */
   async renderLatest(lessonId: string): Promise<{ buf: Buffer; filename: string }> {
     const asset = await this.latestPpt(lessonId);
     if (!asset) throw new NotFoundException('No slides generated yet for this lesson');
@@ -178,9 +197,6 @@ export class PptAgent {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 60);
-    return {
-      buf,
-      filename: `lesson-${lesson.lessonNumber}-${slug}.pptx`,
-    };
+    return { buf, filename: `lesson-${lesson.lessonNumber}-${slug}.pptx` };
   }
 }

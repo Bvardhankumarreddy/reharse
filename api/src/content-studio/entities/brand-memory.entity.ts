@@ -26,6 +26,13 @@ export class BrandMemory {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
+  /**
+   * Memory injection v2 — agent types this memory applies to. Empty array
+   * = applies to all agents (backward compatible). Values mirror AgentType.
+   */
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  appliesTo: string[];
+
   @CreateDateColumn()
   createdAt: Date;
 }

@@ -3,10 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
 import { Channel } from '../entities/channel.entity';
-import { BrandMemory } from '../entities/brand-memory.entity';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
 import { Lesson, OutlineSection } from '../entities/lesson.entity';
 import { ModelRouterService } from '../services/model-router.service';
+import { BrandMemoryService } from '../services/brand-memory.service';
 
 const SYSTEM = `
 You are the Strategy Agent for an educational YouTube channel. You plan ONE
@@ -52,10 +52,10 @@ export class StrategyAgent {
   constructor(
     @InjectRepository(Brand) private readonly brandRepo: Repository<Brand>,
     @InjectRepository(Channel) private readonly channelRepo: Repository<Channel>,
-    @InjectRepository(BrandMemory) private readonly memoryRepo: Repository<BrandMemory>,
     @InjectRepository(WeeklyContentPlan) private readonly planRepo: Repository<WeeklyContentPlan>,
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
     private readonly router: ModelRouterService,
+    private readonly memories: BrandMemoryService,
   ) {}
 
   async generateWeek(
@@ -66,10 +66,7 @@ export class StrategyAgent {
     if (!brand) throw new BadRequestException('Brand not found');
 
     const channel = await this.channelRepo.findOne({ where: { brandId } });
-    const memories = await this.memoryRepo.find({
-      where: { brandId, isActive: true },
-      order: { weight: 'DESC' },
-    });
+    const memories = await this.memories.relevantFor(brandId, 'strategy');
 
     const week = weekOf ?? thisMonday();
     const plan = await this.planRepo.save(
@@ -82,9 +79,7 @@ export class StrategyAgent {
     );
 
     try {
-      const memoryBlock = memories.length
-        ? memories.map((m) => `- [${m.memoryType}] ${m.content}`).join('\n')
-        : '(no brand memories yet)';
+      const memoryBlock = this.memories.format(memories);
 
       const result = await this.router.run({
         task: 'strategy',

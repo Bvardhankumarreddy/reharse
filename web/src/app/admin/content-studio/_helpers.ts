@@ -49,7 +49,15 @@ export interface AgentRun {
   createdAt: string;
 }
 
-export interface ScriptAsset {
+/** Quality metadata (Phase B Grader + Improvement Loop) on every asset. */
+export interface AssetQuality {
+  qualityScore: number | null;
+  revisions: number;
+  critique: string | null;
+  confidence: number | null;
+}
+
+export interface ScriptAsset extends AssetQuality {
   id: string;
   lessonId: string | null;
   planId: string | null;
@@ -138,7 +146,7 @@ export interface DlqJob {
   updatedAt: string;
 }
 
-export interface SeoAsset {
+export interface SeoAsset extends AssetQuality {
   id: string;
   lessonId: string | null;
   planId: string | null;
@@ -159,7 +167,7 @@ export interface SeoAsset {
   createdAt: string;
 }
 
-export interface ThumbnailAsset {
+export interface ThumbnailAsset extends AssetQuality {
   id: string;
   lessonId: string | null;
   planId: string | null;
@@ -181,7 +189,7 @@ export interface ThumbnailAsset {
   createdAt: string;
 }
 
-export interface PromoAsset {
+export interface PromoAsset extends AssetQuality {
   id: string;
   lessonId: string | null;
   planId: string | null;
@@ -199,7 +207,7 @@ export interface PromoAsset {
   createdAt: string;
 }
 
-export interface PptAsset {
+export interface PptAsset extends AssetQuality {
   id: string;
   lessonId: string | null;
   planId: string | null;

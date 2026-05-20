@@ -2,11 +2,13 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
-import { BrandMemory } from '../entities/brand-memory.entity';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { ContentAsset } from '../entities/content-asset.entity';
 import { ModelRouterService } from '../services/model-router.service';
+import { ImprovementLoopService } from '../services/improvement-loop.service';
+import { BrandMemoryService } from '../services/brand-memory.service';
+import { ProviderName } from '../services/provider.types';
 
 const SYSTEM = `
 You write YouTube SEO packs for a single educational lesson. The viewer
@@ -17,20 +19,18 @@ Produce:
 - title_variants: 8 distinct titles, ≤ 70 chars each. Mix angles: stakes,
   outcome, question, contrarian, "how to", "why most …", "the X that …",
   "before you …". No emoji.
-- chosen_title_index: pick the strongest one. Brief reasoning is NOT
-  required; just choose.
-- description: 600–1200 chars. First 2 sentences MUST stand alone (they
-  appear above the fold). Include 1–2 timestamps (00:00 / mm:ss). End with
-  one CTA line + a reference to the Saturday quiz.
-- tags: 12–20 lowercase tags, no #, no duplicates, ≤ 30 chars each. Mix
-  broad and specific.
-- end_screen_cards: 3 entries — what to suggest next ("subscribe", "watch
-  next: <lesson 2 title>", "Saturday quiz").
+- chosen_title_index: pick the strongest one.
+- description: 600–1200 chars. First 2 sentences MUST stand alone (above
+  the fold). Include 1–2 timestamps (00:00 / mm:ss). End with one CTA
+  line + a reference to the Saturday quiz.
+- tags: 12–20 lowercase tags, no #, no duplicates, ≤ 30 chars each.
+- end_screen_cards: 3 entries — "subscribe", "watch next: <lesson 2 title>",
+  "Saturday quiz".
 
 Obey the brand voice/style/do/don't memories verbatim.
 
 Return STRICT JSON ONLY:
-{"title_variants":["…", "…"],"chosen_title_index":0,"description":"…","tags":["…"],"end_screen_cards":[{"label":"…","why":"…"}]}
+{"title_variants":["…"],"chosen_title_index":0,"description":"…","tags":["…"],"end_screen_cards":[{"label":"…","why":"…"}]}
 `.trim();
 
 interface SeoJson {
@@ -41,17 +41,26 @@ interface SeoJson {
   end_screen_cards?: Array<{ label?: string; why?: string }>;
 }
 
+interface SeoParsed {
+  titleVariants: string[];
+  chosenTitleIndex: number;
+  description: string;
+  tags: string[];
+  endScreenCards: Array<{ label?: string; why?: string }>;
+}
+
 @Injectable()
 export class SeoAgent {
   private readonly logger = new Logger(SeoAgent.name);
 
   constructor(
     @InjectRepository(Brand) private readonly brandRepo: Repository<Brand>,
-    @InjectRepository(BrandMemory) private readonly memoryRepo: Repository<BrandMemory>,
     @InjectRepository(WeeklyContentPlan) private readonly planRepo: Repository<WeeklyContentPlan>,
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
     @InjectRepository(ContentAsset) private readonly assetRepo: Repository<ContentAsset>,
     private readonly router: ModelRouterService,
+    private readonly loop: ImprovementLoopService,
+    private readonly memories: BrandMemoryService,
   ) {}
 
   async generateSeo(lessonId: string): Promise<ContentAsset> {
@@ -62,14 +71,8 @@ export class SeoAgent {
     const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
     if (!brand) throw new BadRequestException('Plan has no brand');
 
-    const memories = await this.memoryRepo.find({
-      where: { brandId: brand.id, isActive: true },
-      order: { weight: 'DESC' },
-    });
-    const memoryBlock = memories.length
-      ? memories.map((m) => `- [${m.memoryType}] ${m.content}`).join('\n')
-      : '(no brand memories yet)';
-
+    const memories = await this.memories.relevantFor(brand.id, 'seo');
+    const memoryBlock = this.memories.format(memories);
     const script = await this.assetRepo.findOne({
       where: { lessonId, assetType: 'script' },
       order: { version: 'DESC' },
@@ -78,45 +81,73 @@ export class SeoAgent {
       (script?.content as { fullScript?: string } | null | undefined)
         ?.fullScript ?? '';
 
-    const result = await this.router.run({
-      task: 'seo',
+    const userBase =
+      `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
+      `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
+      `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n\n` +
+      `LESSON ${lesson.lessonNumber}: ${lesson.title}\nHook: ${lesson.hook ?? '(none)'}\n` +
+      `Target duration: ${lesson.targetDurationMinutes} min.\n\n` +
+      (scriptText
+        ? `LESSON AUDIO SCRIPT (mine the strongest beats):\n${scriptText.slice(0, 6000)}\n\n`
+        : `(No script yet — work from the lesson hook + outline.)\n\n`) +
+      `BRAND MEMORIES:\n${memoryBlock}\n\n` +
+      `Output the JSON object only.`;
+
+    const result = await this.loop.run<SeoParsed>({
       agentType: 'seo',
       planId: plan.id,
       lessonId: lesson.id,
-      jsonOutput: true,
-      maxTokens: 1800,
-      temperature: 0.6,
-      system: SYSTEM,
-      user:
-        `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
-        `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
-        `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n\n` +
-        `LESSON ${lesson.lessonNumber}: ${lesson.title}\n` +
-        `Hook: ${lesson.hook ?? '(none)'}\n` +
-        `Target duration: ${lesson.targetDurationMinutes} min.\n\n` +
-        (scriptText
-          ? `LESSON AUDIO SCRIPT (mine the strongest beats):\n${scriptText.slice(0, 6000)}\n\n`
-          : `(No script yet — work from the lesson hook + outline.)\n\n`) +
-        `BRAND MEMORIES:\n${memoryBlock}\n\n` +
-        `Output the JSON object only.`,
+      memoryCount: memories.length,
+      context: `Lesson: ${lesson.title} · Brand: ${brand.name}`,
+      draftFn: async (critique) => {
+        const user = critique
+          ? `${userBase}\n\nREVISION REQUESTED — fix these:\n${critique}\nReturn the full JSON object only.`
+          : userBase;
+        const r = await this.router.run({
+          task: 'seo',
+          agentType: 'seo',
+          planId: plan.id,
+          lessonId: lesson.id,
+          jsonOutput: true,
+          maxTokens: 1800,
+          temperature: 0.6,
+          system: SYSTEM,
+          user,
+        });
+        const parsed = JSON.parse(r.text || '{}') as SeoJson;
+        const titleVariants = (parsed.title_variants ?? [])
+          .map((t) => String(t).slice(0, 100))
+          .slice(0, 8);
+        const chosen =
+          Number.isInteger(parsed.chosen_title_index) &&
+          (parsed.chosen_title_index as number) >= 0 &&
+          (parsed.chosen_title_index as number) < titleVariants.length
+            ? (parsed.chosen_title_index as number)
+            : 0;
+        const out: SeoParsed = {
+          titleVariants,
+          chosenTitleIndex: chosen,
+          description: String(parsed.description ?? '').slice(0, 4000),
+          tags: (parsed.tags ?? [])
+            .map((t) => String(t).toLowerCase().slice(0, 30))
+            .slice(0, 20),
+          endScreenCards: (parsed.end_screen_cards ?? []).slice(0, 4),
+        };
+        return {
+          parsed: out,
+          rawForGrader: JSON.stringify(out),
+          model: r.model,
+          provider: r.provider as ProviderName,
+          costUsd: r.costUsd,
+        };
+      },
     });
 
-    const parsed = JSON.parse(result.text || '{}') as SeoJson;
-    const titleVariants = (parsed.title_variants ?? [])
-      .map((t) => String(t).slice(0, 100))
-      .slice(0, 8);
-    const chosenIndex =
-      Number.isInteger(parsed.chosen_title_index) &&
-      (parsed.chosen_title_index as number) >= 0 &&
-      (parsed.chosen_title_index as number) < titleVariants.length
-        ? (parsed.chosen_title_index as number)
-        : 0;
-
+    const seo = result.parsed;
     const latest = await this.assetRepo.findOne({
       where: { lessonId, assetType: 'seo' },
       order: { version: 'DESC' },
     });
-
     const asset = await this.assetRepo.save(
       this.assetRepo.create({
         planId: plan.id,
@@ -124,26 +155,26 @@ export class SeoAgent {
         assetType: 'seo',
         version: (latest?.version ?? 0) + 1,
         content: {
-          titleVariants,
-          chosenTitleIndex: chosenIndex,
-          chosenTitle: titleVariants[chosenIndex] ?? '',
-          description: String(parsed.description ?? '').slice(0, 4000),
-          tags: (parsed.tags ?? []).map((t) => String(t).toLowerCase().slice(0, 30)).slice(0, 20),
-          endScreenCards: (parsed.end_screen_cards ?? []).slice(0, 4),
+          ...seo,
+          chosenTitle: seo.titleVariants[seo.chosenTitleIndex] ?? '',
           model: result.model,
           provider: result.provider,
-          costUsd: result.costUsd,
+          costUsd: result.totalCostUsd,
         },
+        qualityScore: result.qualityScore,
+        revisions: result.revisions,
+        critique: result.critique,
+        confidence: result.confidence,
         status: 'draft',
       }),
     );
-
     await this.planRepo.update(plan.id, {
-      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.costUsd,
+      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.totalCostUsd,
     });
     this.logger.log(
-      `SEO v${asset.version} for lesson "${lesson.title}" — ` +
-      `$${result.costUsd.toFixed(4)} (${result.model})`,
+      `SEO v${asset.version} for "${lesson.title}" — ` +
+      `${result.revisions} revision(s), score ${result.qualityScore ?? 'n/a'} ` +
+      `($${result.totalCostUsd.toFixed(4)})`,
     );
     return asset;
   }

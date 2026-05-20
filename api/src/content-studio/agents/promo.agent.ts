@@ -2,11 +2,13 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
-import { BrandMemory } from '../entities/brand-memory.entity';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { ContentAsset } from '../entities/content-asset.entity';
 import { ModelRouterService } from '../services/model-router.service';
+import { ImprovementLoopService } from '../services/improvement-loop.service';
+import { BrandMemoryService } from '../services/brand-memory.service';
+import { ProviderName } from '../services/provider.types';
 
 const SYSTEM = `
 You write THREE promotion posts for one new lesson — one per platform.
@@ -15,24 +17,20 @@ them. Mine real beats from the lesson script — do NOT just rephrase the
 title.
 
 LINKEDIN (technical-pro audience):
-- hook: 1 line, ≤ 200 chars, concrete stakes (a number, a failure, a
-  contrarian claim). Stops the scroll.
-- body: 3–5 short paragraphs (~600–900 chars total). Single-sentence
-  paragraphs are fine. No bullet points.
-- cta: 1 line — "Watch the lesson →" style.
+- hook: 1 line, ≤ 200 chars, concrete stakes.
+- body: 3–5 short paragraphs (~600–900 chars total).
+- cta: 1 line.
 - hashtags: 3–6, no spaces, no "#".
 
-INSTAGRAM (visual / quick scan):
-- caption: 80–220 chars, punchy. Allow 1 emoji max if natural; no
-  forced emojis.
+INSTAGRAM:
+- caption: 80–220 chars, punchy. Allow 1 emoji max if natural.
 - hashtags: 8–15, no spaces, no "#".
 
-WHATSAPP_STATUS (text-only status):
-- text: ≤ 700 chars total AND ≤ 10 lines (count line breaks).
-  Conversational. End with a one-line nudge to watch the lesson.
+WHATSAPP_STATUS:
+- text: ≤ 700 chars total AND ≤ 10 lines. Conversational. End with a
+  one-line nudge to watch the lesson.
 
-Across all three: obey brand voice/style/do/don't memories verbatim.
-No clickbait. No fake urgency.
+Obey brand voice/style/do/don't memories verbatim.
 
 Return STRICT JSON ONLY:
 {"linkedin":{"hook":"…","body":"…","cta":"…","hashtags":["…"]},
@@ -46,7 +44,12 @@ interface PromoJson {
   whatsapp_status?: { text?: string };
 }
 
-/** Trim WhatsApp output to the 700 chars / 10 lines hard limits. */
+interface PromoParsed {
+  linkedin: { hook: string; body: string; cta: string; hashtags: string[] };
+  instagram: { caption: string; hashtags: string[] };
+  whatsappStatus: { text: string; chars: number; lines: number };
+}
+
 function clampWhatsapp(s: string): string {
   let v = s.replace(/\r\n/g, '\n').trim();
   const lines = v.split('\n');
@@ -69,11 +72,12 @@ export class PromoAgent {
 
   constructor(
     @InjectRepository(Brand) private readonly brandRepo: Repository<Brand>,
-    @InjectRepository(BrandMemory) private readonly memoryRepo: Repository<BrandMemory>,
     @InjectRepository(WeeklyContentPlan) private readonly planRepo: Repository<WeeklyContentPlan>,
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
     @InjectRepository(ContentAsset) private readonly assetRepo: Repository<ContentAsset>,
     private readonly router: ModelRouterService,
+    private readonly loop: ImprovementLoopService,
+    private readonly memories: BrandMemoryService,
   ) {}
 
   async generatePromo(lessonId: string): Promise<ContentAsset> {
@@ -84,14 +88,8 @@ export class PromoAgent {
     const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
     if (!brand) throw new BadRequestException('Plan has no brand');
 
-    const memories = await this.memoryRepo.find({
-      where: { brandId: brand.id, isActive: true },
-      order: { weight: 'DESC' },
-    });
-    const memoryBlock = memories.length
-      ? memories.map((m) => `- [${m.memoryType}] ${m.content}`).join('\n')
-      : '(no brand memories yet)';
-
+    const memories = await this.memories.relevantFor(brand.id, 'promo');
+    const memoryBlock = this.memories.format(memories);
     const script = await this.assetRepo.findOne({
       where: { lessonId, assetType: 'script' },
       order: { version: 'DESC' },
@@ -100,45 +98,42 @@ export class PromoAgent {
       (script?.content as { fullScript?: string } | null | undefined)
         ?.fullScript ?? '';
 
-    const result = await this.router.run({
-      task: 'promo',
+    const userBase =
+      `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
+      `LESSON ${lesson.lessonNumber}: ${lesson.title}\nHook: ${lesson.hook ?? '(none)'}\n\n` +
+      (scriptText
+        ? `LESSON AUDIO SCRIPT (mine real moments — not the title):\n${scriptText.slice(0, 5000)}\n\n`
+        : '') +
+      `BRAND MEMORIES:\n${memoryBlock}\n\n` +
+      `Output the JSON object only.`;
+
+    const result = await this.loop.run<PromoParsed>({
       agentType: 'promo',
       planId: plan.id,
       lessonId: lesson.id,
-      jsonOutput: true,
-      maxTokens: 2200,
-      temperature: 0.75,
-      system: SYSTEM,
-      user:
-        `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
-        `LESSON ${lesson.lessonNumber}: ${lesson.title}\n` +
-        `Hook: ${lesson.hook ?? '(none)'}\n\n` +
-        (scriptText
-          ? `LESSON AUDIO SCRIPT (mine real moments — not the title):\n${scriptText.slice(0, 5000)}\n\n`
-          : '') +
-        `BRAND MEMORIES:\n${memoryBlock}\n\n` +
-        `Output the JSON object only.`,
-    });
-
-    const parsed = JSON.parse(result.text || '{}') as PromoJson;
-
-    const li = parsed.linkedin ?? {};
-    const ig = parsed.instagram ?? {};
-    const ws = parsed.whatsapp_status ?? {};
-    const wsText = clampWhatsapp(String(ws.text ?? ''));
-
-    const latest = await this.assetRepo.findOne({
-      where: { lessonId, assetType: 'promo' },
-      order: { version: 'DESC' },
-    });
-
-    const asset = await this.assetRepo.save(
-      this.assetRepo.create({
-        planId: plan.id,
-        lessonId: lesson.id,
-        assetType: 'promo',
-        version: (latest?.version ?? 0) + 1,
-        content: {
+      memoryCount: memories.length,
+      context: `Lesson: ${lesson.title} · Brand: ${brand.name}`,
+      draftFn: async (critique) => {
+        const user = critique
+          ? `${userBase}\n\nREVISION REQUESTED — fix these:\n${critique}\nReturn the full JSON object only.`
+          : userBase;
+        const r = await this.router.run({
+          task: 'promo',
+          agentType: 'promo',
+          planId: plan.id,
+          lessonId: lesson.id,
+          jsonOutput: true,
+          maxTokens: 2200,
+          temperature: 0.75,
+          system: SYSTEM,
+          user,
+        });
+        const parsed = JSON.parse(r.text || '{}') as PromoJson;
+        const li = parsed.linkedin ?? {};
+        const ig = parsed.instagram ?? {};
+        const ws = parsed.whatsapp_status ?? {};
+        const wsText = clampWhatsapp(String(ws.text ?? ''));
+        const out: PromoParsed = {
           linkedin: {
             hook: String(li.hook ?? '').slice(0, 250),
             body: String(li.body ?? '').slice(0, 1500),
@@ -154,20 +149,43 @@ export class PromoAgent {
             chars: wsText.length,
             lines: wsText.split('\n').length,
           },
-          model: result.model,
-          provider: result.provider,
-          costUsd: result.costUsd,
-        },
+        };
+        return {
+          parsed: out,
+          rawForGrader: JSON.stringify(out),
+          model: r.model,
+          provider: r.provider as ProviderName,
+          costUsd: r.costUsd,
+        };
+      },
+    });
+
+    const p = result.parsed;
+    const latest = await this.assetRepo.findOne({
+      where: { lessonId, assetType: 'promo' },
+      order: { version: 'DESC' },
+    });
+    const asset = await this.assetRepo.save(
+      this.assetRepo.create({
+        planId: plan.id,
+        lessonId: lesson.id,
+        assetType: 'promo',
+        version: (latest?.version ?? 0) + 1,
+        content: { ...p, model: result.model, provider: result.provider, costUsd: result.totalCostUsd },
+        qualityScore: result.qualityScore,
+        revisions: result.revisions,
+        critique: result.critique,
+        confidence: result.confidence,
         status: 'draft',
       }),
     );
-
     await this.planRepo.update(plan.id, {
-      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.costUsd,
+      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.totalCostUsd,
     });
     this.logger.log(
-      `Promo v${asset.version} for lesson "${lesson.title}" — ` +
-      `$${result.costUsd.toFixed(4)} (${result.model})`,
+      `Promo v${asset.version} for "${lesson.title}" — ` +
+      `${result.revisions} revision(s), score ${result.qualityScore ?? 'n/a'} ` +
+      `($${result.totalCostUsd.toFixed(4)})`,
     );
     return asset;
   }

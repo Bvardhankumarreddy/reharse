@@ -4,7 +4,6 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
-import { BrandMemory } from '../entities/brand-memory.entity';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { ContentAsset } from '../entities/content-asset.entity';
@@ -13,6 +12,7 @@ import {
 } from '../entities/question-pool.entity';
 import { DeliveredQuiz } from '../entities/delivered-quiz.entity';
 import { ModelRouterService } from '../services/model-router.service';
+import { BrandMemoryService } from '../services/brand-memory.service';
 import { ProviderName } from '../services/provider.types';
 import {
   XlsxRendererService, XlsxVariant,
@@ -98,7 +98,6 @@ export class QuizAgent {
 
   constructor(
     @InjectRepository(Brand) private readonly brandRepo: Repository<Brand>,
-    @InjectRepository(BrandMemory) private readonly memoryRepo: Repository<BrandMemory>,
     @InjectRepository(WeeklyContentPlan) private readonly planRepo: Repository<WeeklyContentPlan>,
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
     @InjectRepository(ContentAsset) private readonly assetRepo: Repository<ContentAsset>,
@@ -106,6 +105,7 @@ export class QuizAgent {
     @InjectRepository(DeliveredQuiz) private readonly deliveredRepo: Repository<DeliveredQuiz>,
     private readonly router: ModelRouterService,
     private readonly xlsx: XlsxRendererService,
+    private readonly memoryService: BrandMemoryService,
   ) {}
 
   // ── 1) Generate + cross-provider validate the 50-Q pool ──────────────────
@@ -122,17 +122,12 @@ export class QuizAgent {
       where: { planId },
       order: { lessonNumber: 'ASC' },
     });
-    const memories = await this.memoryRepo.find({
-      where: { brandId: brand.id, isActive: true },
-      order: { weight: 'DESC' },
-    });
+    const memories = await this.memoryService.relevantFor(brand.id, 'quiz');
 
     // Reset any prior pool for this plan to keep the table tidy.
     await this.questionRepo.delete({ planId });
 
-    const memoryBlock = memories.length
-      ? memories.map((m) => `- [${m.memoryType}] ${m.content}`).join('\n')
-      : '(no brand memories yet)';
+    const memoryBlock = this.memoryService.format(memories);
     const lessonsBlock = lessons
       .map(
         (l) =>

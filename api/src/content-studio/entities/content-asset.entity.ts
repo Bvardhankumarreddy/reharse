@@ -35,6 +35,18 @@ export class ContentAsset {
   @Column({ type: 'int', nullable: true })
   qualityScore: number | null;
 
+  /** How many grade-revise passes happened before this version was kept. */
+  @Column({ type: 'int', default: 0 })
+  revisions: number;
+
+  /** Last critique from the Grader (null if it passed first try or wasn't graded). */
+  @Column({ type: 'text', nullable: true })
+  critique: string | null;
+
+  /** 0–1 confidence: grader + memory-match + revision-count blend. */
+  @Column({ type: 'numeric', precision: 3, scale: 2, nullable: true })
+  confidence: number | null;
+
   @Column({ type: 'varchar', length: 30, default: 'draft' })
   status: string;
 

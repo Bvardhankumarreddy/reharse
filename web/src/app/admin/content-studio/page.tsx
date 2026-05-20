@@ -492,7 +492,9 @@ function LessonBlock({ lesson, onToast }: {
               {c?.costUsd != null ? ` · $${Number(c.costUsd).toFixed(4)}` : ""}
             </span>
           )}
+          {script && <QualityBadge q={script} />}
         </div>
+        {script && <CritiqueLine critique={script.critique} />}
 
         {open && script && (
           <div className="space-y-1">
@@ -545,9 +547,11 @@ function LessonBlock({ lesson, onToast }: {
                   ? ` · $${Number(ppt.content.costUsd).toFixed(4)}`
                   : ""}
               </span>
+              <QualityBadge q={ppt} />
             </>
           )}
         </div>
+        {ppt && <CritiqueLine critique={ppt.critique} />}
 
         {openSlides && ppt && (
           <ol className="space-y-1 list-decimal list-inside text-[12px] text-[#B8C5E0]">
@@ -601,7 +605,9 @@ function LessonBlock({ lesson, onToast }: {
               {seo.content?.costUsd != null ? ` · $${Number(seo.content.costUsd).toFixed(4)}` : ""}
             </span>
           )}
+          {seo && <QualityBadge q={seo} />}
         </div>
+        {seo && <CritiqueLine critique={seo.critique} />}
         {openSeo && seo && (
           <div className="space-y-2 text-[12px] text-[#B8C5E0]">
             <p>
@@ -663,7 +669,9 @@ function LessonBlock({ lesson, onToast }: {
               {thumb.content?.costUsd != null ? ` · $${Number(thumb.content.costUsd).toFixed(4)}` : ""}
             </span>
           )}
+          {thumb && <QualityBadge q={thumb} />}
         </div>
+        {thumb && <CritiqueLine critique={thumb.critique} />}
         {openThumb && thumb && (
           <div className="space-y-2 text-[12px] text-[#B8C5E0]">
             <CopyBox label="Main prompt (paste into Midjourney / DALL-E)" value={thumb.content?.mainPrompt ?? ""} multiline />
@@ -714,7 +722,9 @@ function LessonBlock({ lesson, onToast }: {
               {promo.content?.costUsd != null ? ` · $${Number(promo.content.costUsd).toFixed(4)}` : ""}
             </span>
           )}
+          {promo && <QualityBadge q={promo} />}
         </div>
+        {promo && <CritiqueLine critique={promo.critique} />}
         {openPromo && promo && (
           <div className="space-y-2 text-[12px] text-[#B8C5E0]">
             {promo.content?.linkedin && (
@@ -765,6 +775,39 @@ function LessonBlock({ lesson, onToast }: {
         )}
       </div>
     </div>
+  );
+}
+
+/** Inline quality chip + revision count + optional critique (Phase B Grader). */
+function QualityBadge({ q }: { q: { qualityScore: number | null; revisions: number; critique: string | null; confidence: number | null } }) {
+  if (q.qualityScore == null) {
+    return (
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-400">
+        not graded
+      </span>
+    );
+  }
+  const tone =
+    q.qualityScore >= 80 ? "bg-emerald-500/20 text-emerald-300"
+    : q.qualityScore >= 70 ? "bg-blue-500/20 text-blue-300"
+    : q.qualityScore >= 50 ? "bg-amber-500/20 text-amber-300"
+    : "bg-red-500/20 text-red-300";
+  return (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded ${tone}`}>
+      score {q.qualityScore}
+      {q.confidence != null ? ` · conf ${q.confidence.toFixed(2)}` : ""}
+      {q.revisions > 0 ? ` · ${q.revisions} rev` : ""}
+    </span>
+  );
+}
+
+/** Yellow critique callout shown when the grader left issues unresolved. */
+function CritiqueLine({ critique }: { critique: string | null }) {
+  if (!critique) return null;
+  return (
+    <p className="text-[11px] text-[#FFB800]/90 italic mt-1">
+      ⚠ Grader notes: {critique}
+    </p>
   );
 }
 

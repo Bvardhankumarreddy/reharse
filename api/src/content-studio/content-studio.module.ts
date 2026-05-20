@@ -21,6 +21,9 @@ import { OpenAIAdapter } from './services/openai.adapter';
 import { AnthropicAdapter } from './services/anthropic.adapter';
 import { GeminiAdapter } from './services/gemini.adapter';
 import { ModelRouterService } from './services/model-router.service';
+import { BrandMemoryService } from './services/brand-memory.service';
+import { GraderService } from './services/grader.service';
+import { ImprovementLoopService } from './services/improvement-loop.service';
 import { StrategyAgent } from './agents/strategy.agent';
 import { ScriptAgent } from './agents/script.agent';
 import { PptAgent } from './agents/ppt.agent';
@@ -59,6 +62,9 @@ import { ContentStudioController } from './content-studio.controller';
     AnthropicAdapter,
     GeminiAdapter,
     ModelRouterService,
+    BrandMemoryService,
+    GraderService,
+    ImprovementLoopService,
     PptxRendererService,
     XlsxRendererService,
     StrategyAgent,

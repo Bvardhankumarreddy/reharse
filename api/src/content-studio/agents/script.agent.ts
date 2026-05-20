@@ -2,11 +2,13 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
-import { BrandMemory } from '../entities/brand-memory.entity';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { ContentAsset } from '../entities/content-asset.entity';
 import { ModelRouterService } from '../services/model-router.service';
+import { ImprovementLoopService } from '../services/improvement-loop.service';
+import { BrandMemoryService } from '../services/brand-memory.service';
+import { ProviderName } from '../services/provider.types';
 
 const SYSTEM = `
 You write AUDIO SCRIPTS for educational YouTube lessons. The script is READ
@@ -42,11 +44,12 @@ export class ScriptAgent {
 
   constructor(
     @InjectRepository(Brand) private readonly brandRepo: Repository<Brand>,
-    @InjectRepository(BrandMemory) private readonly memoryRepo: Repository<BrandMemory>,
     @InjectRepository(WeeklyContentPlan) private readonly planRepo: Repository<WeeklyContentPlan>,
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
     @InjectRepository(ContentAsset) private readonly assetRepo: Repository<ContentAsset>,
     private readonly router: ModelRouterService,
+    private readonly loop: ImprovementLoopService,
+    private readonly memories: BrandMemoryService,
   ) {}
 
   async generateScript(lessonId: string): Promise<ContentAsset> {
@@ -57,15 +60,8 @@ export class ScriptAgent {
     const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
     if (!brand) throw new BadRequestException('Plan has no brand');
 
-    const memories = await this.memoryRepo.find({
-      where: { brandId: brand.id, isActive: true },
-      order: { weight: 'DESC' },
-    });
-
-    const memoryBlock = memories.length
-      ? memories.map((m) => `- [${m.memoryType}] ${m.content}`).join('\n')
-      : '(no brand memories yet)';
-
+    const memories = await this.memories.relevantFor(brand.id, 'script');
+    const memoryBlock = this.memories.format(memories);
     const outlineBlock = (lesson.outline ?? [])
       .map(
         (s, i) =>
@@ -73,38 +69,59 @@ export class ScriptAgent {
           (s.points ?? []).map((p) => `     - ${p}`).join('\n'),
       )
       .join('\n');
+    const userBase =
+      `BRAND: ${brand.name}\n` +
+      `Voice/style: ${brand.voiceStyle ?? ''}\n\n` +
+      `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
+      `QUIZ SCOPE (use for the tease at the end): ${plan.quizScope ?? '(none)'}\n\n` +
+      `LESSON ${lesson.lessonNumber}: ${lesson.title}\n` +
+      `Hook seed: ${lesson.hook ?? '(none)'}\n` +
+      `Target duration: ${lesson.targetDurationMinutes} minutes spoken.\n` +
+      `Outline:\n${outlineBlock || '  (no outline)'}\n\n` +
+      `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
+      `Write the full audio script now. Plain text with [PAUSE] markers, no markdown.`;
 
-    const result = await this.router.run({
-      task: 'script',
+    const result = await this.loop.run<{ script: string }>({
       agentType: 'script',
       planId: plan.id,
       lessonId: lesson.id,
-      maxTokens: 6000,
-      temperature: 0.75,
-      system: SYSTEM,
-      user:
-        `BRAND: ${brand.name}\n` +
-        `Voice/style: ${brand.voiceStyle ?? ''}\n\n` +
-        `WEEK THEME: ${plan.theme ?? '(no theme set)'}\n` +
-        `QUIZ SCOPE (use for the tease at the end): ${plan.quizScope ?? '(none)'}\n\n` +
-        `LESSON ${lesson.lessonNumber}: ${lesson.title}\n` +
-        `Hook (use as inspiration for the opening line, refine if better):\n  ${lesson.hook ?? '(none)'}\n` +
-        `Target duration: ${lesson.targetDurationMinutes} minutes spoken.\n` +
-        `Outline:\n${outlineBlock || '  (no outline — write a coherent script anyway)'}\n\n` +
-        `BRAND MEMORIES (obey these verbatim):\n${memoryBlock}\n\n` +
-        `Write the full audio script now. Plain text with [PAUSE] markers, no markdown.`,
+      memoryCount: memories.length,
+      context:
+        `Lesson: ${lesson.title} (${lesson.targetDurationMinutes} min) · ` +
+        `Brand: ${brand.name} · Voice: ${(brand.voiceStyle ?? '').slice(0, 200)}`,
+      draftFn: async (critique) => {
+        const user = critique
+          ? `${userBase}\n\nREVISION REQUESTED — your previous draft scored below the quality bar. Fix these:\n${critique}\nRewrite the FULL script now.`
+          : userBase;
+        const r = await this.router.run({
+          task: 'script',
+          agentType: 'script',
+          planId: plan.id,
+          lessonId: lesson.id,
+          maxTokens: 6000,
+          temperature: 0.75,
+          system: SYSTEM,
+          user,
+        });
+        const text = (r.text ?? '').trim();
+        return {
+          parsed: { script: text },
+          rawForGrader: text,
+          model: r.model,
+          provider: r.provider as ProviderName,
+          costUsd: r.costUsd,
+        };
+      },
     });
 
-    const script = result.text.trim();
+    const script = result.parsed.script;
     const words = wordCount(script);
-    const durationSec = Math.round((words / 140) * 60); // 140 wpm
+    const durationSec = Math.round((words / 140) * 60);
 
-    // Version = max(existing version for this lesson+script) + 1
     const latest = await this.assetRepo.findOne({
       where: { lessonId, assetType: 'script' },
       order: { version: 'DESC' },
     });
-
     const asset = await this.assetRepo.save(
       this.assetRepo.create({
         planId: plan.id,
@@ -117,25 +134,28 @@ export class ScriptAgent {
           durationEstimateSeconds: durationSec,
           model: result.model,
           provider: result.provider,
-          costUsd: result.costUsd,
+          costUsd: result.totalCostUsd,
         },
+        qualityScore: result.qualityScore,
+        revisions: result.revisions,
+        critique: result.critique,
+        confidence: result.confidence,
         status: 'draft',
       }),
     );
 
     await this.lessonRepo.update(lesson.id, { status: 'scripted' });
     await this.planRepo.update(plan.id, {
-      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.costUsd,
+      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.totalCostUsd,
     });
-
     this.logger.log(
-      `Script v${asset.version} for lesson "${lesson.title}" — ${words} words ` +
-      `(~${(durationSec / 60).toFixed(1)} min, $${result.costUsd.toFixed(4)}, ${result.model})`,
+      `Script v${asset.version} for "${lesson.title}" — ${words} words, ` +
+      `${result.revisions} revision(s), score ${result.qualityScore ?? 'n/a'} ` +
+      `($${result.totalCostUsd.toFixed(4)})`,
     );
     return asset;
   }
 
-  /** Latest script asset for a lesson (any version), if any. */
   async latestScript(lessonId: string): Promise<ContentAsset | null> {
     return this.assetRepo.findOne({
       where: { lessonId, assetType: 'script' },

@@ -25,6 +25,24 @@ export default registerAs('contentStudio', () => ({
     /** Quiz validator — MUST be on a different provider than the generator
      *  (router enforces this with excludeProvider). Default OpenAI. */
     quiz_validator: process.env.CS_QUIZ_VALIDATOR_MODEL  ?? 'gpt-4o-mini',
+    /** Phase B Grader — cheap second-pass critic. */
+    grader:         process.env.CS_GRADER_MODEL          ?? 'gpt-4o-mini',
+  },
+
+  /** Phase B — auto-revise loop. */
+  grader: {
+    /** Asset passes if qualityScore ≥ this. */
+    threshold: Number(process.env.CS_GRADER_THRESHOLD ?? 70),
+    /** Max revise passes per asset (spec: "up to 2"). */
+    maxRevisions: Number(process.env.CS_MAX_REVISIONS ?? 2),
+    /**
+     * always       — grade every asset type
+     * smart        — grade Script + PPT + Quiz (default; the expensive ones)
+     * premium-only — grade only Script
+     * manual       — never grade automatically
+     */
+    selfCritiqueMode: (process.env.CS_SELF_CRITIQUE_MODE ?? 'smart') as
+      'always' | 'smart' | 'premium-only' | 'manual',
   },
 
   budgets: {
@@ -42,6 +60,7 @@ export default registerAs('contentStudio', () => ({
     seo:            Number(process.env.CS_SEO_TIMEOUT_MS            ?? 45_000),
     thumbnail:      Number(process.env.CS_THUMBNAIL_TIMEOUT_MS      ?? 45_000),
     promo:          Number(process.env.CS_PROMO_TIMEOUT_MS          ?? 45_000),
+    grader:         Number(process.env.CS_GRADER_TIMEOUT_MS         ?? 45_000),
     /** Used when a task has no specific entry above. */
     default:        Number(process.env.CS_DEFAULT_TIMEOUT_MS        ?? 90_000),
   },
