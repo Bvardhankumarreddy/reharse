@@ -31,8 +31,16 @@ export default registerAs('contentStudio', () => ({
   },
 
   timeouts: {
-    strategyMs: Number(process.env.CS_STRATEGY_TIMEOUT_MS ?? 120_000),
-    defaultMs: Number(process.env.CS_DEFAULT_TIMEOUT_MS ?? 90_000),
+    // Defaults match the spec's per-agent budgets. Each is env-overridable.
+    strategy:       Number(process.env.CS_STRATEGY_TIMEOUT_MS       ?? 120_000),
+    script:         Number(process.env.CS_SCRIPT_TIMEOUT_MS         ?? 90_000),
+    ppt:            Number(process.env.CS_PPT_TIMEOUT_MS            ?? 60_000),
+    quiz:           Number(process.env.CS_QUIZ_TIMEOUT_MS           ?? 180_000),
+    quiz_validator: Number(process.env.CS_QUIZ_VALIDATOR_TIMEOUT_MS ?? 30_000),
+    seo:            Number(process.env.CS_SEO_TIMEOUT_MS            ?? 45_000),
+    promo:          Number(process.env.CS_PROMO_TIMEOUT_MS          ?? 45_000),
+    /** Used when a task has no specific entry above. */
+    default:        Number(process.env.CS_DEFAULT_TIMEOUT_MS        ?? 90_000),
   },
 }));
 

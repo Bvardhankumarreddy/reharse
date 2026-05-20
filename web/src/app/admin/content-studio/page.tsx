@@ -10,6 +10,7 @@ import {
   type ScriptAsset, type PptAsset,
   type QuizPoolListResponse, type DeliveredQuizSummary,
   type PipelineRun, type PipelineStage, PIPELINE_STAGE_ORDER,
+  type DlqJob,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -60,6 +61,7 @@ export default function ContentStudioPage() {
         <Loading />
       ) : (
         <>
+          <DlqPanel onToast={setToast} />
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-[#B8C5E0] uppercase tracking-wide">Brands</h2>
             {brands.length === 0 ? (
@@ -509,6 +511,86 @@ function LessonBlock({ lesson, onToast }: {
         )}
       </div>
     </div>
+  );
+}
+
+function DlqPanel({ onToast }: { onToast: (m: string) => void }) {
+  const [jobs, setJobs] = useState<DlqJob[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const token = await fetchToken();
+    if (!token) return;
+    try {
+      const r = await api<{ data: DlqJob[] }>(token, "/dlq?status=pending");
+      setJobs(r.data);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function action(id: string, kind: "retry" | "abandon") {
+    setBusy(id);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      await api(token, `/dlq/${id}/${kind}`, { method: "POST" });
+      onToast(kind === "retry" ? "✓ Re-queued — see the plan's pipeline panel" : "✓ Abandoned");
+      await load();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(null); }
+  }
+
+  if (jobs.length === 0) return null;
+
+  return (
+    <section className="bg-red-500/5 border border-red-500/30 rounded-2xl p-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-red-300 uppercase tracking-wide">
+          ⚠️ Dead-letter queue · {jobs.length} pending
+        </h2>
+        <button onClick={() => void load()} className="text-[10px] text-[#6B7799] hover:text-white">refresh</button>
+      </div>
+      <div className="space-y-1.5">
+        {jobs.map((j) => (
+          <div key={j.id} className="flex items-start gap-2 text-[12px] text-[#B8C5E0]">
+            <div className="flex-1 min-w-0">
+              <p>
+                <span className="text-[10px] uppercase text-red-300 mr-1.5">
+                  {j.jobType}
+                </span>
+                {j.payload?.stage && (
+                  <span className="text-[#FFB800] mr-1.5">stage: {j.payload.stage}</span>
+                )}
+                {j.payload?.planId && (
+                  <span className="text-[#6B7799] mr-1.5">plan: {j.payload.planId.slice(0, 8)}…</span>
+                )}
+              </p>
+              {j.error && (
+                <p className="text-[11px] text-red-300/80 break-words">{j.error}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => action(j.id, "retry")}
+                disabled={busy === j.id}
+                className="px-2 py-1 text-[10px] font-semibold rounded-md border border-[#FFB800]/40 text-[#FFB800] hover:bg-[#FFB800]/10 disabled:opacity-40 transition"
+              >
+                🔁 Retry
+              </button>
+              <button
+                onClick={() => action(j.id, "abandon")}
+                disabled={busy === j.id}
+                className="px-2 py-1 text-[10px] font-semibold rounded-md border border-white/10 text-[#6B7799] hover:text-white hover:bg-white/5 disabled:opacity-40 transition"
+              >
+                Abandon
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

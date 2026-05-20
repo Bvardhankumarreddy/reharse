@@ -13,6 +13,7 @@ import {
 import { ScriptAgent } from '../agents/script.agent';
 import { PptAgent } from '../agents/ppt.agent';
 import { QuizAgent } from '../agents/quiz.agent';
+import { DlqService } from './dlq.service';
 
 export const CS_PIPELINE_QUEUE = 'content-studio-pipeline';
 
@@ -34,6 +35,7 @@ export class PipelineOrchestratorService {
     private readonly script: ScriptAgent,
     private readonly ppt: PptAgent,
     private readonly quiz: QuizAgent,
+    private readonly dlq: DlqService,
   ) {}
 
   /** Enqueue a new (or resumed) pipeline run for a plan. */
@@ -194,6 +196,15 @@ export class PipelineOrchestratorService {
       finishedAt: new Date(),
       costDelta: finalCost - Number(run.costAtStart ?? 0),
     });
+    // Best-effort DLQ write so failures show up in the admin triage panel.
+    try {
+      await this.dlq.recordPipelineFailure(
+        { runId: run.id, planId: run.planId, stage },
+        error,
+      );
+    } catch (e) {
+      this.logger.warn(`DLQ write failed: ${(e as Error).message}`);
+    }
   }
 
   async listForPlan(planId: string, limit = 20): Promise<PipelineRun[]> {

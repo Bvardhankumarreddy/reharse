@@ -122,6 +122,19 @@ export interface PipelineRun {
 
 export const PIPELINE_STAGE_ORDER: PipelineStage[] = ["script", "ppt", "quiz", "draw"];
 
+export type DlqStatus = "pending" | "retried" | "abandoned";
+
+export interface DlqJob {
+  id: string;
+  jobType: string;
+  payload: { planId?: string; runId?: string; stage?: PipelineStage } & Record<string, unknown>;
+  error: string | null;
+  attempts: number;
+  status: DlqStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PptAsset {
   id: string;
   lessonId: string | null;

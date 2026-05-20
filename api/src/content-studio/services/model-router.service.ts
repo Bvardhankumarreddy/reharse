@@ -129,9 +129,9 @@ export class ModelRouterService {
     }
     const fbModel = FALLBACK_MODEL[providerForModel(primaryModel)];
     const timeoutMs =
-      req.task === 'strategy'
-        ? this.config.get<number>('contentStudio.timeouts.strategyMs') ?? 120_000
-        : this.config.get<number>('contentStudio.timeouts.defaultMs') ?? 90_000;
+      this.config.get<number>(`contentStudio.timeouts.${req.task}`) ??
+      this.config.get<number>('contentStudio.timeouts.default') ??
+      90_000;
 
     const plan: Array<{ model: string; attempt: string }> = [
       { model: primaryModel, attempt: 'primary' },

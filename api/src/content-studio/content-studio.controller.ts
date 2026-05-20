@@ -15,8 +15,10 @@ import { ScriptAgent } from './agents/script.agent';
 import { PptAgent } from './agents/ppt.agent';
 import { QuizAgent } from './agents/quiz.agent';
 import { PipelineOrchestratorService } from './services/pipeline-orchestrator.service';
+import { DlqService } from './services/dlq.service';
 import type { PipelineStage } from './entities/pipeline-run.entity';
 import { PIPELINE_STAGES } from './entities/pipeline-run.entity';
+import type { DlqStatus } from './entities/dead-letter-job.entity';
 
 @Controller('admin/content-studio')
 @UseGuards(AdminGuard)
@@ -31,6 +33,7 @@ export class ContentStudioController {
     private readonly ppt: PptAgent,
     private readonly quiz: QuizAgent,
     private readonly orchestrator: PipelineOrchestratorService,
+    private readonly dlq: DlqService,
   ) {}
 
   @Get('brands')
@@ -171,6 +174,37 @@ export class ContentStudioController {
   @Get('runs/:id')
   getRun(@Param('id') id: string) {
     return this.orchestrator.get(id);
+  }
+
+  // ── Slice 6: Dead-letter queue (failure triage) ────────────────────────
+
+  @Get('dlq')
+  async dlqList(@Query('status') status?: string) {
+    const valid = status === 'pending' || status === 'retried' || status === 'abandoned'
+      ? (status as DlqStatus)
+      : undefined;
+    const data = await this.dlq.list(valid);
+    return { data, count: data.length };
+  }
+
+  /** Re-enqueue a failed run from where it stopped. */
+  @Post('dlq/:id/retry')
+  async dlqRetry(@Param('id') id: string) {
+    const job = await this.dlq.get(id);
+    const coords = this.dlq.pipelineCoordsFor(job);
+    if (!coords) {
+      throw new BadRequestException(
+        'DLQ row is not a pipeline-stage-failure (cannot auto-retry)',
+      );
+    }
+    const run = await this.orchestrator.enqueueRun(coords.planId, coords.stage);
+    await this.dlq.markRetried(id);
+    return { dlqId: id, runId: run.id, planId: coords.planId, stage: coords.stage };
+  }
+
+  @Post('dlq/:id/abandon')
+  dlqAbandon(@Param('id') id: string) {
+    return this.dlq.abandon(id);
   }
 
   /** Stream the latest drawn quiz as an .xlsx (variant=public|private). */
