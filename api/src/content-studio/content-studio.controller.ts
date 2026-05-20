@@ -14,6 +14,9 @@ import { StrategyAgent } from './agents/strategy.agent';
 import { ScriptAgent } from './agents/script.agent';
 import { PptAgent } from './agents/ppt.agent';
 import { QuizAgent } from './agents/quiz.agent';
+import { PipelineOrchestratorService } from './services/pipeline-orchestrator.service';
+import type { PipelineStage } from './entities/pipeline-run.entity';
+import { PIPELINE_STAGES } from './entities/pipeline-run.entity';
 
 @Controller('admin/content-studio')
 @UseGuards(AdminGuard)
@@ -27,6 +30,7 @@ export class ContentStudioController {
     private readonly script: ScriptAgent,
     private readonly ppt: PptAgent,
     private readonly quiz: QuizAgent,
+    private readonly orchestrator: PipelineOrchestratorService,
   ) {}
 
   @Get('brands')
@@ -135,6 +139,38 @@ export class ContentStudioController {
   @Get('plans/:id/quiz')
   quizLatest(@Param('id') id: string) {
     return this.quiz.latestDelivered(id);
+  }
+
+  // ── Slice 5: Orchestrator (async pipeline + resume) ────────────────────
+
+  /** Kick off (or resume) the end-to-end pipeline for a plan. */
+  @Post('plans/:id/run')
+  runPipeline(
+    @Param('id') id: string,
+    @Body() body?: { fromStage?: string },
+  ) {
+    const fs = body?.fromStage;
+    const fromStage =
+      fs && (PIPELINE_STAGES as readonly string[]).includes(fs)
+        ? (fs as PipelineStage)
+        : undefined;
+    return this.orchestrator.enqueueRun(id, fromStage);
+  }
+
+  @Get('plans/:id/runs')
+  async runsForPlan(@Param('id') id: string) {
+    const data = await this.orchestrator.listForPlan(id);
+    return { data, count: data.length };
+  }
+
+  @Get('plans/:id/runs/latest')
+  latestRunForPlan(@Param('id') id: string) {
+    return this.orchestrator.latestForPlan(id);
+  }
+
+  @Get('runs/:id')
+  getRun(@Param('id') id: string) {
+    return this.orchestrator.get(id);
   }
 
   /** Stream the latest drawn quiz as an .xlsx (variant=public|private). */

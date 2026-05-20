@@ -9,6 +9,7 @@ import {
   type Brand, type BrandMemory, type WeeklyPlan, type Lesson,
   type ScriptAsset, type PptAsset,
   type QuizPoolListResponse, type DeliveredQuizSummary,
+  type PipelineRun, type PipelineStage, PIPELINE_STAGE_ORDER,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -226,6 +227,7 @@ function PlanCard({ plan, brands, onToast }: {
       </div>
       {open && full && (
         <div className="px-4 py-4 border-t border-white/5 bg-[#0F1330] space-y-4">
+          <PipelineRunPanel planId={full.id} onToast={onToast} />
           {full.quizScope && (
             <Block title="📝 Quiz scope">
               <p className="text-[12px] text-[#B8C5E0]">{full.quizScope}</p>
@@ -504,6 +506,155 @@ function LessonBlock({ lesson, onToast }: {
               </li>
             ))}
           </ol>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const STAGE_LABEL: Record<PipelineStage, string> = {
+  script: "Scripts",
+  ppt:    "Slides",
+  quiz:   "Quiz pool",
+  draw:   "Saturday draw",
+};
+
+function StageChip({ stage, state }: {
+  stage: PipelineStage;
+  state: "done" | "current" | "pending" | "failed";
+}) {
+  const icon =
+    state === "done" ? "✓" : state === "current" ? "⟳" : state === "failed" ? "✗" : "·";
+  const tone =
+    state === "done"
+      ? "bg-emerald-500/20 text-emerald-300"
+      : state === "current"
+      ? "bg-violet-500/20 text-violet-300 animate-pulse"
+      : state === "failed"
+      ? "bg-red-500/20 text-red-300"
+      : "bg-slate-500/15 text-slate-400";
+  return (
+    <span className={`text-[10px] px-2 py-0.5 rounded-full ${tone}`}>
+      <span className="mr-1">{icon}</span>{STAGE_LABEL[stage]}
+    </span>
+  );
+}
+
+function PipelineRunPanel({ planId, onToast }: {
+  planId: string; onToast: (m: string) => void;
+}) {
+  const [run, setRun] = useState<PipelineRun | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    const token = await fetchToken();
+    if (!token) return;
+    try {
+      const r = await api<PipelineRun | null>(token, `/plans/${planId}/runs/latest`);
+      setRun(r);
+    } catch { /* ignore */ }
+  }, [planId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // Auto-poll every 5s while the run is active.
+  useEffect(() => {
+    if (!run || (run.status !== "queued" && run.status !== "running")) return;
+    const t = setInterval(() => { void load(); }, 5000);
+    return () => clearInterval(t);
+  }, [run, load]);
+
+  async function start(fromStage?: PipelineStage) {
+    setBusy(true);
+    onToast(
+      fromStage
+        ? `Resuming pipeline from ${STAGE_LABEL[fromStage]}…`
+        : "Kicking off the full pipeline (Scripts → Slides → Quiz → Draw)…",
+    );
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(false); return; }
+    try {
+      const r = await api<PipelineRun>(token, `/plans/${planId}/run`, {
+        method: "POST",
+        ...(fromStage ? { body: JSON.stringify({ fromStage }) } : {}),
+      });
+      setRun(r);
+      onToast("✓ Queued — watch the stage chips above");
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(false); }
+  }
+
+  const active = run && (run.status === "queued" || run.status === "running");
+  const failed = run && run.status === "failed";
+
+  function stageState(stage: PipelineStage) {
+    if (!run) return "pending" as const;
+    if (run.stagesCompleted?.includes(stage)) return "done" as const;
+    if (run.currentStage === stage && (run.status === "running" || run.status === "queued"))
+      return "current" as const;
+    if (run.stagesFailed?.some((f) => f.stage === stage)) return "failed" as const;
+    return "pending" as const;
+  }
+
+  return (
+    <div className="border border-white/10 rounded-xl overflow-hidden">
+      <div className="px-3 py-2 bg-white/5 text-[#B8C5E0] text-xs font-semibold flex items-center justify-between gap-2">
+        <span>⚙️ Pipeline</span>
+        {run && (
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_COLOR[run.status] ?? "bg-slate-500/20 text-slate-300"}`}>
+            {run.status}
+            {run.status === "completed" || run.status === "failed"
+              ? ` · +$${Number(run.costDelta ?? 0).toFixed(3)}`
+              : ""}
+          </span>
+        )}
+      </div>
+      <div className="p-3 space-y-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {PIPELINE_STAGE_ORDER.map((s) => (
+            <StageChip key={s} stage={s} state={stageState(s)} />
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <PrimaryBtn
+            label={
+              busy
+                ? "Queuing…"
+                : active
+                ? "⏳ Running…"
+                : run?.status === "completed"
+                ? "🔄 Re-run pipeline"
+                : "▶️ Run pipeline"
+            }
+            busy={busy || !!active}
+            onClick={() => start()}
+          />
+          {failed && run?.resumableFrom && (
+            <button
+              onClick={() => start(run.resumableFrom!)}
+              disabled={busy}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#FFB800]/40 text-[#FFB800] hover:bg-[#FFB800]/10 disabled:opacity-40 transition"
+            >
+              🔁 Resume from {STAGE_LABEL[run.resumableFrom]}
+            </button>
+          )}
+          {active && (
+            <span className="text-[10px] text-[#6B7799] ml-auto">
+              auto-refreshing every 5s
+            </span>
+          )}
+        </div>
+
+        {run?.stagesFailed && run.stagesFailed.length > 0 && (
+          <div className="text-[11px] space-y-0.5 pt-1">
+            {run.stagesFailed.map((f, i) => (
+              <p key={i} className="text-red-300">
+                <span className="font-semibold">{STAGE_LABEL[f.stage]}:</span> {f.error}
+              </p>
+            ))}
+          </div>
         )}
       </div>
     </div>

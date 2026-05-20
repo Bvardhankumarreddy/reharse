@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bull';
 import contentStudioConfig from './config/content-studio.config';
 import { AdminModule } from '../admin/admin.module';
 
@@ -13,6 +14,7 @@ import { BrandMemory } from './entities/brand-memory.entity';
 import { ContentAsset } from './entities/content-asset.entity';
 import { QuestionPool } from './entities/question-pool.entity';
 import { DeliveredQuiz } from './entities/delivered-quiz.entity';
+import { PipelineRun } from './entities/pipeline-run.entity';
 
 import { OpenAIAdapter } from './services/openai.adapter';
 import { AnthropicAdapter } from './services/anthropic.adapter';
@@ -24,6 +26,10 @@ import { PptAgent } from './agents/ppt.agent';
 import { QuizAgent } from './agents/quiz.agent';
 import { PptxRendererService } from './services/pptx-renderer.service';
 import { XlsxRendererService } from './services/xlsx-renderer.service';
+import {
+  PipelineOrchestratorService, CS_PIPELINE_QUEUE,
+} from './services/pipeline-orchestrator.service';
+import { PipelineWorker } from './workers/pipeline.worker';
 import { ContentStudioController } from './content-studio.controller';
 
 /**
@@ -37,8 +43,9 @@ import { ContentStudioController } from './content-studio.controller';
     ConfigModule.forFeature(contentStudioConfig),
     TypeOrmModule.forFeature([
       Brand, Channel, WeeklyContentPlan, Lesson, AgentRun, BrandMemory,
-      ContentAsset, QuestionPool, DeliveredQuiz,
+      ContentAsset, QuestionPool, DeliveredQuiz, PipelineRun,
     ]),
+    BullModule.registerQueue({ name: CS_PIPELINE_QUEUE }),
     AdminModule,
   ],
   controllers: [ContentStudioController],
@@ -53,6 +60,8 @@ import { ContentStudioController } from './content-studio.controller';
     ScriptAgent,
     PptAgent,
     QuizAgent,
+    PipelineOrchestratorService,
+    PipelineWorker,
   ],
 })
 export class ContentStudioModule {}

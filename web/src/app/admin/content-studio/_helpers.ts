@@ -100,6 +100,28 @@ export interface QuizPoolListResponse {
   passRate: number;
 }
 
+export type PipelineStage = "script" | "ppt" | "quiz" | "draw";
+export type PipelineStatus =
+  | "queued" | "running" | "completed" | "failed" | "cancelled";
+
+export interface PipelineRun {
+  id: string;
+  planId: string;
+  status: PipelineStatus;
+  currentStage: PipelineStage | null;
+  stagesCompleted: PipelineStage[];
+  stagesFailed: Array<{ stage: PipelineStage; error: string; at: string }>;
+  resumableFrom: PipelineStage | null;
+  costAtStart: number;
+  costDelta: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const PIPELINE_STAGE_ORDER: PipelineStage[] = ["script", "ppt", "quiz", "draw"];
+
 export interface PptAsset {
   id: string;
   lessonId: string | null;
