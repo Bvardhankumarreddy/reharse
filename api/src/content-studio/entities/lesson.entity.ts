@@ -3,6 +3,7 @@ import {
   CreateDateColumn, UpdateDateColumn,
 } from 'typeorm';
 import { WeeklyContentPlan } from './weekly-content-plan.entity';
+import type { LessonFormat } from './content-series.entity';
 
 export interface OutlineSection {
   heading: string;
@@ -36,6 +37,10 @@ export class Lesson {
 
   @Column({ type: 'int', default: 10 })
   targetDurationMinutes: number;
+
+  /** Phase E: lesson "shape" — lecture / live_coding / walkthrough / interview / short. */
+  @Column({ type: 'varchar', length: 30, default: 'lecture' })
+  lessonFormat: LessonFormat;
 
   @Column({ type: 'varchar', length: 30, default: 'planned' })
   status: string;

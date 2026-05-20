@@ -27,6 +27,9 @@ import { ThumbnailImageAgent } from './agents/thumbnail-image.agent';
 import { YouTubePublishService } from './services/youtube-publish.service';
 import { CommentReplyAgent } from './agents/comment-reply.agent';
 import { PipelineOrchestratorService } from './services/pipeline-orchestrator.service';
+import { SeriesService } from './services/series.service';
+import { SeriesArchitectAgent } from './agents/series-architect.agent';
+import { LessonFormat, isLessonFormat } from './entities/content-series.entity';
 import { DlqService } from './services/dlq.service';
 import { AuditService } from './services/audit.service';
 import { ContentStudioStatsService } from './services/stats.service';
@@ -82,6 +85,8 @@ export class ContentStudioController {
     private readonly competitor: CompetitorFetcherService,
     private readonly metricsFetcher: MetricsFetcherService,
     private readonly ytData: YouTubeDataService,
+    private readonly seriesSvc: SeriesService,
+    private readonly seriesArchitect: SeriesArchitectAgent,
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly intelQueue: Queue,
   ) {}
 
@@ -163,11 +168,23 @@ export class ContentStudioController {
     };
   }
 
-  /** Slice 1: Strategy Agent → week plan + 2 lessons. */
+  /**
+   * Slice 1: Strategy Agent → week plan + 2 lessons.
+   * Phase E: optional {seriesId, seriesWeekNumber} so a standalone "generate
+   * a week" can also be made in the context of an active series.
+   */
   @Post('plans/generate')
-  generate(@Body() body: { brandId?: string; weekOf?: string }) {
+  generate(@Body() body: {
+    brandId?: string;
+    weekOf?: string;
+    seriesId?: string;
+    seriesWeekNumber?: number;
+  }) {
     if (!body?.brandId) throw new BadRequestException('brandId is required');
-    return this.strategy.generateWeek(body.brandId, body.weekOf);
+    return this.strategy.generateWeek(body.brandId, body.weekOf, {
+      seriesId: body.seriesId ?? null,
+      seriesWeekNumber: body.seriesWeekNumber ?? null,
+    });
   }
 
   /** Slice 2: Script Agent → 8-12 min audio script for ONE lesson. */
@@ -829,5 +846,87 @@ export class ContentStudioController {
       order: { createdAt: 'ASC' },
     });
     return { ...plan, agentRuns };
+  }
+
+  // ── Phase E: multi-week Series ────────────────────────────────────────
+
+  /** List series, optionally filtered by brand. */
+  @Get('series')
+  series(@Query('brandId') brandId?: string) {
+    return this.seriesSvc.list(brandId);
+  }
+
+  /** One series, with its weekly plans for cross-week navigation. */
+  @Get('series/:id')
+  async serieOne(@Param('id') id: string) {
+    const series = await this.seriesSvc.get(id);
+    const plans = await this.planRepo.find({
+      where: { seriesId: id },
+      order: { seriesWeekNumber: 'ASC' },
+    });
+    return { ...series, plans };
+  }
+
+  /**
+   * Create a new series. Body:
+   *   { brandId, name, goal?, description?, targetWeeks?, startWeekOf? }
+   * Persists a draft row, then the Architect designs the topicArc and the
+   * row is updated. Returns the populated series.
+   */
+  @Post('series')
+  createSeries(@Body() body: {
+    brandId?: string;
+    name?: string;
+    goal?: string;
+    description?: string;
+    targetWeeks?: number;
+    startWeekOf?: string;
+  }) {
+    if (!body?.brandId) throw new BadRequestException('brandId is required');
+    if (!body?.name?.trim()) throw new BadRequestException('name is required');
+    return this.seriesSvc.create({
+      brandId: body.brandId,
+      name: body.name,
+      goal: body.goal,
+      description: body.description,
+      targetWeeks: body.targetWeeks,
+      startWeekOf: body.startWeekOf,
+    });
+  }
+
+  /** Re-run the Architect on an existing series (regenerates topicArc). */
+  @Post('series/:id/redesign')
+  async redesign(@Param('id') id: string) {
+    return this.seriesArchitect.designArcFor(id);
+  }
+
+  /**
+   * Materialise every week of the series into a weekly plan (idempotent —
+   * existing {seriesId, weekIndex} plans are skipped). Returns the list of
+   * plans that exist for the series after this call.
+   */
+  @Post('series/:id/plan-all')
+  planAllSeries(@Param('id') id: string) {
+    return this.seriesSvc.planAll(id);
+  }
+
+  // ── Phase E: per-lesson format override ───────────────────────────────
+
+  /** Curator override of a lesson's format. Body: { lessonFormat } */
+  @Patch('lessons/:id/format')
+  async setLessonFormat(
+    @Param('id') id: string,
+    @Body() body: { lessonFormat?: string },
+  ) {
+    const fmt = String(body?.lessonFormat ?? '').trim();
+    if (!isLessonFormat(fmt)) {
+      throw new BadRequestException(
+        'lessonFormat must be one of lecture | live_coding | walkthrough | interview | short',
+      );
+    }
+    const lesson = await this.lessonRepo.findOne({ where: { id } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    await this.lessonRepo.update(id, { lessonFormat: fmt as LessonFormat });
+    return { ok: true, id, lessonFormat: fmt };
   }
 }

@@ -22,6 +22,8 @@ import { CompetitorVideo } from './entities/competitor-video.entity';
 import { LessonMetrics } from './entities/lesson-metrics.entity';
 import { LessonPostmortem } from './entities/lesson-postmortem.entity';
 import { PublishedVideo } from './entities/published-video.entity';
+import { ContentSeries } from './entities/content-series.entity';
+import { NewsItem } from '../ai-quick-bytes/entities/news-item.entity';
 
 import { OpenAIAdapter } from './services/openai.adapter';
 import { AnthropicAdapter } from './services/anthropic.adapter';
@@ -58,6 +60,8 @@ import { YouTubeCommentService } from './services/youtube-comment.service';
 import { SpamDetectionService } from './services/spam-detection.service';
 import { CommentReplyAgent } from './agents/comment-reply.agent';
 import { NotificationService } from './services/notification.service';
+import { SeriesArchitectAgent } from './agents/series-architect.agent';
+import { SeriesService } from './services/series.service';
 import {
   IntelligenceWorker, CS_INTELLIGENCE_QUEUE,
 } from './workers/intelligence.worker';
@@ -78,6 +82,8 @@ import { ContentStudioController } from './content-studio.controller';
       ContentAsset, QuestionPool, DeliveredQuiz, PipelineRun, DeadLetterJob, AuditLog,
       CompetitorChannel, CompetitorVideo, LessonMetrics, LessonPostmortem,
       PublishedVideo,
+      ContentSeries,
+      NewsItem,
     ]),
     BullModule.registerQueue(
       { name: CS_PIPELINE_QUEUE },
@@ -122,6 +128,8 @@ import { ContentStudioController } from './content-studio.controller';
     CommentReplyAgent,
     PipelineWorker,
     IntelligenceWorker,
+    SeriesArchitectAgent,
+    SeriesService,
   ],
 })
 export class ContentStudioModule {}

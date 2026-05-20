@@ -12,8 +12,9 @@ import { ImprovementLoopService } from '../services/improvement-loop.service';
 import { BrandMemoryService } from '../services/brand-memory.service';
 import { ProviderName } from '../services/provider.types';
 import { PptxRendererService, SlideJson } from '../services/pptx-renderer.service';
+import { LessonFormat } from '../entities/content-series.entity';
 
-const SYSTEM = `
+const SYSTEM_LECTURE = `
 You design SLIDE CONTENT for a 13-slide educational presentation that
 accompanies a YouTube lesson. Slides are shown on-screen while a host
 narrates. Write concise, scannable slide text — NOT prose.
@@ -43,7 +44,39 @@ RULES:
 Return SINGLE JSON: {"slides":[ <exactly 13 objects in order> ]}. Nothing else.
 `.trim();
 
+const SYSTEM_INTERVIEW = `
+You design SLIDES for a 5-slide deck that bookends a TWO-VOICE interview
+video. Slides appear at the open and close, plus three "topic card"
+slides between segments.
+
+OUTPUT exactly 5 slides in this fixed order:
+
+ 1. title       {"layout":"title","title":"<interview topic>","subtitle":"with <guest hint, or 'a practitioner'>"}
+ 2. topic_1     {"layout":"kicker","kicker":"SEGMENT 1","title":"<first question, ≤12 words>","body":"<one-line setup>"}
+ 3. topic_2     {"layout":"kicker","kicker":"SEGMENT 2","title":"<second question>","body":"<one-line setup>"}
+ 4. quiz_tease  {"layout":"kicker","kicker":"SATURDAY QUIZ","title":"<the lure>","body":"<one sentence scope>"}
+ 5. end_card    {"layout":"end","title":"<CTA — Subscribe + …>","subtitle":"<brand name>"}
+
+RULES:
+- Titles ≤ 60 chars. Body ≤ 120 chars.
+- Obey brand voice/style/do/don't memories — verbatim.
+- No markdown, no emoji.
+
+Return SINGLE JSON: {"slides":[ <exactly 5 objects> ]}. Nothing else.
+`.trim();
+
 interface PptJson { slides?: SlideJson[] }
+
+/**
+ * Per-format slide count expectation. Formats absent here skip PPT
+ * generation entirely.
+ */
+const SLIDE_PROFILE: Partial<Record<LessonFormat, { count: number; system: string }>> = {
+  lecture: { count: 13, system: SYSTEM_LECTURE },
+  walkthrough: { count: 13, system: SYSTEM_LECTURE },
+  interview: { count: 5, system: SYSTEM_INTERVIEW },
+  // live_coding + short: no slide deck — host is on-screen the whole time.
+};
 
 @Injectable()
 export class PptAgent {
@@ -67,6 +100,38 @@ export class PptAgent {
     if (!plan) throw new BadRequestException('Lesson has no plan');
     const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
     if (!brand) throw new BadRequestException('Plan has no brand');
+
+    const fmt: LessonFormat = lesson.lessonFormat ?? 'lecture';
+    const profile = SLIDE_PROFILE[fmt];
+    if (!profile) {
+      // Live coding / shorts: no deck. Record a placeholder so the pipeline
+      // still completes the stage cleanly.
+      const latest = await this.assetRepo.findOne({
+        where: { lessonId, assetType: 'ppt' },
+        order: { version: 'DESC' },
+      });
+      const asset = await this.assetRepo.save(
+        this.assetRepo.create({
+          planId: plan.id,
+          lessonId: lesson.id,
+          assetType: 'ppt',
+          version: (latest?.version ?? 0) + 1,
+          content: {
+            skipped: true,
+            reason: `lessonFormat=${fmt} — no slide deck for this format`,
+            lessonFormat: fmt,
+            costUsd: 0,
+          },
+          status: 'skipped',
+        }),
+      );
+      this.logger.log(
+        `PPT skipped for "${lesson.title}" — format=${fmt}`,
+      );
+      return asset;
+    }
+
+    const { count, system: SYSTEM } = profile;
 
     const memories = await this.memories.semanticRelevantFor(
       brand.id, 'ppt', `${lesson.title} ${lesson.hook ?? ''}`, 8,
@@ -93,13 +158,14 @@ export class PptAgent {
       `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
       `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
       `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n\n` +
-      `LESSON ${lesson.lessonNumber}: ${lesson.title}\nHook: ${lesson.hook ?? '(none)'}\n` +
+      `LESSON ${lesson.lessonNumber}: ${lesson.title}\nFormat: ${fmt}\n` +
+      `Hook: ${lesson.hook ?? '(none)'}\n` +
       `Outline:\n${outlineBlock || '  (no outline)'}\n\n` +
       (scriptText
-        ? `LESSON AUDIO SCRIPT (mine real names/numbers from this):\n${scriptText.slice(0, 8000)}\n\n`
+        ? `LESSON SCRIPT (mine real names/numbers from this):\n${scriptText.slice(0, 8000)}\n\n`
         : `(No script yet — work from the outline.)\n\n`) +
       `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
-      `Output the JSON object only. Exactly 13 slides in the fixed order.`;
+      `Output the JSON object only. Exactly ${count} slides in the fixed order.`;
 
     const result = await this.loop.run<{ slides: SlideJson[] }>({
       agentType: 'ppt',
@@ -107,10 +173,10 @@ export class PptAgent {
       lessonId: lesson.id,
       memoryCount: memories.length,
       graderModelOverride: brand.modelOverrides?.grader,
-      context: `Lesson: ${lesson.title} · Brand: ${brand.name}`,
+      context: `Lesson: ${lesson.title} (${fmt}) · Brand: ${brand.name}`,
       draftFn: async (critique) => {
         const user = critique
-          ? `${userBase}\n\nREVISION REQUESTED — your previous slide JSON scored below the quality bar. Fix these:\n${critique}\nReturn the full 13-slide JSON only.`
+          ? `${userBase}\n\nREVISION REQUESTED — your previous slide JSON scored below the quality bar. Fix these:\n${critique}\nReturn the full ${count}-slide JSON only.`
           : userBase;
         const r = await this.router.run({
           task: 'ppt',
@@ -125,9 +191,9 @@ export class PptAgent {
           user,
         });
         const parsed = JSON.parse(r.text || '{}') as PptJson;
-        const slides = (parsed.slides ?? []).slice(0, 13);
-        if (slides.length < 13) {
-          throw new Error(`PPT agent returned ${slides.length} slides, expected 13`);
+        const slides = (parsed.slides ?? []).slice(0, count);
+        if (slides.length < count) {
+          throw new Error(`PPT agent returned ${slides.length} slides, expected ${count}`);
         }
         return {
           parsed: { slides },
@@ -153,6 +219,7 @@ export class PptAgent {
         content: {
           slides,
           slideCount: slides.length,
+          lessonFormat: fmt,
           model: result.model,
           provider: result.provider,
           costUsd: result.totalCostUsd,
@@ -169,7 +236,7 @@ export class PptAgent {
       totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.totalCostUsd,
     });
     this.logger.log(
-      `PPT v${asset.version} for "${lesson.title}" — ${slides.length} slides, ` +
+      `PPT v${asset.version} (${fmt}) for "${lesson.title}" — ${slides.length} slides, ` +
       `${result.revisions} revision(s), score ${result.qualityScore ?? 'n/a'} ` +
       `($${result.totalCostUsd.toFixed(4)})`,
     );
@@ -186,6 +253,10 @@ export class PptAgent {
   async renderLatest(lessonId: string): Promise<{ buf: Buffer; filename: string }> {
     const asset = await this.latestPpt(lessonId);
     if (!asset) throw new NotFoundException('No slides generated yet for this lesson');
+    const content = (asset.content as { slides?: SlideJson[]; skipped?: boolean } | null);
+    if (content?.skipped) {
+      throw new BadRequestException('This lesson format has no slide deck');
+    }
     const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException('Lesson not found');
     const plan = await this.planRepo.findOne({ where: { id: lesson.planId } });
@@ -193,8 +264,7 @@ export class PptAgent {
     const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
     if (!brand) throw new BadRequestException('Plan has no brand');
 
-    const slides =
-      ((asset.content as { slides?: SlideJson[] } | null)?.slides ?? []);
+    const slides = content?.slides ?? [];
     const buf = await this.renderer.render(slides, brand);
     const slug = (lesson.title || `lesson-${lesson.lessonNumber}`)
       .toLowerCase()

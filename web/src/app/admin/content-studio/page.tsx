@@ -17,6 +17,8 @@ import {
   type CompetitorChannel, type CompetitorVideo,
   type LessonMetricsRow, type LessonPostmortemRow,
   type PublishedVideoRow, type CommentDraftsResponse,
+  type ContentSeries, type SeriesDetail, type SeriesPlanAllResponse,
+  type LessonFormat, LESSON_FORMATS,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -69,6 +71,7 @@ export default function ContentStudioPage() {
         <>
           <DashboardPanel />
           <IntelligencePanel brands={brands} onToast={setToast} />
+          <SeriesPanel brands={brands} onToast={setToast} onChange={load} />
           <DlqPanel onToast={setToast} />
           <AuditPanel />
           <section className="space-y-3">
@@ -429,6 +432,16 @@ function PlanCard({ plan, brands, onToast }: {
           <span className="text-[#6B7799]">Theme: </span>{p.theme}
         </p>
       )}
+      {p.seriesId && (
+        <p className="px-4 pb-2 text-[11px] text-[#00F5A0]">
+          📚 part of a series · week {p.seriesWeekNumber ?? "?"}
+        </p>
+      )}
+      {p.notes && (
+        <p className="px-4 pb-2 text-[11px] text-[#6B7799] italic">
+          “{p.notes}”
+        </p>
+      )}
       <div className="px-4 py-2 border-t border-white/5">
         <Btn label={open ? "Hide" : "📂 Open plan"} onClick={toggle} />
       </div>
@@ -656,9 +669,12 @@ function LessonBlock({ lesson, onToast }: {
             <span className="text-[#6B7799]">Hook: </span>{lesson.hook}
           </p>
         )}
-        <p className="text-[10px] text-[#6B7799]">
-          ~{lesson.targetDurationMinutes} min target · {lesson.outline?.length ?? 0} sections
-        </p>
+        <div className="flex flex-wrap items-center gap-2 text-[10px] text-[#6B7799]">
+          <span>~{lesson.targetDurationMinutes} min target</span>
+          <span>· {lesson.outline?.length ?? 0} sections</span>
+          <span>·</span>
+          <FormatSelector lesson={lesson} onToast={onToast} />
+        </div>
         <ul className="space-y-1.5">
           {(lesson.outline ?? []).map((s, i) => (
             <li key={i} className="text-[12px] text-[#B8C5E0]">
@@ -2429,5 +2445,343 @@ function PrimaryBtn({ label, onClick, busy }: { label: string; onClick: () => vo
     >
       {label}
     </button>
+  );
+}
+
+// ── Phase E: Series UI ─────────────────────────────────────────────────────
+
+function FormatSelector({ lesson, onToast }: {
+  lesson: Lesson; onToast: (m: string) => void;
+}) {
+  const [fmt, setFmt] = useState<LessonFormat>(lesson.lessonFormat ?? "lecture");
+  const [busy, setBusy] = useState(false);
+
+  async function save(next: LessonFormat) {
+    if (next === fmt) return;
+    setBusy(true);
+    const prev = fmt;
+    setFmt(next);
+    const token = await fetchToken();
+    if (!token) { setFmt(prev); setBusy(false); return; }
+    try {
+      await api(token, `/lessons/${lesson.id}/format`, {
+        method: "PATCH",
+        body: JSON.stringify({ lessonFormat: next }),
+      });
+      onToast(`✓ Lesson format → ${next}`);
+    } catch (e) {
+      setFmt(prev);
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span>format:</span>
+      <select
+        value={fmt}
+        disabled={busy}
+        onChange={(e) => void save(e.target.value as LessonFormat)}
+        className="bg-[#0F1330] border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-[#B8C5E0] outline-none focus:border-[#00D4FF]/40"
+      >
+        {LESSON_FORMATS.map((f) => (
+          <option key={f} value={f}>{f}</option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+function SeriesPanel({ brands, onToast, onChange }: {
+  brands: Brand[]; onToast: (m: string) => void; onChange: () => void;
+}) {
+  const [series, setSeries] = useState<ContentSeries[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const token = await fetchToken();
+    if (!token) { setLoading(false); return; }
+    try {
+      const r = await api<ContentSeries[]>(token, "/series");
+      setSeries(r);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-[#B8C5E0] uppercase tracking-wide">
+          📚 Series (multi-week)
+        </h2>
+        <Btn
+          label={open ? "Hide form" : "➕ New series"}
+          onClick={() => setOpen((v) => !v)}
+        />
+      </div>
+      {open && (
+        <NewSeriesForm
+          brands={brands}
+          onToast={onToast}
+          onCreated={() => { void load(); onChange(); setOpen(false); }}
+        />
+      )}
+      {loading ? (
+        <Loading />
+      ) : series.length === 0 ? (
+        <Empty>
+          No series yet. Click ➕ New series to design a multi-week arc
+          (RAG fundamentals, Building agents, etc.) with the Series Architect.
+        </Empty>
+      ) : (
+        series.map((s) => (
+          <SeriesCard
+            key={s.id}
+            series={s}
+            brands={brands}
+            onToast={onToast}
+            onChange={() => { void load(); onChange(); }}
+          />
+        ))
+      )}
+    </section>
+  );
+}
+
+function NewSeriesForm({ brands, onToast, onCreated }: {
+  brands: Brand[]; onToast: (m: string) => void; onCreated: () => void;
+}) {
+  const [brandId, setBrandId] = useState(brands[0]?.id ?? "");
+  const [name, setName] = useState("");
+  const [goal, setGoal] = useState("");
+  const [targetWeeks, setTargetWeeks] = useState("4");
+  const [startWeekOf, setStartWeekOf] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (!brandId) return onToast("⚠ Pick a brand");
+    if (!name.trim()) return onToast("⚠ Name required");
+    setBusy(true);
+    onToast("Series Architect designing the arc… (Claude, ~20-40s)");
+    const token = await fetchToken();
+    if (!token) { setBusy(false); return; }
+    try {
+      await api(token, "/series", {
+        method: "POST",
+        body: JSON.stringify({
+          brandId,
+          name: name.trim(),
+          goal: goal.trim() || undefined,
+          targetWeeks: Number(targetWeeks) || 4,
+          startWeekOf: startWeekOf || undefined,
+        }),
+      });
+      setName(""); setGoal("");
+      onToast("✓ Series created and arc designed");
+      onCreated();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="bg-[#0F1330] border border-white/10 rounded-2xl p-4 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="text-[11px] text-[#6B7799] space-y-1">
+          <span>Brand</span>
+          <select
+            value={brandId}
+            onChange={(e) => setBrandId(e.target.value)}
+            className="w-full bg-[#151B3D] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#00D4FF]/40"
+          >
+            <option value="">— select brand —</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[11px] text-[#6B7799] space-y-1">
+          <span>Series name</span>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. RAG from zero to production"
+            className="w-full bg-[#151B3D] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#00D4FF]/40"
+          />
+        </label>
+        <label className="text-[11px] text-[#6B7799] space-y-1 sm:col-span-2">
+          <span>Goal (optional — what should viewers be able to do at the end?)</span>
+          <input
+            type="text"
+            value={goal}
+            onChange={(e) => setGoal(e.target.value)}
+            placeholder="e.g. Ship a production RAG system that beats keyword search"
+            className="w-full bg-[#151B3D] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#00D4FF]/40"
+          />
+        </label>
+        <label className="text-[11px] text-[#6B7799] space-y-1">
+          <span>Target weeks (2-16)</span>
+          <input
+            type="number" min={2} max={16}
+            value={targetWeeks}
+            onChange={(e) => setTargetWeeks(e.target.value)}
+            className="w-full bg-[#151B3D] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#00D4FF]/40"
+          />
+        </label>
+        <label className="text-[11px] text-[#6B7799] space-y-1">
+          <span>Start week (YYYY-MM-DD, Monday — blank = this week)</span>
+          <input
+            type="date"
+            value={startWeekOf}
+            onChange={(e) => setStartWeekOf(e.target.value)}
+            className="w-full bg-[#151B3D] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#00D4FF]/40"
+          />
+        </label>
+      </div>
+      <div className="flex justify-end">
+        <PrimaryBtn label="📐 Design arc" onClick={submit} busy={busy} />
+      </div>
+    </div>
+  );
+}
+
+const STATUS_COLOR_SERIES: Record<string, string> = {
+  planning:  "bg-slate-500/20 text-slate-300",
+  active:    "bg-emerald-500/20 text-emerald-300",
+  completed: "bg-violet-500/20 text-violet-300",
+  paused:    "bg-amber-500/20 text-amber-300",
+};
+
+function SeriesCard({ series, brands, onToast, onChange }: {
+  series: ContentSeries;
+  brands: Brand[];
+  onToast: (m: string) => void;
+  onChange: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [full, setFull] = useState<SeriesDetail | null>(null);
+  const [busyPlan, setBusyPlan] = useState(false);
+  const [busyRedesign, setBusyRedesign] = useState(false);
+  const brandName = brands.find((b) => b.id === series.brandId)?.name ?? "—";
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !full) {
+      const token = await fetchToken();
+      if (!token) return;
+      try { setFull(await api<SeriesDetail>(token, `/series/${series.id}`)); }
+      catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    }
+  }
+
+  async function planAll() {
+    setBusyPlan(true);
+    onToast(`Materialising ${series.targetWeeks} weeks… (Strategy Agent per week)`);
+    const token = await fetchToken();
+    if (!token) { setBusyPlan(false); return; }
+    try {
+      const r = await api<SeriesPlanAllResponse>(token, `/series/${series.id}/plan-all`, {
+        method: "POST",
+      });
+      onToast(`✓ ${r.plansCreated.length} weekly plans now exist for this series`);
+      onChange();
+      // refresh detail
+      try { setFull(await api<SeriesDetail>(token, `/series/${series.id}`)); }
+      catch { /* ignore */ }
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusyPlan(false); }
+  }
+
+  async function redesign() {
+    if (!confirm("Re-run the Series Architect? This overwrites the topic arc.")) return;
+    setBusyRedesign(true);
+    onToast("Series Architect redesigning the arc…");
+    const token = await fetchToken();
+    if (!token) { setBusyRedesign(false); return; }
+    try {
+      await api(token, `/series/${series.id}/redesign`, { method: "POST" });
+      onToast("✓ Arc redesigned");
+      setFull(null);
+      setOpen(false);
+      onChange();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusyRedesign(false); }
+  }
+
+  return (
+    <div className="bg-[#151B3D] border border-white/10 rounded-2xl overflow-hidden">
+      <div className="px-4 py-3 flex items-center justify-between gap-3">
+        <span className="text-[#B8C5E0] text-sm font-medium truncate flex items-center gap-2">
+          <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLOR_SERIES[series.status] ?? ""}`}>
+            {series.status}
+          </span>
+          {brandName} · {series.name}
+        </span>
+        <span className="text-[#6B7799] text-xs shrink-0">
+          {series.targetWeeks} weeks
+          {series.startWeekOf ? ` · starts ${series.startWeekOf}` : ""}
+        </span>
+      </div>
+      {series.goal && (
+        <p className="px-4 pb-2 text-[#B8C5E0] text-[13px]">
+          <span className="text-[#6B7799]">Goal: </span>{series.goal}
+        </p>
+      )}
+      <div className="px-4 py-2 border-t border-white/5 flex flex-wrap items-center gap-2">
+        <Btn label={open ? "Hide arc" : "📂 Open arc"} onClick={toggle} />
+        <PrimaryBtn label="🪄 Plan all weeks" onClick={planAll} busy={busyPlan} />
+        <Btn label={busyRedesign ? "…" : "♻ Redesign"} onClick={redesign} />
+      </div>
+      {open && full && (
+        <div className="px-4 py-4 border-t border-white/5 bg-[#0F1330] space-y-3">
+          {(full.topicArc ?? []).map((w) => (
+            <div key={w.weekIndex} className="border border-white/10 rounded-xl p-3 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[#00D4FF] text-[12px] font-semibold">
+                  Week {w.weekIndex} · {w.plannedTheme}
+                </span>
+                <span className="text-[10px] text-[#6B7799]">
+                  {(w.plannedLessonFormats ?? []).join(" + ")}
+                </span>
+              </div>
+              {w.plannedHook && (
+                <p className="text-[12px] text-[#B8C5E0]">
+                  <span className="text-[#6B7799]">Hook: </span>{w.plannedHook}
+                </p>
+              )}
+              {w.plannedFocus && (
+                <p className="text-[11px] text-[#6B7799]">{w.plannedFocus}</p>
+              )}
+            </div>
+          ))}
+          {full.plans && full.plans.length > 0 && (
+            <div className="pt-2 border-t border-white/5">
+              <p className="text-[11px] text-[#6B7799] mb-2">
+                Materialised plans ({full.plans.length}):
+              </p>
+              <ul className="space-y-1">
+                {full.plans.map((p) => (
+                  <li key={p.id} className="text-[11px] text-[#B8C5E0]">
+                    w{p.seriesWeekNumber ?? "?"} · {p.weekOf} · {p.theme ?? "(no theme yet)"}
+                    {" "}
+                    <span className={`px-1.5 py-0.5 rounded ${STATUS_COLOR[p.status] ?? "bg-slate-500/20 text-slate-300"}`}>
+                      {p.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -27,6 +27,13 @@ export interface OutlineSection {
   points: string[];
 }
 
+export type LessonFormat =
+  | "lecture" | "live_coding" | "walkthrough" | "interview" | "short";
+
+export const LESSON_FORMATS: LessonFormat[] = [
+  "lecture", "live_coding", "walkthrough", "interview", "short",
+];
+
 export interface Lesson {
   id: string;
   lessonNumber: number;
@@ -34,7 +41,49 @@ export interface Lesson {
   hook: string | null;
   outline: OutlineSection[];
   targetDurationMinutes: number;
+  lessonFormat: LessonFormat;
   status: string;
+}
+
+// ── Phase E: multi-week Series ──────────────────────────────────────────
+
+export type SeriesStatus = "planning" | "active" | "completed" | "paused";
+
+export interface SeriesWeekArc {
+  weekIndex: number;
+  plannedTheme: string;
+  plannedHook: string;
+  plannedFocus: string;
+  plannedLessonFormats: LessonFormat[];
+}
+
+export interface ContentSeries {
+  id: string;
+  brandId: string;
+  name: string;
+  description: string | null;
+  goal: string | null;
+  targetWeeks: number;
+  topicArc: SeriesWeekArc[];
+  currentWeek: number;
+  status: SeriesStatus;
+  startWeekOf: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SeriesDetail extends ContentSeries {
+  plans: WeeklyPlan[];
+}
+
+export interface SeriesPlanAllResponse {
+  seriesId: string;
+  plansCreated: Array<{
+    planId: string;
+    weekOf: string;
+    theme: string | null;
+    weekIndex: number;
+  }>;
 }
 
 export interface AgentRun {
@@ -374,8 +423,13 @@ export interface WeeklyPlan {
   weekOf: string;
   theme: string | null;
   quizScope: string | null;
+  /** Phase E: stash of the Strategy Agent's "why this theme" rationale. */
+  notes: string | null;
   status: string;
   totalCostUsd: number;
+  /** Phase E: when set, this week belongs to a multi-week series. */
+  seriesId: string | null;
+  seriesWeekNumber: number | null;
   lessonCount?: number;
   lessons?: Lesson[];
   agentRuns?: AgentRun[];

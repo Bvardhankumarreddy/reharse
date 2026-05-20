@@ -36,6 +36,14 @@ export class WeeklyContentPlan {
   @Column({ type: 'numeric', precision: 10, scale: 6, default: 0 })
   totalCostUsd: number;
 
+  /** Phase E: optional link to a multi-week series. Null = standalone week. */
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  seriesId: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  seriesWeekNumber: number | null;
+
   @OneToMany(() => Lesson, (l) => l.plan)
   lessons: Lesson[];
 
