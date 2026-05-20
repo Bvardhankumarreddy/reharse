@@ -1,7 +1,9 @@
 import {
-  Controller, Get, Post, Patch, Param, Query, Body, Req, Res, UseGuards,
+  Controller, Get, Post, Patch, Delete, Param, Query, Body, Req, Res, UseGuards,
   NotFoundException, BadRequestException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
 import type { Request, Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -23,6 +25,15 @@ import { PipelineOrchestratorService } from './services/pipeline-orchestrator.se
 import { DlqService } from './services/dlq.service';
 import { AuditService } from './services/audit.service';
 import { ContentStudioStatsService } from './services/stats.service';
+import { BrandMemoryService } from './services/brand-memory.service';
+import { CompetitorFetcherService } from './services/competitor-fetcher.service';
+import { MetricsFetcherService } from './services/metrics-fetcher.service';
+import { YouTubeDataService } from './services/youtube-data.service';
+import { CS_INTELLIGENCE_QUEUE } from './workers/intelligence.worker';
+import { CompetitorChannel } from './entities/competitor-channel.entity';
+import { CompetitorVideo } from './entities/competitor-video.entity';
+import { LessonMetrics } from './entities/lesson-metrics.entity';
+import { Channel as ChannelEntity } from './entities/channel.entity';
 import type { AuditEntityType } from './entities/audit-log.entity';
 import type { PipelineStage } from './entities/pipeline-run.entity';
 import { PIPELINE_STAGES } from './entities/pipeline-run.entity';
@@ -38,6 +49,14 @@ export class ContentStudioController {
     @InjectRepository(AgentRun) private readonly runRepo: Repository<AgentRun>,
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
     @InjectRepository(ContentAsset) private readonly assetRepo: Repository<ContentAsset>,
+    @InjectRepository(CompetitorChannel)
+    private readonly competitorChannelRepo: Repository<CompetitorChannel>,
+    @InjectRepository(CompetitorVideo)
+    private readonly competitorVideoRepo: Repository<CompetitorVideo>,
+    @InjectRepository(LessonMetrics)
+    private readonly metricsRepo: Repository<LessonMetrics>,
+    @InjectRepository(ChannelEntity)
+    private readonly channelRepo: Repository<ChannelEntity>,
     private readonly strategy: StrategyAgent,
     private readonly script: ScriptAgent,
     private readonly ppt: PptAgent,
@@ -49,6 +68,11 @@ export class ContentStudioController {
     private readonly dlq: DlqService,
     private readonly audit: AuditService,
     private readonly stats: ContentStudioStatsService,
+    private readonly memorySvc: BrandMemoryService,
+    private readonly competitor: CompetitorFetcherService,
+    private readonly metricsFetcher: MetricsFetcherService,
+    private readonly ytData: YouTubeDataService,
+    @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly intelQueue: Queue,
   ) {}
 
   private writerFrom(req: Request) {
@@ -271,6 +295,249 @@ export class ContentStudioController {
   @Get('runs/:id')
   getRun(@Param('id') id: string) {
     return this.orchestrator.get(id);
+  }
+
+  // ── Phase D: multi-brand (create) ───────────────────────────────────────
+
+  @Post('brands')
+  async createBrand(
+    @Body() body: {
+      name?: string; slug?: string; description?: string; voiceStyle?: string;
+      colorPrimary?: string; colorSecondary?: string;
+      modelOverrides?: Record<string, string>;
+    },
+    @Req() req: Request,
+  ) {
+    if (!body.name?.trim()) throw new BadRequestException('name required');
+    if (!body.slug?.trim()) throw new BadRequestException('slug required');
+    const slug = body.slug.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+    const existing = await this.brandRepo.findOne({ where: { slug } });
+    if (existing) throw new BadRequestException(`slug "${slug}" already exists`);
+
+    const created = await this.brandRepo.save(
+      this.brandRepo.create({
+        name: body.name.trim().slice(0, 255),
+        slug,
+        description: body.description?.slice(0, 2000) ?? null,
+        voiceStyle: body.voiceStyle?.slice(0, 2000) ?? null,
+        colorPrimary: body.colorPrimary?.slice(0, 20) ?? null,
+        colorSecondary: body.colorSecondary?.slice(0, 20) ?? null,
+        modelOverrides: body.modelOverrides ?? {},
+        isActive: true,
+      }),
+    );
+    await this.audit.log({
+      entityType: 'brand', entityId: created.id, action: 'created',
+      after: { name: created.name, slug: created.slug },
+      summary: `Created brand "${created.name}"`,
+      writer: this.writerFrom(req),
+    });
+    return created;
+  }
+
+  // ── Phase D: brand memories CRUD (with pgvector on save) ───────────────
+
+  @Post('brands/:id/memories')
+  async addMemory(
+    @Param('id') brandId: string,
+    @Body() body: { memoryType?: string; content?: string; weight?: number; appliesTo?: string[] },
+    @Req() req: Request,
+  ) {
+    const brand = await this.brandRepo.findOne({ where: { id: brandId } });
+    if (!brand) throw new NotFoundException('Brand not found');
+    if (!body.content?.trim()) throw new BadRequestException('content required');
+    const validTypes = new Set(['voice', 'style', 'hook', 'structure', 'do', 'dont']);
+    const memoryType = String(body.memoryType ?? 'style').toLowerCase();
+    if (!validTypes.has(memoryType)) {
+      throw new BadRequestException(`memoryType must be one of ${[...validTypes].join(', ')}`);
+    }
+    const validAgents = new Set([
+      'strategy', 'script', 'ppt', 'seo', 'thumbnail', 'promo', 'quiz',
+    ]);
+    const appliesTo = (body.appliesTo ?? []).filter((t) => validAgents.has(t));
+    const created = await this.memoryRepo.save(
+      this.memoryRepo.create({
+        brandId,
+        memoryType: memoryType as 'voice' | 'style' | 'hook' | 'structure' | 'do' | 'dont',
+        content: body.content.trim().slice(0, 4000),
+        weight: typeof body.weight === 'number' ? Math.max(0, Math.min(5, body.weight)) : 1,
+        appliesTo,
+        isActive: true,
+      }),
+    );
+    // Best-effort embedding for pgvector retrieval.
+    void this.memorySvc.embedOnSave(created.id, created.content);
+    await this.audit.log({
+      entityType: 'memory', entityId: created.id, action: 'created',
+      after: { brandId, memoryType: created.memoryType, appliesTo },
+      summary: `Added "${created.memoryType}" memory to brand "${brand.name}"`,
+      writer: this.writerFrom(req),
+    });
+    return created;
+  }
+
+  @Delete('brands/:id/memories/:memoryId')
+  async deleteMemory(
+    @Param('id') brandId: string,
+    @Param('memoryId') memoryId: string,
+    @Req() req: Request,
+  ) {
+    const m = await this.memoryRepo.findOne({ where: { id: memoryId, brandId } });
+    if (!m) throw new NotFoundException('Memory not found');
+    await this.memoryRepo.update(memoryId, { isActive: false });
+    await this.audit.log({
+      entityType: 'memory', entityId: memoryId, action: 'deleted',
+      summary: `Soft-deleted ${m.memoryType} memory`,
+      writer: this.writerFrom(req),
+    });
+    return { success: true };
+  }
+
+  // ── Phase D: competitor channels (D1 + intelligence digest) ────────────
+
+  @Get('brands/:id/competitors')
+  async listCompetitors(@Param('id') brandId: string) {
+    const data = await this.competitorChannelRepo.find({
+      where: { brandId, isActive: true },
+      order: { createdAt: 'ASC' },
+    });
+    return { data, count: data.length };
+  }
+
+  @Post('brands/:id/competitors')
+  async addCompetitor(
+    @Param('id') brandId: string,
+    @Body() body: { name?: string; channelHandle?: string; youtubeChannelId?: string; notes?: string },
+    @Req() req: Request,
+  ) {
+    const brand = await this.brandRepo.findOne({ where: { id: brandId } });
+    if (!brand) throw new NotFoundException('Brand not found');
+    if (!body.name?.trim()) throw new BadRequestException('name required');
+    if (!body.channelHandle && !body.youtubeChannelId) {
+      throw new BadRequestException('channelHandle or youtubeChannelId required');
+    }
+    const created = await this.competitorChannelRepo.save(
+      this.competitorChannelRepo.create({
+        brandId,
+        name: body.name.trim().slice(0, 255),
+        channelHandle: body.channelHandle?.slice(0, 255) ?? null,
+        youtubeChannelId: body.youtubeChannelId?.slice(0, 64) ?? null,
+        notes: body.notes?.slice(0, 1000) ?? null,
+        isActive: true,
+      }),
+    );
+    await this.audit.log({
+      entityType: 'brand', entityId: brandId, action: 'updated',
+      after: { addedCompetitor: created.name },
+      summary: `Added competitor "${created.name}" to brand "${brand.name}"`,
+      writer: this.writerFrom(req),
+    });
+    return created;
+  }
+
+  @Delete('brands/:id/competitors/:cid')
+  async deleteCompetitor(
+    @Param('id') brandId: string,
+    @Param('cid') cid: string,
+    @Req() req: Request,
+  ) {
+    const c = await this.competitorChannelRepo.findOne({ where: { id: cid, brandId } });
+    if (!c) throw new NotFoundException('Competitor not found');
+    await this.competitorChannelRepo.update(cid, { isActive: false });
+    await this.audit.log({
+      entityType: 'brand', entityId: brandId, action: 'updated',
+      after: { removedCompetitor: c.name },
+      summary: `Removed competitor "${c.name}"`,
+      writer: this.writerFrom(req),
+    });
+    return { success: true };
+  }
+
+  /** Manual sync for one competitor channel (otherwise nightly cron). */
+  @Post('brands/:id/competitors/:cid/sync')
+  async syncCompetitor(
+    @Param('id') brandId: string,
+    @Param('cid') cid: string,
+  ) {
+    if (!this.ytData.isConfigured()) {
+      throw new BadRequestException(
+        'CS_YT_API_KEY not set — competitor sync is dormant',
+      );
+    }
+    const c = await this.competitorChannelRepo.findOne({ where: { id: cid, brandId } });
+    if (!c) throw new NotFoundException('Competitor not found');
+    const saved = await this.competitor.fetchOne(c, 25);
+    return { saved };
+  }
+
+  /** Top-viewed competitor videos in last N days for the brand. */
+  @Get('brands/:id/intelligence/competitor-top')
+  async competitorTop(
+    @Param('id') brandId: string,
+    @Query('days') days?: string,
+  ) {
+    const data = await this.competitor.topRecentForBrand(
+      brandId, 15, days ? Math.max(1, parseInt(days, 10)) : 30,
+    );
+    return { data, count: data.length };
+  }
+
+  // ── Phase D: cross-week orchestration (plan N future weeks) ────────────
+
+  @Post('brands/:id/plan-ahead')
+  async planAhead(
+    @Param('id') brandId: string,
+    @Body() body: { weeks?: number },
+    @Req() req: Request,
+  ) {
+    const n = Math.max(1, Math.min(8, Number(body.weeks ?? 4) || 4));
+    const brand = await this.brandRepo.findOne({ where: { id: brandId } });
+    if (!brand) throw new NotFoundException('Brand not found');
+
+    // Future Mondays (UTC), starting next Monday.
+    const monday = (offsetWeeks: number): string => {
+      const d = new Date();
+      const day = d.getUTCDay();
+      const diff = (day === 0 ? -6 : 1) - day;
+      d.setUTCDate(d.getUTCDate() + diff + offsetWeeks * 7);
+      return d.toISOString().slice(0, 10);
+    };
+
+    const created: Array<{ planId: string; weekOf: string; theme: string | null }> = [];
+    for (let i = 1; i <= n; i++) {
+      const week = monday(i);
+      const exists = await this.planRepo.findOne({ where: { brandId, weekOf: week } });
+      if (exists) {
+        created.push({ planId: exists.id, weekOf: week, theme: exists.theme });
+        continue;
+      }
+      const plan = await this.strategy.generateWeek(brandId, week);
+      created.push({ planId: plan.id, weekOf: week, theme: plan.theme });
+    }
+    await this.audit.log({
+      entityType: 'brand', entityId: brandId, action: 'updated',
+      after: { plannedWeeks: created.map((c) => c.weekOf) },
+      summary: `Planned ${n} weeks ahead for "${brand.name}"`,
+      writer: this.writerFrom(req),
+    });
+    return { weeks: created };
+  }
+
+  // ── Phase D: per-lesson YouTube metrics ─────────────────────────────────
+
+  @Get('lessons/:id/metrics')
+  async lessonMetrics(@Param('id') lessonId: string) {
+    const latest = await this.metricsFetcher.latestFor(lessonId);
+    if (!latest) throw new NotFoundException('No metrics fetched yet');
+    return latest;
+  }
+
+  /** Manually trigger both intelligence crons (otherwise scheduled). */
+  @Post('intelligence/sync-now')
+  async syncNow() {
+    await this.intelQueue.add('competitor-sweep', {}, { removeOnComplete: true });
+    await this.intelQueue.add('metrics-sweep', {}, { removeOnComplete: true });
+    return { queued: true };
   }
 
   // ── Slice C2: asset version history + rollback ─────────────────────────

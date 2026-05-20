@@ -17,6 +17,11 @@ import { DeliveredQuiz } from './entities/delivered-quiz.entity';
 import { PipelineRun } from './entities/pipeline-run.entity';
 import { DeadLetterJob } from './entities/dead-letter-job.entity';
 import { AuditLog } from './entities/audit-log.entity';
+import { CompetitorChannel } from './entities/competitor-channel.entity';
+import { CompetitorVideo } from './entities/competitor-video.entity';
+import { LessonMetrics } from './entities/lesson-metrics.entity';
+import { LessonPostmortem } from './entities/lesson-postmortem.entity';
+import { PublishedVideo } from './entities/published-video.entity';
 
 import { OpenAIAdapter } from './services/openai.adapter';
 import { AnthropicAdapter } from './services/anthropic.adapter';
@@ -40,6 +45,13 @@ import {
 import { DlqService } from './services/dlq.service';
 import { AuditService } from './services/audit.service';
 import { ContentStudioStatsService } from './services/stats.service';
+import { OpenAIEmbeddingService } from './services/openai-embedding.service';
+import { YouTubeDataService } from './services/youtube-data.service';
+import { CompetitorFetcherService } from './services/competitor-fetcher.service';
+import { MetricsFetcherService } from './services/metrics-fetcher.service';
+import {
+  IntelligenceWorker, CS_INTELLIGENCE_QUEUE,
+} from './workers/intelligence.worker';
 import { PipelineWorker } from './workers/pipeline.worker';
 import { ContentStudioController } from './content-studio.controller';
 
@@ -55,8 +67,13 @@ import { ContentStudioController } from './content-studio.controller';
     TypeOrmModule.forFeature([
       Brand, Channel, WeeklyContentPlan, Lesson, AgentRun, BrandMemory,
       ContentAsset, QuestionPool, DeliveredQuiz, PipelineRun, DeadLetterJob, AuditLog,
+      CompetitorChannel, CompetitorVideo, LessonMetrics, LessonPostmortem,
+      PublishedVideo,
     ]),
-    BullModule.registerQueue({ name: CS_PIPELINE_QUEUE }),
+    BullModule.registerQueue(
+      { name: CS_PIPELINE_QUEUE },
+      { name: CS_INTELLIGENCE_QUEUE },
+    ),
     AdminModule,
   ],
   controllers: [ContentStudioController],
@@ -81,7 +98,12 @@ import { ContentStudioController } from './content-studio.controller';
     DlqService,
     AuditService,
     ContentStudioStatsService,
+    OpenAIEmbeddingService,
+    YouTubeDataService,
+    CompetitorFetcherService,
+    MetricsFetcherService,
     PipelineWorker,
+    IntelligenceWorker,
   ],
 })
 export class ContentStudioModule {}

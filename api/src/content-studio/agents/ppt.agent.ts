@@ -68,7 +68,9 @@ export class PptAgent {
     const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
     if (!brand) throw new BadRequestException('Plan has no brand');
 
-    const memories = await this.memories.relevantFor(brand.id, 'ppt');
+    const memories = await this.memories.semanticRelevantFor(
+      brand.id, 'ppt', `${lesson.title} ${lesson.hook ?? ''}`, 8,
+    );
     const memoryBlock = this.memories.format(memories);
 
     const script = await this.assetRepo.findOne({

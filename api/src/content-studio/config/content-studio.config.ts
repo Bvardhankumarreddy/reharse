@@ -58,9 +58,26 @@ const tierDefault = (task: TaskKey): string =>
  * but every model is env-overridable; per-brand overrides win over env.
  */
 export default registerAs('contentStudio', () => ({
-  openai: { apiKey: process.env.OPENAI_API_KEY },
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY,
+    /** DALL-E variant for thumbnails (Phase D). */
+    imageModel: process.env.CS_IMAGE_MODEL ?? 'dall-e-3',
+    imageSize: process.env.CS_IMAGE_SIZE ?? '1792x1024',
+  },
   anthropic: { apiKey: process.env.ANTHROPIC_API_KEY },
   gemini: { apiKey: process.env.GEMINI_API_KEY },
+
+  /**
+   * Phase D — YouTube. Data API is read-only and only needs an API key;
+   * Analytics + auto-publish + comments need an OAuth refresh token and
+   * are dormant when CS_YT_OAUTH_REFRESH_TOKEN is missing.
+   */
+  youtube: {
+    apiKey:           process.env.CS_YT_API_KEY,
+    oauthRefreshToken: process.env.CS_YT_OAUTH_REFRESH_TOKEN,
+    oauthClientId:     process.env.CS_YT_OAUTH_CLIENT_ID,
+    oauthClientSecret: process.env.CS_YT_OAUTH_CLIENT_SECRET,
+  },
 
   /** Reported back to the admin UI for visibility. */
   tier: TIER,

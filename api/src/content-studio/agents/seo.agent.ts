@@ -71,7 +71,9 @@ export class SeoAgent {
     const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
     if (!brand) throw new BadRequestException('Plan has no brand');
 
-    const memories = await this.memories.relevantFor(brand.id, 'seo');
+    const memories = await this.memories.semanticRelevantFor(
+      brand.id, 'seo', `${lesson.title} ${lesson.hook ?? ''}`, 6,
+    );
     const memoryBlock = this.memories.format(memories);
     const script = await this.assetRepo.findOne({
       where: { lessonId, assetType: 'script' },

@@ -60,7 +60,9 @@ export class ScriptAgent {
     const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
     if (!brand) throw new BadRequestException('Plan has no brand');
 
-    const memories = await this.memories.relevantFor(brand.id, 'script');
+    const memories = await this.memories.semanticRelevantFor(
+      brand.id, 'script', `${lesson.title} ${lesson.hook ?? ''}`, 8,
+    );
     const memoryBlock = this.memories.format(memories);
     const outlineBlock = (lesson.outline ?? [])
       .map(
