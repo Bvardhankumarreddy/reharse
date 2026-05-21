@@ -50,7 +50,8 @@ export interface DistributionLlmResponse {
 }
 
 export type ThumbnailStyle =
-  | 'shocked_reaction' | 'bold_text' | 'visual_metaphor';
+  | 'shocked_reaction' | 'bold_text' | 'visual_metaphor'
+  | 'brand_signature'; // the previous detailed AetherStackAI futuristic look
 
 export interface ThumbnailVariation {
   style: ThumbnailStyle;

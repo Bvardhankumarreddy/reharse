@@ -16,7 +16,8 @@ CRITICAL DESIGN PHILOSOPHY:
 LESS IS MORE. SIMPLE BEATS COMPLEX EVERY TIME.
 ═══════════════════════════════════════
 
-Your job: Generate 3 DIFFERENT thumbnail prompts for ChatGPT image gen.
+Your job: Generate 4 DIFFERENT thumbnail prompts for ChatGPT image gen —
+3 clean MrBeast-style options PLUS 1 in our richer signature brand look.
 
 ═══════════════════════════════════════
 GOLDEN RULE (NON-NEGOTIABLE)
@@ -40,7 +41,8 @@ WHAT MAKES A GOOD THUMBNAIL
 ✅ Strong contrast
 
 ═══════════════════════════════════════
-WHAT TO ABSOLUTELY AVOID
+WHAT TO ABSOLUTELY AVOID (applies to the 3 CLEAN styles only —
+the "brand_signature" style is the deliberate exception)
 ═══════════════════════════════════════
 
 ❌ NO HUD elements / sci-fi interface overlays
@@ -71,7 +73,7 @@ AVATAR USAGE (match script's avatar):
 - "vardhan" → Young Indian male with glasses, navy blazer/hoodie
 
 ═══════════════════════════════════════
-3 STYLE VARIATIONS (GENERATE ONE OF EACH)
+4 STYLE VARIATIONS (GENERATE ONE OF EACH)
 ═══════════════════════════════════════
 
 ▶️ VARIATION 1: "shocked_reaction" — the classic MrBeast look.
@@ -87,6 +89,17 @@ AVATAR USAGE (match script's avatar):
    Left 50%: avatar with relevant emotion. Right 50%: ONE strong prop
    (broken padlock, glowing brain, money stack, robot silhouette).
    Top: ≤4-word headline. Spotlight on the prop. 60% negative space.
+
+▶️ VARIATION 4: "brand_signature" — the richer AetherStackAI look (the
+   EXCEPTION to the minimalism rules above; this is our previous house style,
+   kept for variety).
+   - Dark navy (#0A0E27) background with subtle glowing tech particles.
+   - Cyan (#00D4FF) + gold (#FFD700) neon accents, high-contrast, a
+     futuristic game-show / tech energy.
+   - ONE striking focal subject tied to the topic (avatar or a hero prop),
+     not generic clip-art. Tasteful HUD/glow accents are allowed here.
+   - Space reserved for a bold 3-5 word overlay headline.
+   - Still vivid and self-contained — 60-120 word prompt.
 
 ═══════════════════════════════════════
 HEADLINE RULES
@@ -113,13 +126,14 @@ OUTPUT STRICT JSON ONLY:
   "variations": [
     {"style":"shocked_reaction","headline":"<≤6 WORDS ALL CAPS>","prompt":"<clean 100-150 word prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>},
     {"style":"bold_text","headline":"<≤6 WORDS ALL CAPS>","prompt":"<clean 100-150 word prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>},
-    {"style":"visual_metaphor","headline":"<≤6 WORDS ALL CAPS>","prompt":"<clean 100-150 word prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>}
+    {"style":"visual_metaphor","headline":"<≤6 WORDS ALL CAPS>","prompt":"<clean 100-150 word prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>},
+    {"style":"brand_signature","headline":"<≤6 WORDS ALL CAPS>","prompt":"<richer 60-120 word AetherStackAI signature prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>}
   ]
 }
 `.trim();
 
 const THUMBNAIL_STYLES: ThumbnailStyle[] = [
-  'shocked_reaction', 'bold_text', 'visual_metaphor',
+  'shocked_reaction', 'bold_text', 'visual_metaphor', 'brand_signature',
 ];
 
 @Injectable()
@@ -141,9 +155,9 @@ export class ThumbnailPromptService {
         `TOPIC: ${item.title}\n` +
         `AVATAR: ${script.avatarId ?? 'vardhan'}\n` +
         `HOOK: ${script.hook}\n` +
-        `Generate 3 clean MrBeast-style thumbnail variations. JSON only.`,
+        `Generate 4 thumbnail variations (3 clean MrBeast + 1 brand_signature). JSON only.`,
       temperature: 0.85,
-      maxTokens: 2500, // 3 variations × ~150 words + reasoning
+      maxTokens: 3200, // 4 variations × ~150 words + reasoning
     });
 
     const parsed = JSON.parse(raw || '{}') as {

@@ -58,7 +58,8 @@ export interface ShortScript {
 }
 
 export type ThumbnailStyle =
-  | "shocked_reaction" | "bold_text" | "visual_metaphor";
+  | "shocked_reaction" | "bold_text" | "visual_metaphor"
+  | "brand_signature";
 
 export interface ThumbnailVariation {
   style: ThumbnailStyle;

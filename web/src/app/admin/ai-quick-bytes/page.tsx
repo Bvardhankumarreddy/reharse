@@ -644,6 +644,7 @@ const THUMB_STYLE_LABEL: Record<string, string> = {
   shocked_reaction: "😱 Shocked reaction",
   bold_text: "🔠 Bold text",
   visual_metaphor: "🎭 Visual metaphor",
+  brand_signature: "✨ Brand signature (previous style)",
 };
 
 function ThumbnailVariations({ variations }: { variations: ThumbnailVariation[] }) {
