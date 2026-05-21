@@ -1,10 +1,13 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable, Logger, BadRequestException, NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
 import { Channel } from '../entities/channel.entity';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
 import { Lesson, OutlineSection } from '../entities/lesson.entity';
+import { ContentAsset } from '../entities/content-asset.entity';
 import {
   ContentSeries, LessonFormat, isLessonFormat,
 } from '../entities/content-series.entity';
@@ -64,6 +67,28 @@ Respond with a SINGLE JSON object only:
 Exactly 2 lessons.
 `.trim();
 
+const REGEN_LESSON_SYSTEM = `
+You re-plan ONE lesson within an existing week. The week's theme and the
+other lesson(s) are fixed — your job is to produce a single, clearly better
+and DIFFERENT lesson for the slot that fits the theme but does not overlap
+the sibling lesson(s).
+
+The lesson needs:
+- title    : punchy, clickable
+- hook     : first ~8s, concrete stakes (a number, a failure, a "most people
+             get this wrong")
+- outline  : 4-6 sections, each heading + 2-4 teaching points
+- lesson_format: one of "lecture" | "live_coding" | "walkthrough" |
+                 "interview" | "short"
+- target_duration_minutes: integer
+
+Honour brand voice memories verbatim and any curator guidance provided. Be
+specific and practical — real tools/numbers, no vague "imagine a system".
+
+Output a SINGLE JSON object only (NOT an array, NO "lessons" wrapper):
+{"title":"...","hook":"...","lesson_format":"lecture","target_duration_minutes":10,"outline":[{"heading":"...","points":["...","..."]}]}
+`.trim();
+
 interface StrategyJson {
   theme?: string;
   quiz_scope?: string;
@@ -103,6 +128,7 @@ export class StrategyAgent {
     @InjectRepository(ContentSeries) private readonly seriesRepo: Repository<ContentSeries>,
     @InjectRepository(CompetitorVideo) private readonly competitorVidRepo: Repository<CompetitorVideo>,
     @InjectRepository(NewsItem) private readonly newsRepo: Repository<NewsItem>,
+    @InjectRepository(ContentAsset) private readonly assetRepo: Repository<ContentAsset>,
     private readonly router: ModelRouterService,
     private readonly memories: BrandMemoryService,
   ) {}
@@ -222,6 +248,105 @@ export class StrategyAgent {
     if (!saved) throw new Error('Plan vanished after save');
     saved.lessons?.sort((a, b) => a.lessonNumber - b.lessonNumber);
     return saved;
+  }
+
+  /**
+   * Regenerate a SINGLE lesson in place — keeps the week theme + the other
+   * lesson, produces a fresh title/hook/outline/format for just this slot,
+   * and wipes the lesson's now-stale assets (script/ppt/seo/thumbnail/promo).
+   * An optional `guidance` note steers the rewrite ("more hands-on", etc.).
+   */
+  async regenerateLesson(
+    lessonId: string,
+    opts: { guidance?: string } = {},
+  ): Promise<Lesson> {
+    const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    const plan = await this.planRepo.findOne({ where: { id: lesson.planId } });
+    if (!plan) throw new BadRequestException('Lesson has no plan');
+    const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
+    if (!brand) throw new BadRequestException('Plan has no brand');
+
+    const siblings = (
+      await this.lessonRepo.find({
+        where: { planId: plan.id },
+        order: { lessonNumber: 'ASC' },
+      })
+    ).filter((l) => l.id !== lessonId);
+    const siblingBlock = siblings.length
+      ? siblings
+        .map((s) => `LESSON ${s.lessonNumber}: ${s.title} — ${s.hook ?? ''}`)
+        .join('\n')
+      : '(none)';
+
+    const memories = await this.memories.relevantFor(brand.id, 'strategy');
+    const memoryBlock = this.memories.format(memories);
+    const guidance = (opts.guidance ?? '').trim().slice(0, 600);
+
+    const result = await this.router.run({
+      task: 'strategy',
+      agentType: 'strategy',
+      planId: plan.id,
+      lessonId: lesson.id,
+      modelOverride: brand.modelOverrides?.strategy,
+      jsonOutput: true,
+      maxTokens: 2000,
+      temperature: 0.9, // higher → a genuinely different take, not a paraphrase
+      system: REGEN_LESSON_SYSTEM,
+      user:
+        `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
+        `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
+        `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n\n` +
+        `THE OTHER LESSON(S) THIS WEEK (do NOT overlap with these):\n${siblingBlock}\n\n` +
+        `LESSON TO REPLACE — number ${lesson.lessonNumber}, currently:\n` +
+        `  title: ${lesson.title}\n  hook: ${lesson.hook ?? '(none)'}\n` +
+        `  format: ${lesson.lessonFormat}\n\n` +
+        (guidance
+          ? `CURATOR GUIDANCE (obey this):\n${guidance}\n\n`
+          : `(No specific guidance — just produce a clearly better, different take.)\n\n`) +
+        `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
+        `Return the single replacement lesson as JSON only.`,
+    });
+
+    let parsed: {
+      title?: string; hook?: string; lesson_format?: string;
+      target_duration_minutes?: number; outline?: OutlineSection[];
+    };
+    try {
+      parsed = JSON.parse(result.text || '{}');
+    } catch {
+      throw new Error('Lesson regeneration returned unparseable JSON');
+    }
+    if (!parsed.title?.trim()) throw new Error('Regeneration produced no title');
+
+    const requested = (parsed.lesson_format ?? '').toString();
+    const fmt: LessonFormat = isLessonFormat(requested)
+      ? requested
+      : lesson.lessonFormat; // keep existing format if model omits/invalid
+
+    await this.lessonRepo.update(lesson.id, {
+      title: parsed.title.slice(0, 500),
+      hook: parsed.hook ?? null,
+      outline: Array.isArray(parsed.outline) ? parsed.outline : [],
+      targetDurationMinutes:
+        parsed.target_duration_minutes ?? this.defaultDurationFor(fmt),
+      lessonFormat: fmt,
+      status: 'planned', // back to square one — assets are now stale
+    });
+
+    // Wipe the now-stale generated assets for this lesson.
+    const wiped = await this.assetRepo.delete({ lessonId: lesson.id });
+    await this.planRepo.update(plan.id, {
+      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.costUsd,
+    });
+    this.logger.log(
+      `Regenerated lesson ${lesson.lessonNumber} "${parsed.title}" (${fmt}) ` +
+      `— wiped ${wiped.affected ?? 0} stale asset(s) ($${result.costUsd.toFixed(4)})`,
+    );
+
+    const updated = await this.lessonRepo.findOne({ where: { id: lesson.id } });
+    if (!updated) throw new Error('Lesson vanished after regenerate');
+    return updated;
   }
 
   // ── Enrichment helpers ──────────────────────────────────────────────────

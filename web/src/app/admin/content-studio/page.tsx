@@ -502,6 +502,33 @@ function LessonBlock({ lesson, onToast }: {
   const [busyThumb, setBusyThumb] = useState(false);
   const [busyPromo, setBusyPromo] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Local copy so a regenerate updates the card in place (title/hook/outline/format).
+  const [lsn, setLsn] = useState<Lesson>(lesson);
+  const [regenBusy, setRegenBusy] = useState(false);
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [regenNote, setRegenNote] = useState("");
+
+  async function regenerateLesson() {
+    setRegenBusy(true);
+    onToast("Re-planning this lesson… (Strategy Agent, ~20-40s)");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setRegenBusy(false); return; }
+    try {
+      const updated = await api<Lesson>(token, `/lessons/${lesson.id}/regenerate`, {
+        method: "POST",
+        body: JSON.stringify({ guidance: regenNote.trim() || undefined }),
+      });
+      setLsn(updated);
+      // Old assets were wiped server-side — clear them locally too.
+      setScript(null); setPpt(null); setSeo(null); setThumb(null); setPromo(null);
+      setOpen(false); setOpenSlides(false); setOpenSeo(false);
+      setOpenThumb(false); setOpenPromo(false);
+      setRegenOpen(false); setRegenNote("");
+      onToast(`✓ Lesson re-planned: ${updated.title}`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setRegenBusy(false); }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -657,26 +684,55 @@ function LessonBlock({ lesson, onToast }: {
     <div className="border border-white/10 rounded-xl overflow-hidden">
       <div className="px-3 py-2 bg-white/5 flex items-center justify-between gap-2">
         <span className="text-[#B8C5E0] text-xs font-semibold">
-          🎓 Lesson {lesson.lessonNumber}: {lesson.title}
+          🎓 Lesson {lsn.lessonNumber}: {lsn.title}
         </span>
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-[#6B7799] shrink-0">
-          {lesson.status}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setRegenOpen((v) => !v)}
+            disabled={regenBusy}
+            className="text-[10px] px-2 py-0.5 rounded-lg border border-amber-400/30 text-amber-300 hover:bg-amber-400/10 disabled:opacity-50 transition"
+            title="Don't like this lesson? Re-plan just this one."
+          >
+            {regenBusy ? "Re-planning…" : "🔄 Regenerate"}
+          </button>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-[#6B7799]">
+            {lsn.status}
+          </span>
+        </div>
       </div>
+      {regenOpen && (
+        <div className="px-3 py-2 bg-amber-400/5 border-b border-amber-400/10 space-y-2">
+          <p className="text-[10px] text-[#6B7799]">
+            Re-plans <b>only this lesson</b> (keeps the theme + the other lesson)
+            and wipes this lesson&apos;s generated assets. Optional steer:
+          </p>
+          <input
+            type="text"
+            value={regenNote}
+            onChange={(e) => setRegenNote(e.target.value)}
+            placeholder="e.g. less basic, more hands-on code, focus on production pitfalls"
+            className="w-full bg-[#0F1330] border border-white/10 rounded-lg px-3 py-1.5 text-[12px] text-white outline-none focus:border-amber-400/40"
+          />
+          <div className="flex justify-end gap-2">
+            <Btn label="Cancel" onClick={() => { setRegenOpen(false); setRegenNote(""); }} />
+            <PrimaryBtn label="🔄 Regenerate lesson" busy={regenBusy} onClick={regenerateLesson} />
+          </div>
+        </div>
+      )}
       <div className="p-3 space-y-2">
-        {lesson.hook && (
+        {lsn.hook && (
           <p className="text-[12px] text-[#B8C5E0]">
-            <span className="text-[#6B7799]">Hook: </span>{lesson.hook}
+            <span className="text-[#6B7799]">Hook: </span>{lsn.hook}
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2 text-[10px] text-[#6B7799]">
-          <span>~{lesson.targetDurationMinutes} min target</span>
-          <span>· {lesson.outline?.length ?? 0} sections</span>
+          <span>~{lsn.targetDurationMinutes} min target</span>
+          <span>· {lsn.outline?.length ?? 0} sections</span>
           <span>·</span>
-          <FormatSelector lesson={lesson} onToast={onToast} />
+          <FormatSelector key={lsn.lessonFormat} lesson={lsn} onToast={onToast} />
         </div>
         <ul className="space-y-1.5">
-          {(lesson.outline ?? []).map((s, i) => (
+          {(lsn.outline ?? []).map((s, i) => (
             <li key={i} className="text-[12px] text-[#B8C5E0]">
               <span className="font-semibold">{s.heading}</span>
               <ul className="list-disc list-inside text-[#6B7799] mt-0.5">
@@ -2242,6 +2298,9 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   const [genBusy, setGenBusy] = useState(false);
   const [drawBusy, setDrawBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const [count, setCount] = useState("50");
+  // Empty = let the server escalate (last+1). A number = explicit override.
+  const [toughness, setToughness] = useState<string>("");
 
   const reload = useCallback(async () => {
     const token = await fetchToken();
@@ -2259,15 +2318,28 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   useEffect(() => { void reload(); }, [reload]);
 
   async function generate() {
+    const n = Math.max(5, Math.min(100, Number(count) || 50));
+    const t = toughness.trim() === "" ? undefined : Math.max(1, Math.min(5, Number(toughness)));
     setGenBusy(true);
-    onToast("Generating 50 questions + cross-provider validation… (~60-120s)");
+    onToast(`Generating ${n} questions${t ? ` @ toughness ${t}` : " (auto-escalating)"} + validation… (~60-120s)`);
     const token = await fetchToken();
     if (!token) { onToast("⚠ Not signed in"); setGenBusy(false); return; }
     try {
-      const r = await api<{ generated: number; valid: number; passRate: number; generatorProvider: string }>(
-        token, `/plans/${planId}/quiz/generate`, { method: "POST" },
+      const r = await api<{
+        generated: number; valid: number; passRate: number; generatorProvider: string;
+        count: number; toughness: number;
+        distribution: { easy: number; medium: number; hard: number };
+      }>(
+        token, `/plans/${planId}/quiz/generate`,
+        { method: "POST", body: JSON.stringify({ count: n, toughness: t }) },
       );
-      onToast(`✓ Pool ready: ${r.valid}/${r.generated} valid (${Math.round(r.passRate * 100)}%) · validated by NON-${r.generatorProvider}`);
+      // Reflect the toughness the server actually used (so the slider tracks escalation).
+      setToughness(String(r.toughness));
+      onToast(
+        `✓ Pool: ${r.valid}/${r.generated} valid (${Math.round(r.passRate * 100)}%) · ` +
+        `toughness ${r.toughness}/5 [${r.distribution.easy}/${r.distribution.medium}/${r.distribution.hard}] · ` +
+        `validated by NON-${r.generatorProvider}`,
+      );
       await reload();
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
@@ -2330,13 +2402,42 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
         </span>
       </div>
       <div className="p-3 space-y-2">
+        <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-white/5">
+          <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
+            # questions
+            <input
+              type="number" min={5} max={100}
+              value={count}
+              onChange={(e) => setCount(e.target.value)}
+              className="w-16 bg-[#0F1330] border border-white/10 rounded px-2 py-1 text-[12px] text-white outline-none focus:border-[#00D4FF]/40"
+            />
+          </label>
+          <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
+            toughness
+            <select
+              value={toughness}
+              onChange={(e) => setToughness(e.target.value)}
+              className="bg-[#0F1330] border border-white/10 rounded px-1.5 py-1 text-[12px] text-white outline-none focus:border-[#00D4FF]/40"
+            >
+              <option value="">auto (last+1)</option>
+              <option value="1">1 · gentle</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5 · brutal</option>
+            </select>
+          </label>
+          <span className="text-[9px] text-[#6B7799]">
+            higher = more hard Qs + tougher reasoning · each regen escalates unless you pin a level
+          </span>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <PrimaryBtn
             label={
               genBusy
                 ? "Generating + validating…"
                 : totalCount === 0
-                ? "📝 Generate Pool (50)"
+                ? `📝 Generate Pool (${Math.max(5, Math.min(100, Number(count) || 50))})`
                 : "🔁 Regenerate Pool"
             }
             busy={genBusy}

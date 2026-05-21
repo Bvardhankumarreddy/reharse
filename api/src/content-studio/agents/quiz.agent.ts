@@ -29,12 +29,16 @@ EACH question MUST have:
 - "difficulty": "easy" | "medium" | "hard".
 - "explanation": 1-2 sentences explaining WHY the correct answer is correct.
 
-POOL DISTRIBUTION: roughly 50% easy, 30% medium, 20% hard.
+The exact count and the easy/medium/hard split are specified per request —
+honour them precisely.
 
 DO:
 - Test understanding (apply / distinguish / reason), not trivia.
 - Use real names / tools / numbers from the lessons when natural.
 - Make distractors plausible but verifiably wrong.
+- At higher toughness levels, raise the conceptual bar: multi-step reasoning,
+  edge cases, "which of these is subtly wrong", trade-off comparisons — not
+  just longer trivia. Hard questions should make an expert pause.
 
 DON'T:
 - "All of the above" / "None of the above".
@@ -45,7 +49,7 @@ DON'T:
 Obey the brand voice memories verbatim.
 
 OUTPUT STRICT JSON: {"questions":[ N objects in the exact shape above ]}
-Generate EXACTLY the requested count.
+Generate EXACTLY the requested count, matching the requested difficulty split.
 `.trim();
 
 const QUIZ_VALIDATE_SYSTEM = `
@@ -86,11 +90,35 @@ interface ValidationJson {
   suggested_fix?: QuizQ | null;
 }
 
-const POOL_TARGET = 50;
+const POOL_TARGET = 50;          // default count when none requested
+const POOL_MIN = 5;
+const POOL_MAX = 100;            // single-call output-token ceiling
+const TOUGHNESS_MIN = 1;
+const TOUGHNESS_MAX = 5;
 const DRAW_QUOTA: Record<QuestionDifficulty, number> = {
   easy: 4, medium: 3, hard: 2,
 };
 const VALIDATION_CONCURRENCY = 5;
+
+/** easy/medium/hard fractions per toughness level (1 = gentlest, 5 = brutal). */
+const TOUGHNESS_DIST: Record<number, Record<QuestionDifficulty, number>> = {
+  1: { easy: 0.50, medium: 0.30, hard: 0.20 },
+  2: { easy: 0.35, medium: 0.35, hard: 0.30 },
+  3: { easy: 0.20, medium: 0.40, hard: 0.40 },
+  4: { easy: 0.10, medium: 0.35, hard: 0.55 },
+  5: { easy: 0.05, medium: 0.25, hard: 0.70 },
+};
+
+/** Split a total count into easy/medium/hard per the toughness distribution. */
+function splitByToughness(
+  count: number, toughness: number,
+): Record<QuestionDifficulty, number> {
+  const dist = TOUGHNESS_DIST[toughness] ?? TOUGHNESS_DIST[1];
+  const easy = Math.round(count * dist.easy);
+  const medium = Math.round(count * dist.medium);
+  const hard = Math.max(0, count - easy - medium); // remainder → hard
+  return { easy, medium, hard };
+}
 
 @Injectable()
 export class QuizAgent {
@@ -110,9 +138,13 @@ export class QuizAgent {
 
   // ── 1) Generate + cross-provider validate the 50-Q pool ──────────────────
 
-  async generatePool(planId: string): Promise<{
+  async generatePool(planId: string, opts: {
+    count?: number; toughness?: number;
+  } = {}): Promise<{
     generated: number; valid: number; invalid: number;
     passRate: number; generatorProvider: string; costUsd: number;
+    count: number; toughness: number;
+    distribution: Record<QuestionDifficulty, number>;
   }> {
     const plan = await this.planRepo.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Plan not found');
@@ -123,6 +155,22 @@ export class QuizAgent {
       order: { lessonNumber: 'ASC' },
     });
     const memories = await this.memoryService.relevantFor(brand.id, 'quiz');
+
+    // ── Resolve count + toughness ──
+    const count = Math.max(
+      POOL_MIN, Math.min(POOL_MAX, Math.round(opts.count ?? POOL_TARGET)),
+    );
+    // "Both" model: explicit toughness wins; otherwise default to last+1.
+    const toughness = Math.max(
+      TOUGHNESS_MIN,
+      Math.min(
+        TOUGHNESS_MAX,
+        opts.toughness != null
+          ? Math.round(opts.toughness)
+          : (plan.quizToughness ?? 0) + 1,
+      ),
+    );
+    const distribution = splitByToughness(count, toughness);
 
     // Reset any prior pool for this plan to keep the table tidy.
     await this.questionRepo.delete({ planId });
@@ -140,13 +188,15 @@ export class QuizAgent {
       .join('\n\n');
 
     // ── Generation ──
+    // ~170 output tokens/Q; clamp to a safe single-call ceiling.
+    const maxTokens = Math.min(16000, Math.max(2000, count * 170));
     const gen = await this.router.run({
       task: 'quiz',
       agentType: 'quiz',
       planId,
       modelOverride: brand.modelOverrides?.quiz,
       jsonOutput: true,
-      maxTokens: 8000,
+      maxTokens,
       temperature: 0.7,
       system: QUIZ_GEN_SYSTEM,
       user:
@@ -155,13 +205,17 @@ export class QuizAgent {
         `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n\n` +
         `LESSONS:\n${lessonsBlock || '(no lessons)'}\n\n` +
         `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
-        `Generate EXACTLY ${POOL_TARGET} questions. Output the JSON object only.`,
+        `TOUGHNESS LEVEL: ${toughness}/5 — ` +
+        `${toughness >= 4 ? 'expert-grade, multi-step reasoning and edge cases' : toughness >= 2 ? 'apply-and-distinguish, beyond recall' : 'foundational understanding'}.\n` +
+        `Generate EXACTLY ${count} questions with this difficulty split: ` +
+        `${distribution.easy} easy, ${distribution.medium} medium, ${distribution.hard} hard. ` +
+        `Output the JSON object only.`,
     });
     const generatorProvider = gen.provider as ProviderName;
     const parsed = JSON.parse(gen.text || '{}') as GenJson;
     const generated = (parsed.questions ?? [])
       .filter((q) => Array.isArray(q.options) && q.options.length === 4)
-      .slice(0, POOL_TARGET);
+      .slice(0, count);
     if (generated.length === 0) {
       throw new Error('Quiz agent returned no valid questions');
     }
@@ -206,10 +260,12 @@ export class QuizAgent {
     await this.planRepo.update(plan.id, {
       totalCostUsd:
         Number(plan.totalCostUsd ?? 0) + gen.costUsd + totalValidatorCost,
+      quizToughness: toughness, // remember for next regen's default escalation
     });
 
     this.logger.log(
-      `Quiz pool plan=${planId}: ${finalRows.length} generated, ` +
+      `Quiz pool plan=${planId}: ${finalRows.length} generated (count=${count}, ` +
+      `toughness=${toughness} [${distribution.easy}/${distribution.medium}/${distribution.hard}]), ` +
       `${valid} valid (${(passRate * 100).toFixed(0)}%), generator=${generatorProvider}, ` +
       `validator cost $${totalValidatorCost.toFixed(4)}, gen cost $${gen.costUsd.toFixed(4)}`,
     );
@@ -225,6 +281,9 @@ export class QuizAgent {
       passRate,
       generatorProvider,
       costUsd: gen.costUsd + totalValidatorCost,
+      count,
+      toughness,
+      distribution,
     };
   }
 

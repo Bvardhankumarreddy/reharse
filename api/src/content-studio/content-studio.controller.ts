@@ -187,6 +187,19 @@ export class ContentStudioController {
     });
   }
 
+  /**
+   * Regenerate a single lesson you don't like — keeps the theme + the other
+   * lesson, replaces this one's title/hook/outline/format, and wipes its
+   * now-stale assets. Body: { guidance?: string } (optional steering note).
+   */
+  @Post('lessons/:id/regenerate')
+  regenerateLesson(
+    @Param('id') id: string,
+    @Body() body: { guidance?: string },
+  ) {
+    return this.strategy.regenerateLesson(id, { guidance: body?.guidance });
+  }
+
   /** Slice 2: Script Agent → 8-12 min audio script for ONE lesson. */
   @Post('lessons/:id/script/generate')
   generateScript(@Param('id') id: string) {
@@ -265,10 +278,20 @@ export class ContentStudioController {
 
   // ── Slice 4: Quiz Agent + cross-provider validator + XLSX ──────────────
 
-  /** Generate (and cross-provider validate) a 50-question pool for the plan. */
+  /**
+   * Generate (and cross-provider validate) a quiz pool for the plan.
+   * Body: { count?: number (5-100), toughness?: number (1-5) }.
+   * count defaults to 50; toughness defaults to last+1 (escalates each regen).
+   */
   @Post('plans/:id/quiz/generate')
-  generateQuizPool(@Param('id') id: string) {
-    return this.quiz.generatePool(id);
+  generateQuizPool(
+    @Param('id') id: string,
+    @Body() body: { count?: number; toughness?: number },
+  ) {
+    return this.quiz.generatePool(id, {
+      count: body?.count,
+      toughness: body?.toughness,
+    });
   }
 
   @Get('plans/:id/quiz/pool')

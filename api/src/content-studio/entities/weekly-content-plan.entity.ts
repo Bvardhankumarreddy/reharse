@@ -44,6 +44,13 @@ export class WeeklyContentPlan {
   @Column({ type: 'int', nullable: true })
   seriesWeekNumber: number | null;
 
+  /**
+   * Last quiz toughness level (1-5) used when generating this plan's pool.
+   * 0 = never generated. Each regeneration defaults to last+1 (capped at 5).
+   */
+  @Column({ type: 'int', default: 0 })
+  quizToughness: number;
+
   @OneToMany(() => Lesson, (l) => l.plan)
   lessons: Lesson[];
 
