@@ -6,6 +6,8 @@ import { Lesson } from './lesson.entity';
 
 export type PlanStatus = 'planned' | 'generating' | 'ready' | 'failed';
 
+export type PlanApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 @Entity('cs_weekly_content_plans')
 export class WeeklyContentPlan {
   @PrimaryGeneratedColumn('uuid')
@@ -50,6 +52,19 @@ export class WeeklyContentPlan {
    */
   @Column({ type: 'int', default: 0 })
   quizToughness: number;
+
+  /** Curator gate — pipeline can't run until this is 'approved'. */
+  @Column({ type: 'varchar', length: 20, default: 'pending' })
+  approvalStatus: PlanApprovalStatus;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  approvedBy: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  approvedAt: Date | null;
+
+  @Column({ type: 'text', nullable: true })
+  approvalNote: string | null;
 
   @OneToMany(() => Lesson, (l) => l.plan)
   lessons: Lesson[];

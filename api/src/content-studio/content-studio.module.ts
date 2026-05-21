@@ -62,6 +62,10 @@ import { CommentReplyAgent } from './agents/comment-reply.agent';
 import { NotificationService } from './services/notification.service';
 import { SeriesArchitectAgent } from './agents/series-architect.agent';
 import { SeriesService } from './services/series.service';
+import { AudioAgent } from './agents/audio.agent';
+import {
+  OpenAITtsProvider, ElevenLabsTtsProvider,
+} from './services/tts.provider';
 import {
   IntelligenceWorker, CS_INTELLIGENCE_QUEUE,
 } from './workers/intelligence.worker';
@@ -130,6 +134,9 @@ import { ContentStudioController } from './content-studio.controller';
     IntelligenceWorker,
     SeriesArchitectAgent,
     SeriesService,
+    OpenAITtsProvider,
+    ElevenLabsTtsProvider,
+    AudioAgent,
   ],
 })
 export class ContentStudioModule {}

@@ -59,6 +59,15 @@ export class PipelineOrchestratorService {
       );
     }
 
+    // Curator gate: a human must approve the plan before the pipeline burns
+    // cost across 7 stages.
+    if (plan.approvalStatus !== 'approved') {
+      throw new BadRequestException(
+        `Plan is not approved (status: ${plan.approvalStatus}). ` +
+        `Approve it before running the pipeline.`,
+      );
+    }
+
     // Prevent two in-flight runs for the same plan.
     const active = await this.runRepo.findOne({
       where: [
@@ -307,6 +316,33 @@ export class PipelineOrchestratorService {
       where: { planId },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /**
+   * Curator gate — approve or reject a plan. Only an 'approved' plan can run
+   * the pipeline. Notifies Slack so the team has an audit trail.
+   */
+  async setApproval(
+    planId: string,
+    status: 'approved' | 'rejected',
+    opts: { note?: string; userEmail?: string | null } = {},
+  ): Promise<WeeklyContentPlan> {
+    const plan = await this.planRepo.findOne({ where: { id: planId } });
+    if (!plan) throw new NotFoundException('Plan not found');
+    await this.planRepo.update(planId, {
+      approvalStatus: status,
+      approvedBy: opts.userEmail ?? null,
+      approvedAt: new Date(),
+      approvalNote: opts.note?.slice(0, 2000) ?? null,
+    });
+    const icon = status === 'approved' ? ':white_check_mark:' : ':no_entry:';
+    await this.notify.notify(
+      `${icon} cs · plan ${planId.slice(0, 8)} ${status}` +
+      (opts.userEmail ? ` by ${opts.userEmail}` : '') +
+      (opts.note ? ` · "${opts.note.slice(0, 120)}"` : ''),
+    );
+    this.logger.log(`Plan ${planId} ${status}${opts.userEmail ? ` by ${opts.userEmail}` : ''}`);
+    return (await this.planRepo.findOne({ where: { id: planId } }))!;
   }
 }
 

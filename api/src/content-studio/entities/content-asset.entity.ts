@@ -4,7 +4,8 @@ import {
 } from 'typeorm';
 
 export type AssetType =
-  | 'script' | 'ppt' | 'seo' | 'promo' | 'thumbnail_prompt' | 'quiz_pool';
+  | 'script' | 'ppt' | 'seo' | 'promo' | 'thumbnail_prompt' | 'quiz_pool'
+  | 'audio';
 
 /** Versioned output of one agent (script, ppt JSON, etc.). */
 @Entity('cs_content_assets')

@@ -126,6 +126,29 @@ export interface ScriptAsset extends AssetQuality {
   createdAt: string;
 }
 
+export interface AudioAsset {
+  id: string;
+  lessonId: string | null;
+  planId: string | null;
+  assetType: string;
+  version: number;
+  storageKey: string | null;
+  content: {
+    provider?: string;
+    model?: string;
+    voice?: string | null;
+    chars?: number;
+    bytes?: number;
+    chunks?: number;
+    durationEstimateSeconds?: number;
+    costUsd?: number;
+  } | null;
+  status: string;
+  /** Presigned playback URL (15-min TTL) — present on the GET .../audio response. */
+  url?: string;
+  createdAt: string;
+}
+
 export interface SlideJson {
   layout: "title" | "kicker" | "bullets" | "end";
   title?: string;
@@ -430,6 +453,11 @@ export interface WeeklyPlan {
   /** Phase E: when set, this week belongs to a multi-week series. */
   seriesId: string | null;
   seriesWeekNumber: number | null;
+  /** Curator gate — pipeline can't run until 'approved'. */
+  approvalStatus: "pending" | "approved" | "rejected";
+  approvedBy: string | null;
+  approvedAt: string | null;
+  approvalNote: string | null;
   lessonCount?: number;
   lessons?: Lesson[];
   agentRuns?: AgentRun[];

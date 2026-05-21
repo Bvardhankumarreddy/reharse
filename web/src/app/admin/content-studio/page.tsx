@@ -18,7 +18,9 @@ import {
   type LessonMetricsRow, type LessonPostmortemRow,
   type PublishedVideoRow, type CommentDraftsResponse,
   type ContentSeries, type SeriesDetail, type SeriesPlanAllResponse,
+  type SeriesWeekArc,
   type LessonFormat, LESSON_FORMATS,
+  type AudioAsset,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -400,7 +402,26 @@ function PlanCard({ plan, brands, onToast }: {
 }) {
   const [full, setFull] = useState<WeeklyPlan | null>(null);
   const [open, setOpen] = useState(false);
+  const [approval, setApprovalState] = useState(plan.approvalStatus ?? "pending");
+  const [approvalBusy, setApprovalBusy] = useState(false);
   const brandName = brands.find((b) => b.id === plan.brandId)?.name ?? "—";
+
+  async function setApproval(status: "approved" | "rejected") {
+    if (status === "rejected" && !confirm("Reject this plan? The pipeline stays blocked.")) return;
+    setApprovalBusy(true);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setApprovalBusy(false); return; }
+    try {
+      await api(token, `/plans/${plan.id}/approval`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setApprovalState(status);
+      onToast(status === "approved" ? "✓ Plan approved — pipeline can run" : "Plan rejected");
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setApprovalBusy(false); }
+  }
 
   async function toggle() {
     const next = !open;
@@ -420,6 +441,9 @@ function PlanCard({ plan, brands, onToast }: {
         <span className="text-[#B8C5E0] text-sm font-medium truncate flex items-center gap-2">
           <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLOR[p.status] ?? ""}`}>
             {p.status}
+          </span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${APPROVAL_COLOR[approval] ?? ""}`}>
+            {approval === "approved" ? "✓ approved" : approval === "rejected" ? "✕ rejected" : "⏳ pending"}
           </span>
           {brandName} · week of {p.weekOf}
         </span>
@@ -442,8 +466,30 @@ function PlanCard({ plan, brands, onToast }: {
           “{p.notes}”
         </p>
       )}
-      <div className="px-4 py-2 border-t border-white/5">
+      <div className="px-4 py-2 border-t border-white/5 flex flex-wrap items-center gap-2">
         <Btn label={open ? "Hide" : "📂 Open plan"} onClick={toggle} />
+        {approval !== "approved" && (
+          <button
+            onClick={() => setApproval("approved")}
+            disabled={approvalBusy}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 disabled:opacity-50 transition"
+            title="Approve so the pipeline can run"
+          >
+            ✓ Approve
+          </button>
+        )}
+        {approval !== "rejected" && (
+          <button
+            onClick={() => setApproval("rejected")}
+            disabled={approvalBusy}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-400/30 text-red-300 hover:bg-red-400/10 disabled:opacity-50 transition"
+          >
+            ✕ Reject
+          </button>
+        )}
+        {approval !== "approved" && (
+          <span className="text-[10px] text-[#6B7799]">pipeline blocked until approved</span>
+        )}
       </div>
       {open && full && (
         <div className="px-4 py-4 border-t border-white/5 bg-[#0F1330] space-y-4">
@@ -491,6 +537,8 @@ function LessonBlock({ lesson, onToast }: {
   const [seo, setSeo] = useState<SeoAsset | null>(null);
   const [thumb, setThumb] = useState<ThumbnailAsset | null>(null);
   const [promo, setPromo] = useState<PromoAsset | null>(null);
+  const [audio, setAudio] = useState<AudioAsset | null>(null);
+  const [busyAudio, setBusyAudio] = useState(false);
   const [open, setOpen] = useState(false);
   const [openSlides, setOpenSlides] = useState(false);
   const [openSeo, setOpenSeo] = useState(false);
@@ -521,6 +569,7 @@ function LessonBlock({ lesson, onToast }: {
       setLsn(updated);
       // Old assets were wiped server-side — clear them locally too.
       setScript(null); setPpt(null); setSeo(null); setThumb(null); setPromo(null);
+      setAudio(null);
       setOpen(false); setOpenSlides(false); setOpenSeo(false);
       setOpenThumb(false); setOpenPromo(false);
       setRegenOpen(false); setRegenNote("");
@@ -528,6 +577,23 @@ function LessonBlock({ lesson, onToast }: {
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setRegenBusy(false); }
+  }
+
+  async function generateAudio() {
+    if (!script) { onToast("⚠ Generate the script first"); return; }
+    setBusyAudio(true);
+    onToast("Synthesizing narration… (TTS, ~20-60s)");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusyAudio(false); return; }
+    try {
+      await api(token, `/lessons/${lesson.id}/audio/generate`, { method: "POST" });
+      // Re-fetch to get a fresh presigned URL.
+      const au = await api<AudioAsset | null>(token, `/lessons/${lesson.id}/audio`);
+      setAudio(au);
+      onToast(`✓ Audio ready (${au?.content?.provider ?? "tts"})`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusyAudio(false); }
   }
 
   useEffect(() => {
@@ -554,6 +620,10 @@ function LessonBlock({ lesson, onToast }: {
       try {
         const pr = await api<PromoAsset>(token, `/lessons/${lesson.id}/promo`);
         if (!cancelled) setPromo(pr);
+      } catch { /* 404 */ }
+      try {
+        const au = await api<AudioAsset | null>(token, `/lessons/${lesson.id}/audio`);
+        if (!cancelled && au) setAudio(au);
       } catch { /* 404 */ }
     })();
     return () => { cancelled = true; };
@@ -777,6 +847,42 @@ function LessonBlock({ lesson, onToast }: {
           )}
         </div>
         {script && <CritiqueLine critique={script.critique} />}
+
+        {/* ── Audio narration (TTS) ── */}
+        {script && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+            <PrimaryBtn
+              label={
+                busyAudio
+                  ? "Synthesizing…"
+                  : audio
+                  ? `🔁 Regenerate Audio (v${audio.version + 1})`
+                  : "🎙️ Generate Audio"
+              }
+              busy={busyAudio}
+              onClick={generateAudio}
+            />
+            {audio && (
+              <span className="text-[10px] text-[#6B7799]">
+                {audio.content?.provider ?? "tts"}
+                {audio.content?.durationEstimateSeconds
+                  ? ` · ~${Math.round((audio.content.durationEstimateSeconds ?? 0) / 60)} min`
+                  : ""}
+                {audio.content?.bytes
+                  ? ` · ${((audio.content.bytes ?? 0) / 1024 / 1024).toFixed(1)} MB`
+                  : ""}
+                {audio.content?.costUsd != null
+                  ? ` · $${Number(audio.content.costUsd).toFixed(4)}`
+                  : ""}
+              </span>
+            )}
+          </div>
+        )}
+        {audio?.url && (
+          <audio controls preload="none" src={audio.url} className="w-full mt-1">
+            Your browser does not support audio playback.
+          </audio>
+        )}
 
         {open && script && (
           <div className="space-y-1">
@@ -2751,6 +2857,12 @@ function NewSeriesForm({ brands, onToast, onCreated }: {
   );
 }
 
+const APPROVAL_COLOR: Record<string, string> = {
+  pending:  "bg-amber-500/20 text-amber-300",
+  approved: "bg-emerald-500/20 text-emerald-300",
+  rejected: "bg-red-500/20 text-red-300",
+};
+
 const STATUS_COLOR_SERIES: Record<string, string> = {
   planning:  "bg-slate-500/20 text-slate-300",
   active:    "bg-emerald-500/20 text-emerald-300",
@@ -2768,7 +2880,15 @@ function SeriesCard({ series, brands, onToast, onChange }: {
   const [full, setFull] = useState<SeriesDetail | null>(null);
   const [busyPlan, setBusyPlan] = useState(false);
   const [busyRedesign, setBusyRedesign] = useState(false);
+  const [editing, setEditing] = useState(false);
   const brandName = brands.find((b) => b.id === series.brandId)?.name ?? "—";
+
+  async function reloadFull() {
+    const token = await fetchToken();
+    if (!token) return;
+    try { setFull(await api<SeriesDetail>(token, `/series/${series.id}`)); }
+    catch { /* ignore */ }
+  }
 
   async function toggle() {
     const next = !open;
@@ -2839,9 +2959,23 @@ function SeriesCard({ series, brands, onToast, onChange }: {
       <div className="px-4 py-2 border-t border-white/5 flex flex-wrap items-center gap-2">
         <Btn label={open ? "Hide arc" : "📂 Open arc"} onClick={toggle} />
         <PrimaryBtn label="🪄 Plan all weeks" onClick={planAll} busy={busyPlan} />
+        {open && full && !editing && (
+          <Btn label="✏️ Edit arc" onClick={() => setEditing(true)} />
+        )}
         <Btn label={busyRedesign ? "…" : "♻ Redesign"} onClick={redesign} />
       </div>
-      {open && full && (
+      {open && full && editing && (
+        <div className="px-4 py-4 border-t border-white/5 bg-[#0F1330]">
+          <ArcEditor
+            seriesId={series.id}
+            initial={full.topicArc ?? []}
+            onToast={onToast}
+            onCancel={() => setEditing(false)}
+            onSaved={async () => { setEditing(false); await reloadFull(); onChange(); }}
+          />
+        </div>
+      )}
+      {open && full && !editing && (
         <div className="px-4 py-4 border-t border-white/5 bg-[#0F1330] space-y-3">
           {(full.topicArc ?? []).map((w) => (
             <div key={w.weekIndex} className="border border-white/10 rounded-xl p-3 space-y-1">
@@ -2883,6 +3017,135 @@ function SeriesCard({ series, brands, onToast, onChange }: {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ArcEditor({ seriesId, initial, onToast, onCancel, onSaved }: {
+  seriesId: string;
+  initial: SeriesWeekArc[];
+  onToast: (m: string) => void;
+  onCancel: () => void;
+  onSaved: () => void | Promise<void>;
+}) {
+  const [weeks, setWeeks] = useState<SeriesWeekArc[]>(
+    initial.map((w) => ({
+      ...w,
+      plannedLessonFormats: [...(w.plannedLessonFormats ?? [])],
+    })),
+  );
+  const [busy, setBusy] = useState(false);
+
+  function patch(i: number, p: Partial<SeriesWeekArc>) {
+    setWeeks((ws) => ws.map((w, j) => (j === i ? { ...w, ...p } : w)));
+  }
+  function move(i: number, dir: -1 | 1) {
+    setWeeks((ws) => {
+      const j = i + dir;
+      if (j < 0 || j >= ws.length) return ws;
+      const a = [...ws];
+      [a[i], a[j]] = [a[j], a[i]];
+      return a;
+    });
+  }
+  function removeWeek(i: number) {
+    setWeeks((ws) => ws.filter((_, j) => j !== i));
+  }
+  function addWeek() {
+    setWeeks((ws) => [
+      ...ws,
+      {
+        weekIndex: ws.length + 1,
+        plannedTheme: "",
+        plannedHook: "",
+        plannedFocus: "",
+        plannedLessonFormats: ["lecture"],
+      },
+    ]);
+  }
+  function setFormats(i: number, raw: string) {
+    const fmts = raw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s): s is LessonFormat => (LESSON_FORMATS as string[]).includes(s));
+    patch(i, { plannedLessonFormats: fmts });
+  }
+
+  async function save() {
+    if (weeks.length === 0) { onToast("⚠ A series needs at least one week"); return; }
+    if (weeks.length > 16) { onToast("⚠ Max 16 weeks"); return; }
+    setBusy(true);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(false); return; }
+    try {
+      await api(token, `/series/${seriesId}/arc`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          topicArc: weeks.map((w, i) => ({ ...w, weekIndex: i + 1 })),
+        }),
+      });
+      onToast(`✓ Arc saved — ${weeks.length} weeks`);
+      await onSaved();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[10px] text-amber-300/80">
+        ⚠ Reordering or removing weeks after &quot;Plan all weeks&quot; can desync
+        already-materialised plans (they keep their original week number).
+      </p>
+      {weeks.map((w, i) => (
+        <div key={i} className="border border-white/10 rounded-xl p-3 space-y-2 bg-[#151B3D]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[#00D4FF] text-[12px] font-semibold">Week {i + 1}</span>
+            <div className="flex items-center gap-1">
+              <button onClick={() => move(i, -1)} disabled={i === 0}
+                className="px-1.5 py-0.5 text-[11px] rounded border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-30">↑</button>
+              <button onClick={() => move(i, 1)} disabled={i === weeks.length - 1}
+                className="px-1.5 py-0.5 text-[11px] rounded border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-30">↓</button>
+              <button onClick={() => removeWeek(i)}
+                className="px-1.5 py-0.5 text-[11px] rounded border border-red-400/30 text-red-300 hover:bg-red-400/10">🗑</button>
+            </div>
+          </div>
+          <input
+            type="text" value={w.plannedTheme}
+            onChange={(e) => patch(i, { plannedTheme: e.target.value })}
+            placeholder="Theme (8-12 words)"
+            className="w-full bg-[#0F1330] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-white outline-none focus:border-[#00D4FF]/40"
+          />
+          <input
+            type="text" value={w.plannedHook}
+            onChange={(e) => patch(i, { plannedHook: e.target.value })}
+            placeholder="Hook (one-line stakes)"
+            className="w-full bg-[#0F1330] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-white outline-none focus:border-[#00D4FF]/40"
+          />
+          <textarea
+            value={w.plannedFocus}
+            onChange={(e) => patch(i, { plannedFocus: e.target.value })}
+            placeholder="Focus — what this week teaches (2-3 sentences)"
+            rows={2}
+            className="w-full bg-[#0F1330] border border-white/10 rounded-lg px-2 py-1.5 text-[12px] text-white outline-none focus:border-[#00D4FF]/40"
+          />
+          <input
+            type="text" value={(w.plannedLessonFormats ?? []).join(", ")}
+            onChange={(e) => setFormats(i, e.target.value)}
+            placeholder="formats: lecture, live_coding"
+            className="w-full bg-[#0F1330] border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[#B8C5E0] outline-none focus:border-[#00D4FF]/40"
+          />
+          <p className="text-[9px] text-[#6B7799]">
+            valid: {LESSON_FORMATS.join(" · ")}
+          </p>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <Btn label="➕ Add week" onClick={addWeek} />
+        <span className="ml-auto" />
+        <Btn label="Cancel" onClick={onCancel} />
+        <PrimaryBtn label="💾 Save arc" busy={busy} onClick={save} />
+      </div>
     </div>
   );
 }

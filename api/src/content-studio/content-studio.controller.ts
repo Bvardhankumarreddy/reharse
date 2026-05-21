@@ -29,6 +29,7 @@ import { CommentReplyAgent } from './agents/comment-reply.agent';
 import { PipelineOrchestratorService } from './services/pipeline-orchestrator.service';
 import { SeriesService } from './services/series.service';
 import { SeriesArchitectAgent } from './agents/series-architect.agent';
+import { AudioAgent } from './agents/audio.agent';
 import { LessonFormat, isLessonFormat } from './entities/content-series.entity';
 import { DlqService } from './services/dlq.service';
 import { AuditService } from './services/audit.service';
@@ -87,6 +88,7 @@ export class ContentStudioController {
     private readonly ytData: YouTubeDataService,
     private readonly seriesSvc: SeriesService,
     private readonly seriesArchitect: SeriesArchitectAgent,
+    private readonly audio: AudioAgent,
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly intelQueue: Queue,
   ) {}
 
@@ -206,6 +208,24 @@ export class ContentStudioController {
     return this.script.generateScript(id);
   }
 
+  /**
+   * TTS: synthesize narration MP3 from the lesson's latest script, store it
+   * in S3, return the audio asset. Provider-agnostic (OpenAI default,
+   * ElevenLabs per-brand override).
+   */
+  @Post('lessons/:id/audio/generate')
+  generateAudio(@Param('id') id: string) {
+    return this.audio.generateAudio(id);
+  }
+
+  /** Latest audio asset + a presigned playback URL (15-min TTL), or null. */
+  @Get('lessons/:id/audio')
+  async lessonAudio(@Param('id') id: string) {
+    const r = await this.audio.latestAudioUrl(id);
+    if (!r) return null;
+    return { ...r.asset, url: r.url };
+  }
+
   /** Latest script asset for the lesson, or null if none generated yet. */
   @Get('lessons/:id/script')
   async lessonScript(@Param('id') id: string) {
@@ -313,6 +333,37 @@ export class ContentStudioController {
   @Get('plans/:id/quiz')
   quizLatest(@Param('id') id: string) {
     return this.quiz.latestDelivered(id);
+  }
+
+  // ── Curator approval gate ──────────────────────────────────────────────
+
+  /**
+   * Approve or reject a plan. The pipeline refuses to run until a plan is
+   * approved, so a human signs off on the theme before 7 stages burn cost.
+   * Body: { status: 'approved' | 'rejected', note?: string }.
+   */
+  @Patch('plans/:id/approval')
+  async setApproval(
+    @Param('id') id: string,
+    @Body() body: { status?: string; note?: string },
+    @Req() req: Request,
+  ) {
+    const status = body?.status;
+    if (status !== 'approved' && status !== 'rejected') {
+      throw new BadRequestException("status must be 'approved' or 'rejected'");
+    }
+    const { userEmail } = this.writerFrom(req);
+    const plan = await this.orchestrator.setApproval(id, status, {
+      note: body?.note,
+      userEmail,
+    });
+    await this.audit.log({
+      entityType: 'plan', entityId: id, action: 'updated',
+      after: { approvalStatus: status },
+      summary: `Plan ${status}${body?.note ? ` — ${body.note}` : ''}`,
+      writer: this.writerFrom(req),
+    });
+    return plan;
   }
 
   // ── Slice 5: Orchestrator (async pipeline + resume) ────────────────────
@@ -921,6 +972,22 @@ export class ContentStudioController {
   @Post('series/:id/redesign')
   async redesign(@Param('id') id: string) {
     return this.seriesArchitect.designArcFor(id);
+  }
+
+  /**
+   * Replace the series' topic arc — manual insert/reorder/remove/edit of
+   * weeks. The UI sends the full resulting array; the server re-indexes.
+   * Body: { topicArc: SeriesWeekArc[] }.
+   */
+  @Patch('series/:id/arc')
+  updateArc(
+    @Param('id') id: string,
+    @Body() body: { topicArc?: Array<Record<string, unknown>> },
+  ) {
+    if (!Array.isArray(body?.topicArc)) {
+      throw new BadRequestException('topicArc array is required');
+    }
+    return this.seriesSvc.updateArc(id, body.topicArc as never);
   }
 
   /**

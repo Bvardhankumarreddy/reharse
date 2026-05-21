@@ -68,6 +68,22 @@ export default registerAs('contentStudio', () => ({
   gemini: { apiKey: process.env.GEMINI_API_KEY },
 
   /**
+   * Text-to-speech for lesson narration. Provider-agnostic: defaults to
+   * OpenAI TTS (reuses OPENAI_API_KEY). ElevenLabs is a drop-in — set
+   * CS_TTS_PROVIDER=elevenlabs + ELEVENLABS_API_KEY to switch. Per-brand
+   * override via brand.modelOverrides.tts ("openai" | "elevenlabs").
+   */
+  tts: {
+    provider:    process.env.CS_TTS_PROVIDER ?? 'openai', // 'openai' | 'elevenlabs'
+    openaiModel: process.env.CS_TTS_OPENAI_MODEL ?? 'tts-1', // or 'tts-1-hd'
+    openaiVoice: process.env.CS_TTS_OPENAI_VOICE ?? 'onyx',
+    // ElevenLabs (dormant unless key present)
+    elevenLabsApiKey: process.env.ELEVENLABS_API_KEY,
+    elevenLabsVoiceId: process.env.CS_TTS_ELEVENLABS_VOICE_ID ?? 'JBFqnCBsd6RMkjVDRZzb',
+    elevenLabsModel: process.env.CS_TTS_ELEVENLABS_MODEL ?? 'eleven_multilingual_v2',
+  },
+
+  /**
    * Phase D — YouTube. Data API is read-only and only needs an API key;
    * Analytics + auto-publish + comments need an OAuth refresh token and
    * are dormant when CS_YT_OAUTH_REFRESH_TOKEN is missing.

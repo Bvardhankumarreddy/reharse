@@ -4,7 +4,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
-import { ContentSeries, SeriesStatus } from '../entities/content-series.entity';
+import {
+  ContentSeries, SeriesStatus, SeriesWeekArc, LessonFormat, LESSON_FORMATS,
+} from '../entities/content-series.entity';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
 import { StrategyAgent } from '../agents/strategy.agent';
 import { SeriesArchitectAgent } from '../agents/series-architect.agent';
@@ -76,6 +78,43 @@ export class SeriesService {
     const s = await this.seriesRepo.findOne({ where: { id } });
     if (!s) throw new NotFoundException('Series not found');
     return s;
+  }
+
+  /**
+   * Replace the whole topic arc — the UI handles insert/reorder/remove/edit
+   * client-side and sends the resulting array. Server validates, clamps, and
+   * re-indexes weekIndex to a contiguous 1..N. targetWeeks tracks arc length.
+   *
+   * NOTE: already-materialised plans keep their seriesWeekNumber — reordering
+   * or removing weeks after planning can desync them; the caller is warned.
+   */
+  async updateArc(
+    seriesId: string,
+    rawArc: Array<Partial<SeriesWeekArc>>,
+  ): Promise<ContentSeries> {
+    const series = await this.get(seriesId);
+    if (!Array.isArray(rawArc) || rawArc.length === 0) {
+      throw new BadRequestException('topicArc must be a non-empty array');
+    }
+    if (rawArc.length > 16) {
+      throw new BadRequestException('A series can have at most 16 weeks');
+    }
+    const arc: SeriesWeekArc[] = rawArc.slice(0, 16).map((w, i) => ({
+      weekIndex: i + 1,
+      plannedTheme: String(w.plannedTheme ?? '').slice(0, 240),
+      plannedHook: String(w.plannedHook ?? '').slice(0, 280),
+      plannedFocus: String(w.plannedFocus ?? '').slice(0, 600),
+      plannedLessonFormats: (w.plannedLessonFormats ?? ['lecture'])
+        .filter((f): f is LessonFormat =>
+          (LESSON_FORMATS as string[]).includes(String(f)))
+        .slice(0, 3),
+    }));
+    await this.seriesRepo.update(series.id, {
+      topicArc: arc,
+      targetWeeks: arc.length,
+    });
+    this.logger.log(`Series ${series.id} arc updated — ${arc.length} weeks`);
+    return this.get(series.id);
   }
 
   /**
