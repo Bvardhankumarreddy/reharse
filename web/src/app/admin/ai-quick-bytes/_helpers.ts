@@ -57,10 +57,24 @@ export interface ShortScript {
   newsItem?: { title: string; url: string; source?: { name: string } | null } | null;
 }
 
+export type ThumbnailStyle =
+  | "shocked_reaction" | "bold_text" | "visual_metaphor";
+
+export interface ThumbnailVariation {
+  style: ThumbnailStyle;
+  headline: string;
+  prompt: string;
+  reasoning: string;
+  estimatedCtrScore: number;
+}
+
 export interface ThumbnailPromptResp {
   scriptId: string;
   dayNumber: number | null;
-  thumbnailPrompt: { prompt: string; overlayText: string } | null;
+  thumbnailPrompt:
+    | { variations: ThumbnailVariation[] }
+    | { prompt: string; overlayText: string } // legacy single-prompt rows
+    | null;
   generatedAt: string | null;
 }
 

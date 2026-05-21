@@ -49,7 +49,17 @@ export interface DistributionLlmResponse {
   whatsapp_status: WhatsAppStatus;
 }
 
+export type ThumbnailStyle =
+  | 'shocked_reaction' | 'bold_text' | 'visual_metaphor';
+
+export interface ThumbnailVariation {
+  style: ThumbnailStyle;
+  headline: string;          // ≤6 words, ALL CAPS overlay text
+  prompt: string;            // clean 100-150 word ChatGPT/DALL-E prompt
+  reasoning: string;         // 1 sentence: why this style fits
+  estimatedCtrScore: number; // 1-100
+}
+
 export interface ThumbnailPromptResult {
-  prompt: string;       // copy-paste into ChatGPT/DALL-E
-  overlayText: string;  // big bold text to put on the thumbnail
+  variations: ThumbnailVariation[]; // 3: shocked_reaction, bold_text, visual_metaphor
 }

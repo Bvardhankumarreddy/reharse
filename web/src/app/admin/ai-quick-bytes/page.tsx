@@ -7,7 +7,7 @@ import { useEffect, useState, useCallback, type ReactNode } from "react";
 import {
   fetchToken, api, STATUS_COLOR,
   type NewsItem, type ShortScript, type NewsSourceRow, type DailyStats,
-  type DistributionResp, type ThumbnailPromptResp,
+  type DistributionResp, type ThumbnailPromptResp, type ThumbnailVariation,
 } from "./_helpers";
 
 type Tab = "pipeline" | "news" | "approval";
@@ -575,9 +575,13 @@ function ScriptCard({ script, onAct }: {
                 </button>
               </div>
 
-              {/* Thumbnail prompt */}
-              {thumb?.thumbnailPrompt ? (
-                <Block title="🖼 Thumbnail prompt (paste into ChatGPT/DALL-E)">
+              {/* Thumbnail prompts — 3 clean MrBeast-style variations */}
+              {thumb?.thumbnailPrompt && "variations" in thumb.thumbnailPrompt ? (
+                <Block title="🖼 Thumbnail variations (pick one, paste into ChatGPT/DALL-E)">
+                  <ThumbnailVariations variations={thumb.thumbnailPrompt.variations} />
+                </Block>
+              ) : thumb?.thumbnailPrompt && "prompt" in thumb.thumbnailPrompt ? (
+                <Block title="🖼 Thumbnail prompt (legacy — regenerate for 3 clean variations)">
                   <CopyField label="Overlay text" value={thumb.thumbnailPrompt.overlayText} />
                   <CopyField label="Image prompt" value={thumb.thumbnailPrompt.prompt} multiline />
                 </Block>
@@ -632,6 +636,54 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
     <div className="border border-white/10 rounded-xl overflow-hidden">
       <div className="px-3 py-2 bg-white/5 text-[#B8C5E0] text-xs font-semibold">{title}</div>
       <div className="p-3 space-y-2">{children}</div>
+    </div>
+  );
+}
+
+const THUMB_STYLE_LABEL: Record<string, string> = {
+  shocked_reaction: "😱 Shocked reaction",
+  bold_text: "🔠 Bold text",
+  visual_metaphor: "🎭 Visual metaphor",
+};
+
+function ThumbnailVariations({ variations }: { variations: ThumbnailVariation[] }) {
+  // Highlight the model's highest-CTR pick.
+  const best = variations.reduce(
+    (b, v) => (v.estimatedCtrScore > b ? v.estimatedCtrScore : b),
+    -1,
+  );
+  return (
+    <div className="space-y-3">
+      {variations.map((v, i) => {
+        const isBest = v.estimatedCtrScore === best;
+        return (
+          <div
+            key={i}
+            className={`border rounded-lg p-3 space-y-2 ${
+              isBest ? "border-[#00F5A0]/40 bg-[#00F5A0]/5" : "border-white/10"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] font-semibold text-[#B8C5E0]">
+                {THUMB_STYLE_LABEL[v.style] ?? v.style}
+                {isBest && (
+                  <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded-full bg-[#00F5A0]/20 text-[#00F5A0]">
+                    ★ top pick
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] text-[#6B7799]">
+                CTR ~{v.estimatedCtrScore}/100
+              </span>
+            </div>
+            {v.reasoning && (
+              <p className="text-[11px] text-[#6B7799] italic">{v.reasoning}</p>
+            )}
+            <CopyField label="Headline (overlay)" value={v.headline} />
+            <CopyField label="Image prompt" value={v.prompt} multiline />
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import {
   CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn,
 } from 'typeorm';
 import { NewsItem } from './news-item.entity';
+import { ThumbnailVariation } from '../dto/distribution-package.dto';
 
 export type ScriptStatus =
   | 'draft' | 'approved' | 'rejected'
@@ -81,9 +82,13 @@ export class ShortScript {
   @Column({ type: 'numeric', precision: 10, scale: 6, nullable: true })
   costUsd: number | null;
 
-  // ── Thumbnail prompt (text the host pastes into ChatGPT/DALL-E) ──────
+  // ── Thumbnail prompts (3 MrBeast-style variations the host picks from) ──
+  // jsonb — legacy rows may hold the old { prompt, overlayText } shape.
   @Column({ type: 'jsonb', nullable: true })
-  thumbnailPrompt: { prompt: string; overlayText: string } | null;
+  thumbnailPrompt:
+    | { variations: ThumbnailVariation[] }
+    | { prompt: string; overlayText: string } // legacy single
+    | null;
 
   @Column({ type: 'numeric', precision: 10, scale: 6, default: 0 })
   thumbnailCostUsd: number;
