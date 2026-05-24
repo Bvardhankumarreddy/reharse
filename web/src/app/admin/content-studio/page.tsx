@@ -1505,7 +1505,7 @@ function QualityBadge({ q }: { q: { qualityScore: number | null; revisions: numb
   return (
     <span className={`text-[10px] px-1.5 py-0.5 rounded ${tone}`}>
       score {q.qualityScore}
-      {q.confidence != null ? ` · conf ${q.confidence.toFixed(2)}` : ""}
+      {q.confidence != null ? ` · conf ${Number(q.confidence).toFixed(2)}` : ""}
       {q.revisions > 0 ? ` · ${q.revisions} rev` : ""}
     </span>
   );
