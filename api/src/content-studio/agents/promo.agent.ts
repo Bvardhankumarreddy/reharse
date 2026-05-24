@@ -9,6 +9,7 @@ import { ModelRouterService } from '../services/model-router.service';
 import { ImprovementLoopService } from '../services/improvement-loop.service';
 import { BrandMemoryService } from '../services/brand-memory.service';
 import { ProviderName } from '../services/provider.types';
+import { socialFooter } from '../services/social-footer';
 
 const SYSTEM = `
 You write THREE promotion posts for one new lesson — one per platform.
@@ -192,6 +193,7 @@ export class PromoAgent {
         const ws = parsed.whatsapp_status ?? {};
         const wsText = clampWhatsapp(String(ws.text ?? ''));
         const brandSlug = String(brand.slug ?? brand.name ?? '');
+        const footer = socialFooter(lesson.lessonNumber, lesson.title);
 
         const liHook = String(li.hook ?? '').slice(0, 250);
         const liBody = String(li.body ?? '').slice(0, 1500);
@@ -207,12 +209,12 @@ export class PromoAgent {
             body: liBody,
             cta:  liCta,
             hashtags: liTags,
-            full_text: [liHook, liBody, liCta, joinTags(liTags)].filter(Boolean).join('\n\n'),
+            full_text: [liHook, liBody, liCta, footer, joinTags(liTags)].filter(Boolean).join('\n\n'),
           },
           instagram: {
             caption: igCaption,
             hashtags: igTags,
-            full_text: [igCaption, joinTags(igTags)].filter(Boolean).join('\n\n'),
+            full_text: [igCaption, footer, joinTags(igTags)].filter(Boolean).join('\n\n'),
           },
           whatsappStatus: {
             text: wsText,
