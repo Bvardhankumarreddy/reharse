@@ -17,28 +17,28 @@ them. Mine real beats from the lesson script — do NOT just rephrase the
 title.
 
 ═══ TAGS/HASHTAGS ARE MANDATORY ═══
-LinkedIn and Instagram posts MUST include hashtags. NEVER return an empty
-hashtags array. Mix broad + niche + brand + topic-specific tags. If unsure,
-adapt from the lesson topic and the brand name.
+LinkedIn and Instagram posts MUST each include AT LEAST 20 hashtags. NEVER
+return an empty or short hashtags array. Mix broad + niche + brand +
+topic-specific tags. If unsure, adapt from the lesson topic and brand name.
 
 LINKEDIN (technical-pro audience):
 - hook: 1 line, ≤ 200 chars, concrete stakes.
 - body: 3–5 short paragraphs (~600–900 chars total).
 - cta: 1 line.
-- hashtags: REQUIRED, 4–6, no spaces, no "#". Professional
-  (e.g. AI, ArtificialIntelligence, Innovation, TechIndia) + 1–2 topic ones.
+- hashtags: REQUIRED, AT LEAST 20 (20–24), no spaces, no "#". Mix broad
+  (AI, ArtificialIntelligence, Innovation, TechIndia) + many topic-specific.
 
 INSTAGRAM:
 - caption: 80–220 chars, punchy. Allow 1 emoji max if natural.
-- hashtags: REQUIRED, 12–15, no spaces, no "#". Mix niche + popular + brand
-  + topic-specific.
+- hashtags: REQUIRED, AT LEAST 20 (20–30), no spaces, no "#". Mix niche +
+  popular + brand + topic-specific.
 
 WHATSAPP_STATUS:
 - text: ≤ 700 chars total AND ≤ 10 lines. Conversational. End with a
   one-line nudge to watch the lesson. (No hashtags.)
 
-SELF-CHECK before output: linkedin.hashtags has 4–6 items, instagram.hashtags
-has 12–15 items, neither is empty. If empty, fill them in.
+SELF-CHECK before output: linkedin.hashtags has ≥ 20 items, instagram.hashtags
+has ≥ 20 items, neither is empty. If short, add more topic + broad tags.
 
 Obey brand voice/style/do/don't memories verbatim.
 
@@ -48,11 +48,15 @@ Return STRICT JSON ONLY:
  "whatsapp_status":{"text":"…"}}
 `.trim();
 
-/** Generic fallback pool — only used to backfill if the LLM under-delivers. */
+/** Generic fallback pool — only used to backfill if the LLM under-delivers.
+ *  Large enough to top any platform up to the 20-tag minimum. */
 const BASE_PROMO_TAGS = [
-  'ai', 'artificialintelligence', 'machinelearning', 'tech', 'technology',
-  'learnai', 'aieducation', 'coding', 'programming', 'developer', 'aitools',
-  'futuretech', 'innovation', 'techindia',
+  'ai', 'artificialintelligence', 'machinelearning', 'deeplearning',
+  'genai', 'generativeai', 'llm', 'chatgpt', 'aitools', 'aiagents',
+  'datascience', 'tech', 'technology', 'techindia', 'futuretech',
+  'learnai', 'aieducation', 'edtech', 'coding', 'programming',
+  'developer', 'softwareengineering', 'devops', 'cloud', 'automation',
+  'innovation', 'productivity', 'startup', 'careers', 'upskilling',
 ];
 
 function topicWords(s: string, max: number): string[] {
@@ -192,10 +196,10 @@ export class PromoAgent {
         const liHook = String(li.hook ?? '').slice(0, 250);
         const liBody = String(li.body ?? '').slice(0, 1500);
         const liCta  = String(li.cta  ?? '').slice(0, 200);
-        const liTags = ensureHashtags(cleanHashtags(li.hashtags, 6), brandSlug, lesson.title, 4, 6);
+        const liTags = ensureHashtags(cleanHashtags(li.hashtags, 24), brandSlug, lesson.title, 20, 24);
 
         const igCaption = String(ig.caption ?? '').slice(0, 300);
-        const igTags = ensureHashtags(cleanHashtags(ig.hashtags, 15), brandSlug, lesson.title, 12, 15);
+        const igTags = ensureHashtags(cleanHashtags(ig.hashtags, 30), brandSlug, lesson.title, 20, 30);
 
         const out: PromoParsed = {
           linkedin: {
