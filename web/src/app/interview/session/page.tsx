@@ -198,7 +198,9 @@ function InterviewSessionPageInner() {
   // ── Loading timeout ────────────────────────────────────────────────────────
   useEffect(() => {
     if (question) return;
-    const t = setTimeout(() => setLoadTimedOut(true), 25_000);
+    // Sits above the backend's 30s question-gen ceiling so the gateway's
+    // specific error surfaces first if generation actually fails.
+    const t = setTimeout(() => setLoadTimedOut(true), 35_000);
     return () => clearTimeout(t);
   }, [question]);
 

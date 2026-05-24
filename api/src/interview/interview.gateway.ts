@@ -642,7 +642,10 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
         previous_qa:      ctx.previousQA.length > 0 ? ctx.previousQA : null,
         user_history:     ctx.userHistory ?? null,
       }),
-      signal: AbortSignal.timeout(12_000),
+      // LLM question-gen (sonnet + resume/history context) routinely needs
+      // >12s, especially the first question. Give it real headroom; the
+      // frontend's "taking too long" net sits above this at 35s.
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!res.ok) throw new Error(`AI engine /questions returned HTTP ${res.status}`);
