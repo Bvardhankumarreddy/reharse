@@ -59,7 +59,7 @@ function fallbackEvaluation(data: FeedbackJobData) {
 
   const overallScore = scoredQs.length
     ? Math.round(scoredQs.reduce((s, q) => s + q.score, 0) / scoredQs.length)
-    : 65;
+    : 0; // no answers at all → 0, never a default credit
 
   const typeLabel = context.interviewType.replace('-', ' ');
 
@@ -117,7 +117,9 @@ function applyZeroGuard(
   const blankIds = new Set(
     transcript.filter((t) => isNonAnswer(t.answer)).map((t) => t.questionId),
   );
-  const allBlank = transcript.length > 0 && blankIds.size === transcript.length;
+  // Empty transcript (ended without answering anything) OR every answer blank
+  // → the whole session is a non-attempt and must score 0.
+  const allBlank = transcript.length === 0 || blankIds.size === transcript.length;
 
   if (Array.isArray(evaluation.question_feedback)) {
     evaluation.question_feedback = (evaluation.question_feedback as Array<

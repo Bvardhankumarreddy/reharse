@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # Claude model IDs
     model_question_gen: str = "claude-sonnet-4-6"
-    model_evaluator: str = "claude-opus-4-6"
+    model_evaluator: str = "claude-opus-4-7"  # current Opus; 4-6 risked silent fallback
     model_coach: str = "claude-sonnet-4-6"
     model_resume: str = "claude-haiku-4-5-20251001"
 
