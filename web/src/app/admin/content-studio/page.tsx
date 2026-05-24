@@ -433,6 +433,13 @@ function PlanCard({ plan, brands, onToast }: {
     }
   }
 
+  async function reloadPlan() {
+    const token = await fetchToken();
+    if (!token) return;
+    try { setFull(await api<WeeklyPlan>(token, `/plans/${plan.id}`)); }
+    catch { /* ignore */ }
+  }
+
   const p = full ?? plan;
 
   return (
@@ -501,7 +508,7 @@ function PlanCard({ plan, brands, onToast }: {
           )}
           <QuizPanel planId={full.id} onToast={onToast} />
           {(full.lessons ?? []).map((l) => (
-            <LessonBlock key={l.id} lesson={l} onToast={onToast} />
+            <LessonBlock key={l.id} lesson={l} onToast={onToast} onDeleted={reloadPlan} />
           ))}
           {full.agentRuns && full.agentRuns.length > 0 && (
             <Block title={`⚙️ Agent runs (${full.agentRuns.length})`}>
@@ -529,8 +536,8 @@ function PlanCard({ plan, brands, onToast }: {
   );
 }
 
-function LessonBlock({ lesson, onToast }: {
-  lesson: Lesson; onToast: (m: string) => void;
+function LessonBlock({ lesson, onToast, onDeleted }: {
+  lesson: Lesson; onToast: (m: string) => void; onDeleted?: () => void;
 }) {
   const [script, setScript] = useState<ScriptAsset | null>(null);
   const [ppt, setPpt] = useState<PptAsset | null>(null);
@@ -577,6 +584,21 @@ function LessonBlock({ lesson, onToast }: {
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setRegenBusy(false); }
+  }
+
+  async function deleteLesson() {
+    if (!confirm(`Delete "${lsn.title}"? This removes the lesson and its generated assets.`)) return;
+    setRegenBusy(true);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setRegenBusy(false); return; }
+    try {
+      await api(token, `/lessons/${lesson.id}`, { method: "DELETE" });
+      onToast("✓ Lesson deleted");
+      onDeleted?.();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+      setRegenBusy(false);
+    }
   }
 
   async function generateAudio() {
@@ -761,9 +783,17 @@ function LessonBlock({ lesson, onToast }: {
             onClick={() => setRegenOpen((v) => !v)}
             disabled={regenBusy}
             className="text-[10px] px-2 py-0.5 rounded-lg border border-amber-400/30 text-amber-300 hover:bg-amber-400/10 disabled:opacity-50 transition"
-            title="Don't like this lesson? Re-plan just this one."
+            title="Replace this lesson with a completely new topic"
           >
-            {regenBusy ? "Re-planning…" : "🔄 Regenerate"}
+            {regenBusy ? "Working…" : "🔄 Regenerate"}
+          </button>
+          <button
+            onClick={deleteLesson}
+            disabled={regenBusy}
+            className="text-[10px] px-2 py-0.5 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-400/10 disabled:opacity-50 transition"
+            title="Delete this lesson"
+          >
+            🗑 Delete
           </button>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-[#6B7799]">
             {lsn.status}
@@ -773,8 +803,8 @@ function LessonBlock({ lesson, onToast }: {
       {regenOpen && (
         <div className="px-3 py-2 bg-amber-400/5 border-b border-amber-400/10 space-y-2">
           <p className="text-[10px] text-[#6B7799]">
-            Re-plans <b>only this lesson</b> (keeps the theme + the other lesson)
-            and wipes this lesson&apos;s generated assets. Optional steer:
+            Replaces this lesson with a <b>completely new topic</b> (won&apos;t
+            overlap the other lesson) and wipes its generated assets. Optional steer:
           </p>
           <input
             type="text"

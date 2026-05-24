@@ -202,6 +202,12 @@ export class ContentStudioController {
     return this.strategy.regenerateLesson(id, { guidance: body?.guidance });
   }
 
+  /** Delete a lesson (removes its assets + renumbers the rest of the plan). */
+  @Delete('lessons/:id')
+  deleteLesson(@Param('id') id: string) {
+    return this.strategy.deleteLesson(id);
+  }
+
   /** Slice 2: Script Agent → 8-12 min audio script for ONE lesson. */
   @Post('lessons/:id/script/generate')
   generateScript(@Param('id') id: string) {

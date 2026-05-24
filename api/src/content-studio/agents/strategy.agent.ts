@@ -68,10 +68,16 @@ Exactly 2 lessons.
 `.trim();
 
 const REGEN_LESSON_SYSTEM = `
-You re-plan ONE lesson within an existing week. The week's theme and the
-other lesson(s) are fixed — your job is to produce a single, clearly better
-and DIFFERENT lesson for the slot that fits the theme but does not overlap
-the sibling lesson(s).
+You re-plan ONE lesson slot with a COMPLETELY NEW TOPIC. Pick a genuinely
+different subject from the current lesson — NOT a reword, NOT a slight
+variation, NOT the same topic from another angle. A viewer should see it as
+a brand-new lesson.
+
+Constraints:
+- It must fit the brand and may relate to the week's theme, but the TOPIC
+  itself must be clearly new vs. the lesson being replaced.
+- Do NOT overlap the sibling lesson(s) shown to you.
+- If the curator gave a guidance note, obey it.
 
 The lesson needs:
 - title    : punchy, clickable
@@ -303,9 +309,10 @@ export class StrategyAgent {
         `  format: ${lesson.lessonFormat}\n\n` +
         (guidance
           ? `CURATOR GUIDANCE (obey this):\n${guidance}\n\n`
-          : `(No specific guidance — just produce a clearly better, different take.)\n\n`) +
+          : `(No specific guidance — choose any strong NEW topic for the slot.)\n\n`) +
         `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
-        `Return the single replacement lesson as JSON only.`,
+        `Pick a COMPLETELY NEW topic — different from the lesson above, not a ` +
+        `reword of it. Return the single replacement lesson as JSON only.`,
     });
 
     let parsed: {
@@ -347,6 +354,36 @@ export class StrategyAgent {
     const updated = await this.lessonRepo.findOne({ where: { id: lesson.id } });
     if (!updated) throw new Error('Lesson vanished after regenerate');
     return updated;
+  }
+
+  /**
+   * Delete a lesson outright — removes its assets, drops the row, and
+   * re-numbers the remaining lessons in the plan to a contiguous 1..N.
+   */
+  async deleteLesson(lessonId: string): Promise<{ ok: true; remaining: number }> {
+    const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    const planId = lesson.planId;
+
+    await this.assetRepo.delete({ lessonId });
+    await this.lessonRepo.delete({ id: lessonId });
+
+    // Re-number survivors so lessonNumber stays 1..N with no gaps.
+    const remaining = await this.lessonRepo.find({
+      where: { planId },
+      order: { lessonNumber: 'ASC' },
+    });
+    let n = 1;
+    for (const l of remaining) {
+      if (l.lessonNumber !== n) {
+        await this.lessonRepo.update(l.id, { lessonNumber: n });
+      }
+      n++;
+    }
+    this.logger.log(
+      `Deleted lesson "${lesson.title}" from plan ${planId} — ${remaining.length} left`,
+    );
+    return { ok: true, remaining: remaining.length };
   }
 
   // ── Enrichment helpers ──────────────────────────────────────────────────
