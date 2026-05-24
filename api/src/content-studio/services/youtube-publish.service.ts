@@ -95,10 +95,25 @@ export class YouTubePublishService {
         },
       );
     } catch (e) {
-      const err = (e as { response?: { data?: unknown }; message?: string });
-      throw new Error(
-        `videos.update failed: ${JSON.stringify(err.response?.data ?? err.message)}`,
-      );
+      const err = (e as {
+        response?: { status?: number; data?: { error?: { code?: number; message?: string } } };
+        message?: string;
+      });
+      const status = err.response?.status ?? err.response?.data?.error?.code;
+      const ytMsg = err.response?.data?.error?.message ?? err.message ?? 'unknown error';
+      if (status === 403) {
+        throw new BadRequestException(
+          'YouTube rejected the update (403 Forbidden). The video must belong to ' +
+          'the connected YouTube channel — you can only edit your own uploads. ' +
+          'Double-check the videoId is one of that channel\'s videos.',
+        );
+      }
+      if (status === 404) {
+        throw new BadRequestException(
+          `YouTube video not found (404). Check the youtubeVideoId — got "${youtubeVideoId}".`,
+        );
+      }
+      throw new BadRequestException(`YouTube videos.update failed: ${ytMsg}`);
     }
 
     // 3) Upload the generated thumbnail (if present).
