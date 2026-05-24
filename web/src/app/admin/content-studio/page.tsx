@@ -1200,8 +1200,8 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
               <div className="space-y-1">
                 <p className="text-[10px] uppercase text-[#6B7799]">LinkedIn</p>
                 <CopyBox
-                  label="Full LinkedIn post"
-                  value={[
+                  label={`Full LinkedIn post · ${(promo.content.linkedin.hashtags ?? []).length} tags`}
+                  value={promo.content.linkedin.full_text ?? [
                     promo.content.linkedin.hook,
                     "",
                     promo.content.linkedin.body,
@@ -1217,11 +1217,11 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
               <div className="space-y-1">
                 <p className="text-[10px] uppercase text-[#6B7799]">Instagram</p>
                 <CopyBox
-                  label="Caption + tags"
-                  value={
-                    (promo.content.instagram.caption ?? "") +
+                  label={`Caption + tags · ${(promo.content.instagram.hashtags ?? []).length} tags`}
+                  value={promo.content.instagram.full_text ??
+                    ((promo.content.instagram.caption ?? "") +
                     "\n\n" +
-                    (promo.content.instagram.hashtags ?? []).map((h) => `#${h}`).join(" ")
+                    (promo.content.instagram.hashtags ?? []).map((h) => `#${h}`).join(" "))
                   }
                   multiline
                 />

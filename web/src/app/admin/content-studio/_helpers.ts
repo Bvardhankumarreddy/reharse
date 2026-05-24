@@ -415,8 +415,8 @@ export interface PromoAsset extends AssetQuality {
   assetType: string;
   version: number;
   content: {
-    linkedin?: { hook?: string; body?: string; cta?: string; hashtags?: string[] };
-    instagram?: { caption?: string; hashtags?: string[] };
+    linkedin?: { hook?: string; body?: string; cta?: string; hashtags?: string[]; full_text?: string };
+    instagram?: { caption?: string; hashtags?: string[]; full_text?: string };
     whatsappStatus?: { text?: string; chars?: number; lines?: number };
     model?: string;
     provider?: string;
