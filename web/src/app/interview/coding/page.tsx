@@ -6,7 +6,6 @@
 import { useState, Suspense, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 import { clsx } from "clsx";
 import { useApiClient } from "@/lib/hooks/useApiClient";
 import { useInterviewSocket, fmtMs } from "@/lib/hooks/useInterviewSocket";
@@ -123,10 +122,11 @@ function ErrorScreen({ message, onBack }: { message: string; onBack: () => void 
 function CodingInterviewPageInner() {
   const params     = useSearchParams();
   const router     = useRouter();
-  const { data: session } = authClient.useSession();
 
+  // See note in interview/session/page.tsx: don't gate on async useSession()
+  // state — the socket connects on mount and would race hydration, yielding a
+  // null token. /api/auth/token validates the cookie directly.
   const getToken = useCallback(async (): Promise<string | null> => {
-    if (!session) return null;
     try {
       const res = await fetch("/api/auth/token");
       if (!res.ok) return null;
@@ -135,7 +135,7 @@ function CodingInterviewPageInner() {
     } catch {
       return null;
     }
-  }, [session]);
+  }, []);
 
   const sessionId = params.get("sessionId");
   const role      = params.get("role") ?? "Software Engineer";

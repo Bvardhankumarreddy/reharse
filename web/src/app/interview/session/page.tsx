@@ -7,7 +7,6 @@
 import { useState, Suspense, useCallback, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useApiClient } from "@/lib/hooks/useApiClient";
-import { authClient } from "@/lib/auth-client";
 import { clsx } from "clsx";
 import { useInterviewSocket, fmtMs } from "@/lib/hooks/useInterviewSocket";
 import { useVoiceRecorder } from "@/lib/hooks/useVoiceRecorder";
@@ -133,10 +132,13 @@ const INTERVIEWER: Record<string, { name: string; title: string; initials: strin
 function InterviewSessionPageInner() {
   const params     = useSearchParams();
   const router     = useRouter();
-  const { data: session } = authClient.useSession();
 
+  // Don't gate on the async useSession() state — the socket connects on mount
+  // (sessionId comes from the URL immediately), so reading `session` here races
+  // with hydration and yields a null token → "Missing token" at the gateway.
+  // /api/auth/token validates the HTTP session cookie directly, which is present
+  // regardless of React hydration, so call it unconditionally.
   const getToken = useCallback(async (): Promise<string | null> => {
-    if (!session) return null;
     try {
       const res = await fetch("/api/auth/token");
       if (!res.ok) return null;
@@ -145,7 +147,7 @@ function InterviewSessionPageInner() {
     } catch {
       return null;
     }
-  }, [session]);
+  }, []);
 
   const sessionId = params.get("sessionId");
   const type      = params.get("type") ?? "behavioral";
