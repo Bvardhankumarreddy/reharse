@@ -21,9 +21,14 @@ Produce:
   "before you …". No emoji.
 - chosen_title_index: pick the strongest one.
 - description: 600–1200 chars. First 2 sentences MUST stand alone (above
-  the fold). Include 1–2 timestamps (00:00 / mm:ss). End with one CTA
-  line + a reference to the Saturday quiz.
-- tags: 12–20 lowercase tags, no #, no duplicates, ≤ 30 chars each.
+  the fold). Include 1–2 timestamps (00:00 / mm:ss). Then one CTA line + a
+  reference to the Saturday quiz. FINALLY, end with a line of 3–5 relevant
+  HASHTAGS (with #), most important first — YouTube surfaces the first 3
+  above the title, so make them count (broad + topic-specific). These
+  hashtags are REQUIRED.
+- tags: 12–20 lowercase tags, no #, no duplicates, ≤ 30 chars each. (This is
+  the separate YouTube "tags" field — keep it distinct from the description
+  hashtags above.)
 - end_screen_cards: 3 entries — "subscribe", "watch next: <lesson 2 title>",
   "Saturday quiz".
 
@@ -47,6 +52,28 @@ interface SeoParsed {
   description: string;
   tags: string[];
   endScreenCards: Array<{ label?: string; why?: string }>;
+}
+
+/**
+ * Ensure the YouTube description ends with hashtags (YouTube renders the first
+ * 3 above the video title). If the model already included a "#tag" line, keep
+ * it; otherwise append the top 3-5 tags as CamelCase hashtags.
+ */
+function ensureDescriptionHashtags(description: string, tags: string[]): string {
+  if (/#[A-Za-z0-9]/.test(description)) return description; // already has hashtags
+  const hashtags = tags
+    .slice(0, 5)
+    .map((t) =>
+      t
+        .split(/[\s-_]+/)
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(''),
+    )
+    .filter(Boolean)
+    .map((t) => `#${t}`);
+  if (hashtags.length === 0) return description;
+  return `${description.trimEnd()}\n\n${hashtags.join(' ')}`;
 }
 
 @Injectable()
@@ -128,13 +155,21 @@ export class SeoAgent {
           (parsed.chosen_title_index as number) < titleVariants.length
             ? (parsed.chosen_title_index as number)
             : 0;
+        const tags = (parsed.tags ?? [])
+          .map((t) => String(t).toLowerCase().slice(0, 30))
+          .slice(0, 20);
+        // Guarantee the description ends with hashtags (YouTube shows the
+        // first 3 above the title). If the model didn't add any, append the
+        // top tags as hashtags.
+        const description = ensureDescriptionHashtags(
+          String(parsed.description ?? '').slice(0, 4000),
+          tags,
+        );
         const out: SeoParsed = {
           titleVariants,
           chosenTitleIndex: chosen,
-          description: String(parsed.description ?? '').slice(0, 4000),
-          tags: (parsed.tags ?? [])
-            .map((t) => String(t).toLowerCase().slice(0, 30))
-            .slice(0, 20),
+          description,
+          tags,
           endScreenCards: (parsed.end_screen_cards ?? []).slice(0, 4),
         };
         return {
