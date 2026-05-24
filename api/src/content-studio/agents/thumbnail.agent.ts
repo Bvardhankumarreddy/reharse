@@ -10,26 +10,75 @@ import { ImprovementLoopService } from '../services/improvement-loop.service';
 import { BrandMemoryService } from '../services/brand-memory.service';
 import { ProviderName } from '../services/provider.types';
 
-const SYSTEM = `
-You write a DETAILED PROMPT for a thumbnail image generator (Midjourney /
-DALL-E / SDXL). The host generates the image themselves — your job is to
-hand them a brief good enough to ship.
+export type ThumbnailStyle = 'cinematic' | 'clean' | 'dramatic';
+export type AspectRatio = '16:9' | '1:1' | '9:16';
 
-Required fields:
-- main_prompt: ONE paragraph (≤ 800 chars) covering subject, composition,
-  lighting, colour, style. Include the brand's primary + secondary colours
-  if they fit naturally. Plain English — no Midjourney parameters.
+export const THUMBNAIL_STYLES: ThumbnailStyle[] = ['cinematic', 'clean', 'dramatic'];
+export const ASPECT_RATIOS: AspectRatio[] = ['16:9', '1:1', '9:16'];
+
+/** aspect → the DALL-E size we'll actually render + the sizing line for the prompt. */
+export const ASPECT_MAP: Record<AspectRatio, { dalleSize: '1792x1024' | '1024x1024' | '1024x1792'; sizingLine: string }> = {
+  '16:9': { dalleSize: '1792x1024', sizingLine: 'Aspect ratio: 16:9 widescreen, 1792x1024 pixels' },
+  '1:1':  { dalleSize: '1024x1024', sizingLine: 'Aspect ratio: 1:1 square, 1024x1024 pixels' },
+  '9:16': { dalleSize: '1024x1792', sizingLine: 'Aspect ratio: 9:16 vertical, 1024x1920 framing (rendered 1024x1792)' },
+};
+
+const STYLE_PRESETS: Record<ThumbnailStyle, string> = {
+  cinematic:
+    'CINEMATIC — the war-room breakthrough look, film-quality. Dramatic ' +
+    'side-lighting (amber-gold rim on the subject), shallow depth of field ' +
+    'with a desaturated background, a glowing focal element (screen / ' +
+    'hologram / data), subject leaning in with a knowing, confident ' +
+    'expression. Composition reads like a movie still. Mood: "the reveal".',
+  clean:
+    'CLEAN — MrBeast minimal, maximum impact. MAX 3 visual elements, 60%+ ' +
+    'negative space, ONE bold headline (≤6 words), ONE strong face/element, ' +
+    '2 colours only, flat high-contrast, instantly readable at mobile size.',
+  dramatic:
+    'DRAMATIC — high emotion, high contrast. Intense facial expression ' +
+    '(shock / awe / concern), strong navy-vs-cyan-or-red contrast, bold ' +
+    'glowing text, tension in the composition, spotlight or dramatic shadows.',
+};
+
+const SYSTEM = `
+You are a senior YouTube thumbnail art director for educational tech channels.
+You write ONE production-ready image-generation prompt (for DALL-E / Ideogram /
+Midjourney) plus 3 alternates. The system renders it directly — detail matters.
+
+EVERY main_prompt (and every alternate) MUST explicitly specify ALL of:
+1. COMPOSITION — where each element sits (left/right/center, % of frame), the
+   focal point + eye flow, foreground vs background separation.
+2. LIGHTING — direction (side-lit / rim / top-down), colour of the light, mood.
+3. DEPTH — depth of field (shallow/deep), what is sharp vs blurred.
+4. COLOUR GRADING — enforce the brand palette, saturation + contrast choices.
+5. MOOD / EMOTION — the feeling, and the subject's expression if a person is shown.
+6. SIZING — END the prompt with the exact aspect line given in the brief. NEVER omit it.
+
+BRAND PALETTE (use 2-3 per thumbnail; the dark navy always dominates ~60%):
+- Deep navy #0A0E27 (background)
+- Cyan #00D4FF (highlights / glow / focal accents)
+- Amber-gold #FFD700 (rim light / key highlights)
+- Coral #FF6B6B (warnings / contrast — sparingly)
+Prefer the brand's own primary/secondary colours when provided; fold the above in.
+
+STYLE PRESETS (you will be told which ONE to use — match it, never mix):
+- ${STYLE_PRESETS.cinematic}
+- ${STYLE_PRESETS.clean}
+- ${STYLE_PRESETS.dramatic}
+
+Required JSON fields:
+- main_prompt: one rich paragraph (≤ 900 chars) covering composition + lighting
+  + depth + colour + mood, ENDING with the exact sizing line. Plain English.
 - face_position: "left" | "right" | "center" | "none".
-- text_overlay: ≤ 8 words. Drop articles.
+- text_overlay: ≤ 6 words, ALL CAPS, drop articles.
 - color_palette: 3–4 hex colours (with #).
 - mood: 2–3 words.
-- style: e.g. "photoreal cinematic", "minimal flat-vector with bold accent".
-- alternates: 3 ALTERNATIVE main_prompt strings, each ≤ 600 chars.
+- art_direction_notes: 1 sentence on the key visual choice.
+- alternates: 3 ALTERNATIVE main_prompt strings (each ≤ 700 chars, each also
+  ending with the sizing line, same style).
 
-Obey the brand voice/style memories.
-
-Return STRICT JSON ONLY:
-{"main_prompt":"…","face_position":"left|right|center|none","text_overlay":"…","color_palette":["#…","#…"],"mood":"…","style":"…","alternates":["…","…","…"]}
+Obey the brand voice/style memories. Return STRICT JSON ONLY:
+{"main_prompt":"…","face_position":"left|right|center|none","text_overlay":"…","color_palette":["#…"],"mood":"…","art_direction_notes":"…","alternates":["…","…","…"]}
 `.trim();
 
 interface ThumbJson {
@@ -38,7 +87,7 @@ interface ThumbJson {
   text_overlay?: string;
   color_palette?: string[];
   mood?: string;
-  style?: string;
+  art_direction_notes?: string;
   alternates?: string[];
 }
 
@@ -51,7 +100,7 @@ interface ThumbParsed {
   textOverlay: string;
   colorPalette: string[];
   mood: string;
-  style: string;
+  artDirectionNotes: string;
   alternates: string[];
 }
 
@@ -69,7 +118,18 @@ export class ThumbnailAgent {
     private readonly memories: BrandMemoryService,
   ) {}
 
-  async generateThumbnail(lessonId: string): Promise<ContentAsset> {
+  async generateThumbnail(
+    lessonId: string,
+    opts: { style?: ThumbnailStyle; aspectRatio?: AspectRatio } = {},
+  ): Promise<ContentAsset> {
+    const style: ThumbnailStyle = THUMBNAIL_STYLES.includes(opts.style as ThumbnailStyle)
+      ? (opts.style as ThumbnailStyle)
+      : 'cinematic';
+    const aspectRatio: AspectRatio = ASPECT_RATIOS.includes(opts.aspectRatio as AspectRatio)
+      ? (opts.aspectRatio as AspectRatio)
+      : '16:9';
+    const sizingLine = ASPECT_MAP[aspectRatio].sizingLine;
+
     const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException('Lesson not found');
     const plan = await this.planRepo.findOne({ where: { id: lesson.planId } });
@@ -98,6 +158,9 @@ export class ThumbnailAgent {
         ? `LESSON AUDIO SCRIPT (the strongest image often comes from the hook):\n${scriptText.slice(0, 4000)}\n\n`
         : '') +
       `BRAND MEMORIES:\n${memoryBlock}\n\n` +
+      `REQUESTED STYLE: ${style} — ${STYLE_PRESETS[style]}\n` +
+      `ASPECT / SIZING: every main_prompt AND every alternate must END with ` +
+      `this exact line → "${sizingLine}"\n\n` +
       `Output the JSON object only.`;
 
     const result = await this.loop.run<ThumbParsed>({
@@ -135,7 +198,7 @@ export class ThumbnailAgent {
           textOverlay: String(parsed.text_overlay ?? '').slice(0, 80),
           colorPalette: (parsed.color_palette ?? []).map((c) => String(c).slice(0, 12)).slice(0, 5),
           mood: String(parsed.mood ?? '').slice(0, 60),
-          style: String(parsed.style ?? '').slice(0, 100),
+          artDirectionNotes: String(parsed.art_direction_notes ?? '').slice(0, 300),
           alternates: (parsed.alternates ?? []).map((s) => String(s).slice(0, 1500)).slice(0, 4),
         };
         return {
@@ -159,7 +222,15 @@ export class ThumbnailAgent {
         lessonId: lesson.id,
         assetType: 'thumbnail_prompt',
         version: (latest?.version ?? 0) + 1,
-        content: { ...t, model: result.model, provider: result.provider, costUsd: result.totalCostUsd },
+        content: {
+          ...t,
+          style,
+          aspectRatio,
+          dalleSize: ASPECT_MAP[aspectRatio].dalleSize,
+          model: result.model,
+          provider: result.provider,
+          costUsd: result.totalCostUsd,
+        },
         qualityScore: result.qualityScore,
         revisions: result.revisions,
         critique: result.critique,
@@ -171,7 +242,7 @@ export class ThumbnailAgent {
       totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.totalCostUsd,
     });
     this.logger.log(
-      `Thumbnail v${asset.version} for "${lesson.title}" — ` +
+      `Thumbnail v${asset.version} (${style}, ${aspectRatio}) for "${lesson.title}" — ` +
       `${result.revisions} revision(s), score ${result.qualityScore ?? 'n/a'} ` +
       `($${result.totalCostUsd.toFixed(4)})`,
     );

@@ -395,7 +395,10 @@ export interface ThumbnailAsset extends AssetQuality {
     textOverlay?: string;
     colorPalette?: string[];
     mood?: string;
-    style?: string;
+    style?: string;            // chosen preset: cinematic | clean | dramatic
+    aspectRatio?: string;      // 16:9 | 1:1 | 9:16
+    dalleSize?: string;        // the DALL-E render size for that aspect
+    artDirectionNotes?: string;
     alternates?: string[];
     model?: string;
     provider?: string;

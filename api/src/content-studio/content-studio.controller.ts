@@ -19,6 +19,7 @@ import { ScriptAgent } from './agents/script.agent';
 import { PptAgent } from './agents/ppt.agent';
 import { SeoAgent } from './agents/seo.agent';
 import { ThumbnailAgent } from './agents/thumbnail.agent';
+import type { ThumbnailStyle, AspectRatio } from './agents/thumbnail.agent';
 import { PromoAgent } from './agents/promo.agent';
 import { QuizAgent } from './agents/quiz.agent';
 import { PostmortemAgent } from './agents/postmortem.agent';
@@ -278,9 +279,20 @@ export class ContentStudioController {
     return a;
   }
 
+  /**
+   * Generate the art-directed thumbnail prompt. Body:
+   *   { style?: 'cinematic'|'clean'|'dramatic', aspectRatio?: '16:9'|'1:1'|'9:16' }
+   * Defaults to cinematic / 16:9. aspectRatio also drives the DALL-E render size.
+   */
   @Post('lessons/:id/thumbnail/generate')
-  generateThumbnail(@Param('id') id: string) {
-    return this.thumbnail.generateThumbnail(id);
+  generateThumbnail(
+    @Param('id') id: string,
+    @Body() body: { style?: ThumbnailStyle; aspectRatio?: AspectRatio },
+  ) {
+    return this.thumbnail.generateThumbnail(id, {
+      style: body?.style,
+      aspectRatio: body?.aspectRatio,
+    });
   }
 
   @Get('lessons/:id/thumbnail')

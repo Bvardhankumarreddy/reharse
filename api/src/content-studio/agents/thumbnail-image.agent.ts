@@ -60,7 +60,7 @@ export class ThumbnailImageAgent {
       );
     }
     const content = promptAsset.content as
-      | { mainPrompt?: string; textOverlay?: string }
+      | { mainPrompt?: string; textOverlay?: string; dalleSize?: string; aspectRatio?: string }
       | null;
     const basePrompt = content?.mainPrompt?.trim();
     if (!basePrompt) throw new BadRequestException('Thumbnail prompt is empty');
@@ -70,18 +70,24 @@ export class ThumbnailImageAgent {
       ? `${basePrompt}\n\nText overlay (rendered legibly, large): "${content.textOverlay}"`
       : basePrompt;
 
+    // Render at the aspect the prompt was art-directed for (falls back to config).
+    const VALID_SIZES = ['1024x1024', '1024x1792', '1792x1024'];
+    const size = (content?.dalleSize && VALID_SIZES.includes(content.dalleSize))
+      ? content.dalleSize
+      : this.size;
+
     const started = Date.now();
     const res = await this.client.images.generate({
       model: this.model,
       prompt: fullPrompt.slice(0, 3500),
       n: 1,
-      size: this.size as '1024x1024' | '1024x1792' | '1792x1024',
+      size: size as '1024x1024' | '1024x1792' | '1792x1024',
       response_format: 'b64_json',
     });
     const b64 = res.data?.[0]?.b64_json;
     if (!b64) throw new Error('Image API returned no b64_json');
     this.logger.log(
-      `Thumbnail image for "${lesson.title}" — ${this.model} ${this.size}, ` +
+      `Thumbnail image for "${lesson.title}" — ${this.model} ${size}, ` +
       `${(b64.length / 1024).toFixed(0)} KB, ${Date.now() - started}ms`,
     );
 

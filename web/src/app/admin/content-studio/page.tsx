@@ -557,6 +557,8 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
   const [busyThumb, setBusyThumb] = useState(false);
   const [busyPromo, setBusyPromo] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [thumbStyle, setThumbStyle] = useState<"cinematic" | "clean" | "dramatic">("cinematic");
+  const [thumbAspect, setThumbAspect] = useState<"16:9" | "1:1" | "9:16">("16:9");
   // Local copy so a regenerate updates the card in place (title/hook/outline/format).
   const [lsn, setLsn] = useState<Lesson>(lesson);
   const [regenBusy, setRegenBusy] = useState(false);
@@ -700,6 +702,7 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
     setOpenFn: (v: boolean) => void,
     label: string,
     versionFor: (a: T | null) => number,
+    reqBody?: Record<string, unknown>,
   ) {
     setBusyFn(true);
     onToast(`${label} agent working… (~20-60s)`);
@@ -712,6 +715,7 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
     try {
       const a = await api<T>(token, `/lessons/${lesson.id}/${kind}/generate`, {
         method: "POST",
+        ...(reqBody ? { body: JSON.stringify(reqBody) } : {}),
       });
       setAsset(a);
       setOpenFn(true);
@@ -729,6 +733,7 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
     generateAsset<ThumbnailAsset>(
       "thumbnail", setBusyThumb, setThumb, setOpenThumb, "Thumbnail prompt",
       (a) => a?.version ?? 0,
+      { style: thumbStyle, aspectRatio: thumbAspect },
     );
   const generatePromo = () =>
     generateAsset<PromoAsset>(
@@ -1074,6 +1079,30 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
 
         {/* ── Thumbnail prompt ─────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+          <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
+            style
+            <select
+              value={thumbStyle}
+              onChange={(e) => setThumbStyle(e.target.value as typeof thumbStyle)}
+              className="bg-[#0F1330] border border-white/10 rounded px-1.5 py-1 text-[11px] text-[#B8C5E0] outline-none focus:border-[#00D4FF]/40"
+            >
+              <option value="cinematic">🎬 cinematic</option>
+              <option value="clean">⬜ clean</option>
+              <option value="dramatic">⚡ dramatic</option>
+            </select>
+          </label>
+          <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
+            ratio
+            <select
+              value={thumbAspect}
+              onChange={(e) => setThumbAspect(e.target.value as typeof thumbAspect)}
+              className="bg-[#0F1330] border border-white/10 rounded px-1.5 py-1 text-[11px] text-[#B8C5E0] outline-none focus:border-[#00D4FF]/40"
+            >
+              <option value="16:9">16:9</option>
+              <option value="1:1">1:1</option>
+              <option value="9:16">9:16</option>
+            </select>
+          </label>
           <PrimaryBtn
             label={
               busyThumb
@@ -1093,7 +1122,7 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
           )}
           {thumb && (
             <span className="text-[10px] text-[#6B7799] ml-auto">
-              face: {thumb.content?.facePosition ?? "—"} · {thumb.content?.style ?? "—"}
+              {thumb.content?.style ?? "—"} · {thumb.content?.aspectRatio ?? "16:9"} · face: {thumb.content?.facePosition ?? "—"}
               {thumb.content?.costUsd != null ? ` · $${Number(thumb.content.costUsd).toFixed(4)}` : ""}
             </span>
           )}
