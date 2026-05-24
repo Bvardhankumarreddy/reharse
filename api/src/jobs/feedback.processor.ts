@@ -20,6 +20,9 @@ export interface FeedbackJobData {
     answer:     string;
     timeSpentMs?: number;
   }>;
+  /** Planned number of questions for the session — used to scale the overall
+   *  score by completion (answering 2 of 5 can't earn a full score). */
+  maxQuestions?: number;
   context: {
     interviewType:    string;
     targetRole?:      string;
@@ -113,7 +116,8 @@ function applyZeroGuard(
     question_feedback: object[];
   },
   transcript: Array<{ questionId: string; answer: string }>,
-): { blanks: number; total: number } {
+  maxQuestions?: number,
+): { blanks: number; attempted: number; planned: number; completion: number } {
   const blankIds = new Set(
     transcript.filter((t) => isNonAnswer(t.answer)).map((t) => t.questionId),
   );
@@ -139,6 +143,12 @@ function applyZeroGuard(
     );
   }
 
+  // Completion = attempted answers / planned total. An interview that wasn't
+  // finished can't earn a full-looking overall.
+  const attempted = transcript.filter((t) => !isNonAnswer(t.answer)).length;
+  const planned = Math.max(attempted, maxQuestions ?? transcript.length);
+  const completion = planned > 0 ? attempted / planned : 0;
+
   if (allBlank) {
     evaluation.overall_score = 0;
     const dims = evaluation.dimension_scores ?? {};
@@ -147,8 +157,13 @@ function applyZeroGuard(
       dims[d] = 0;
     }
     evaluation.dimension_scores = dims;
+  } else if (completion < 1) {
+    // Partial completion — scale the overall down proportionally. Dimension
+    // scores stay as the quality of what WAS attempted.
+    evaluation.overall_score = Math.round(evaluation.overall_score * completion);
   }
-  return { blanks: blankIds.size, total: transcript.length };
+
+  return { blanks: blankIds.size, attempted, planned, completion };
 }
 
 // ── Processor ─────────────────────────────────────────────────────────────────
@@ -232,14 +247,14 @@ export class FeedbackProcessor {
     await job.progress(PROGRESS.AI_CALLED);
     await job.progress(PROGRESS.AI_DONE);
 
-    // ── 1b. Zero-guard: blank/skipped answers never earn points ─────────────
-    const { blanks, total } = applyZeroGuard(evaluation, transcript);
-    if (blanks > 0) {
-      this.logger.log(
-        `[Job ${job.id}] Zero-guard: ${blanks}/${total} answers blank/skipped` +
-        (blanks === total ? ' → whole session forced to 0' : ' → those questions forced to 0'),
-      );
-    }
+    // ── 1b. Zero-guard + completion scaling ─────────────────────────────────
+    const { blanks, attempted, planned, completion } =
+      applyZeroGuard(evaluation, transcript, job.data.maxQuestions);
+    this.logger.log(
+      `[Job ${job.id}] Scoring: attempted ${attempted}/${planned} ` +
+      `(${Math.round(completion * 100)}% completion, ${blanks} blank/skipped) ` +
+      `→ overall ${evaluation.overall_score}`,
+    );
 
     // ── 2. Persist feedback ─────────────────────────────────────────────────
     const feedback = await this.feedbackService.create(

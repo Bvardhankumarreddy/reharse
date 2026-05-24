@@ -535,8 +535,9 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
     try {
       await this.feedbackQ.add(FEEDBACK_JOBS.EVALUATE, {
         sessionId,
-        userId:     s.userId,
-        transcript: s.transcript,
+        userId:       s.userId,
+        transcript:   s.transcript,
+        maxQuestions: s.maxQuestions, // for completion-scaled overall score
         context: {
           interviewType:   s.interviewType,
           targetRole:      s.targetRole      ?? undefined,
