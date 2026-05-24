@@ -29,7 +29,7 @@ export class SessionsService {
     });
     const isPro = user?.subscriptionTier === 'pro' &&
       (user.subscriptionStatus === 'active' ||
-        (user.subscriptionStatus === 'day_pass' &&
+        ((user.subscriptionStatus === 'pass' || user.subscriptionStatus === 'day_pass') &&
           (!user.subscriptionEndsAt || user.subscriptionEndsAt > new Date())));
     if (isPro) return; // Pro users bypass all limits
 

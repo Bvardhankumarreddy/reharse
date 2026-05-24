@@ -343,6 +343,15 @@ export class AdminService {
     if (body.subscriptionStatus !== undefined) updateData.subscriptionStatus = body.subscriptionStatus;
     if (body.subscriptionEndsAt !== undefined) updateData.subscriptionEndsAt = body.subscriptionEndsAt;
 
+    // Entitlement gates require tier='pro' AND a valid status. If an admin
+    // promotes a user to pro without explicitly setting a status, default it
+    // to 'active' so the user is actually entitled (otherwise tier=pro +
+    // status=null silently fails every gate).
+    if (body.subscriptionTier === 'pro' && body.subscriptionStatus === undefined) {
+      const existing = await this.users.findOne({ where: { id } });
+      if (!existing?.subscriptionStatus) updateData.subscriptionStatus = 'active';
+    }
+
     await this.users.update(id, updateData);
     return this.users.findOneOrFail({ where: { id } });
   }

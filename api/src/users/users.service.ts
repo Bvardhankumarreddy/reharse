@@ -69,7 +69,7 @@ export class UsersService {
 
     const isPro = user.subscriptionTier === 'pro' &&
       (user.subscriptionStatus === 'active' ||
-        (user.subscriptionStatus === 'day_pass' &&
+        ((user.subscriptionStatus === 'pass' || user.subscriptionStatus === 'day_pass') &&
           (!user.subscriptionEndsAt || user.subscriptionEndsAt > new Date())));
 
     // Free users: max 1 resume upload
@@ -174,7 +174,7 @@ export class UsersService {
     const user = await this.findById(id);
     const isPro = user.subscriptionTier === 'pro' &&
       (user.subscriptionStatus === 'active' ||
-        (user.subscriptionStatus === 'day_pass' &&
+        ((user.subscriptionStatus === 'pass' || user.subscriptionStatus === 'day_pass') &&
           (!user.subscriptionEndsAt || user.subscriptionEndsAt > new Date())));
     const weekKey = UsersService.jdWeekKey();
     const usesThisWeek = user.jdMatchWeekKey === weekKey ? (user.jdMatchUsesWeek ?? 0) : 0;
@@ -186,7 +186,7 @@ export class UsersService {
     const user = await this.findById(id);
     const isPro = user.subscriptionTier === 'pro' &&
       (user.subscriptionStatus === 'active' ||
-        (user.subscriptionStatus === 'day_pass' &&
+        ((user.subscriptionStatus === 'pass' || user.subscriptionStatus === 'day_pass') &&
           (!user.subscriptionEndsAt || user.subscriptionEndsAt > new Date())));
     if (isPro) return;
 
