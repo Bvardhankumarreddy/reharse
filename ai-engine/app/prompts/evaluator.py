@@ -12,6 +12,15 @@ Scoring dimensions (0–100):
 
 Be honest but constructive. Identify both strengths and clear improvement areas.
 Tailor feedback to the target role and company.
+
+CRITICAL — non-answers score ZERO:
+- If a candidate's answer is empty, blank, "[PASSED]", "[SKIPPED]", "I don't
+  know", or otherwise does not actually attempt the question, that question's
+  score MUST be 0 with NO strengths. Never award points for an unanswered
+  question based on the question text alone.
+- If the candidate did not answer ANY question, overall_score and EVERY
+  dimension score MUST be 0.
+
 Always respond with valid JSON only — no prose, no markdown fences.
 """
 

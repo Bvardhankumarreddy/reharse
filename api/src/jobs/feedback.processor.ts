@@ -87,6 +87,68 @@ function fallbackEvaluation(data: FeedbackJobData) {
   };
 }
 
+/** Answers that are empty / skipped / non-attempts — these must score 0. */
+const NON_ANSWERS = new Set([
+  "i don't know", 'i dont know', 'idk', 'dont know', "don't know", 'no idea',
+  'pass', 'skip', 'skipped', 'n/a', 'na', 'none', 'nothing', '-', '--',
+]);
+
+function isNonAnswer(answer: string | null | undefined): boolean {
+  if (!answer) return true;
+  const s = answer.trim().toLowerCase();
+  if (s.length < 2) return true;                 // empty / single char
+  if (s === '[passed]' || s === '[skipped]' || s === '[answering]') return true;
+  return NON_ANSWERS.has(s);
+}
+
+/**
+ * Zero-guard: a blank/skipped answer must never earn points, no matter what
+ * the LLM (or fallback) returned. Forces those questions to score 0, and if
+ * NOTHING was answered, the whole session scores 0. Mutates + returns eval.
+ */
+function applyZeroGuard(
+  evaluation: {
+    overall_score: number;
+    dimension_scores: Record<string, number>;
+    question_feedback: object[];
+  },
+  transcript: Array<{ questionId: string; answer: string }>,
+): { blanks: number; total: number } {
+  const blankIds = new Set(
+    transcript.filter((t) => isNonAnswer(t.answer)).map((t) => t.questionId),
+  );
+  const allBlank = transcript.length > 0 && blankIds.size === transcript.length;
+
+  if (Array.isArray(evaluation.question_feedback)) {
+    evaluation.question_feedback = (evaluation.question_feedback as Array<
+      { question_id?: string; score?: number; strengths?: string[]; improvements?: string[] }
+      & Record<string, unknown>
+    >).map((qf) =>
+      qf.question_id && blankIds.has(qf.question_id)
+        ? {
+            ...qf,
+            score: 0,
+            strengths: [],
+            improvements: qf.improvements?.length
+              ? qf.improvements
+              : ['No answer was provided for this question.'],
+          }
+        : qf,
+    );
+  }
+
+  if (allBlank) {
+    evaluation.overall_score = 0;
+    const dims = evaluation.dimension_scores ?? {};
+    for (const k of Object.keys(dims)) dims[k] = 0;
+    for (const d of ['communication', 'structure', 'depth', 'examples', 'confidence']) {
+      dims[d] = 0;
+    }
+    evaluation.dimension_scores = dims;
+  }
+  return { blanks: blankIds.size, total: transcript.length };
+}
+
 // ── Processor ─────────────────────────────────────────────────────────────────
 
 @Processor(QUEUES.FEEDBACK)
@@ -167,6 +229,15 @@ export class FeedbackProcessor {
 
     await job.progress(PROGRESS.AI_CALLED);
     await job.progress(PROGRESS.AI_DONE);
+
+    // ── 1b. Zero-guard: blank/skipped answers never earn points ─────────────
+    const { blanks, total } = applyZeroGuard(evaluation, transcript);
+    if (blanks > 0) {
+      this.logger.log(
+        `[Job ${job.id}] Zero-guard: ${blanks}/${total} answers blank/skipped` +
+        (blanks === total ? ' → whole session forced to 0' : ' → those questions forced to 0'),
+      );
+    }
 
     // ── 2. Persist feedback ─────────────────────────────────────────────────
     const feedback = await this.feedbackService.create(
