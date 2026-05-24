@@ -52,7 +52,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const activeNav = NAV.find((n) => n.href === activeHref);
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex">
+    // text-slate-200 = default light text for the whole dark admin shell, so
+    // any element without its own color class stays readable (buttons inherit
+    // color via Tailwind preflight). Explicit colors still override this.
+    <div className="min-h-screen bg-[#0f172a] text-slate-200 flex">
       {/* Sidebar */}
       <aside className="w-56 shrink-0 bg-[#1e293b] border-r border-white/5 flex flex-col">
         <div className="px-5 py-5 border-b border-white/5">
