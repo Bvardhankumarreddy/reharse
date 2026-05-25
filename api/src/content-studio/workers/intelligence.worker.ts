@@ -106,11 +106,15 @@ export class IntelligenceWorker implements OnModuleInit {
   @Process('improvement-sweep')
   async improvementSweep() {
     const r = await this.improvement.runForAllBrands();
-    // Weekly cron — always notify so you know it ran, even when nothing
-    // qualified for promotion. Low frequency, not noisy.
-    await this.notify.notify(
-      `:robot_face: cs · improvement-sweep · scanned ${r.scanned} brand(s), promoted ${r.promoted} hook pattern(s) into BrandMemory`,
-    );
+    // Only notify when something actually got promoted — a "0 promoted" run is
+    // the normal state until published lessons accrue YouTube metrics, so it's
+    // just noise.
+    if (r.promoted > 0) {
+      await this.notify.notify(
+        `:robot_face: cs · improvement-sweep · promoted ${r.promoted} winning hook pattern(s) ` +
+        `into BrandMemory across ${r.scanned} brand(s)`,
+      );
+    }
     return r;
   }
 }
