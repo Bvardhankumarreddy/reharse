@@ -248,6 +248,23 @@ export interface CompetitorChannel {
   updatedAt: string;
 }
 
+export interface ChannelVideoRow {
+  id: string;
+  externalId: string;
+  title: string;
+  publishedAt: string | null;
+  viewCount: number | string;       // bigint → string from API
+  likeCount: number | string | null;
+  commentCount: number | string | null;
+  durationSeconds: number | null;
+}
+
+export interface ChannelVideosResp {
+  top: ChannelVideoRow[];
+  recent: ChannelVideoRow[];
+  count: number;
+}
+
 export interface CompetitorVideo {
   id: string;
   competitorChannelId: string;

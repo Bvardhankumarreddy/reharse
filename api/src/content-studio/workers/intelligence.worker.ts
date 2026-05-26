@@ -2,6 +2,7 @@ import { Processor, Process, InjectQueue } from '@nestjs/bull';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Queue } from 'bull';
 import { CompetitorFetcherService } from '../services/competitor-fetcher.service';
+import { ChannelVideoFetcherService } from '../services/channel-video-fetcher.service';
 import { MetricsFetcherService } from '../services/metrics-fetcher.service';
 import { PostmortemAgent } from '../agents/postmortem.agent';
 import { ImprovementAgent } from '../agents/improvement.agent';
@@ -32,6 +33,7 @@ export class IntelligenceWorker implements OnModuleInit {
     private readonly metrics: MetricsFetcherService,
     private readonly postmortem: PostmortemAgent,
     private readonly improvement: ImprovementAgent,
+    private readonly channelVideos: ChannelVideoFetcherService,
     private readonly notify: NotificationService,
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly queue: Queue,
   ) {}
@@ -58,6 +60,11 @@ export class IntelligenceWorker implements OnModuleInit {
         jobId: 'cs-improvement-cron',
         removeOnComplete: 10, removeOnFail: 5,
       }),
+      this.queue.add('channel-sweep', {}, {
+        repeat: { cron: '30 2 * * *' },  // 02:30 UTC daily — own back catalog
+        jobId: 'cs-channel-cron',
+        removeOnComplete: 10, removeOnFail: 5,
+      }),
     ];
     try {
       await Promise.all(adds);
@@ -76,6 +83,17 @@ export class IntelligenceWorker implements OnModuleInit {
     if (r.saved > 0) {
       await this.notify.notify(
         `:robot_face: cs · competitor-sweep · ${r.saved} new videos across ${r.scanned} channel(s)`,
+      );
+    }
+    return r;
+  }
+
+  @Process('channel-sweep')
+  async channelSweep() {
+    const r = await this.channelVideos.fetchAll();
+    if (r.saved > 0) {
+      await this.notify.notify(
+        `:robot_face: cs · channel-sweep · ${r.saved} own video(s) ingested/updated across ${r.scanned} channel(s)`,
       );
     }
     return r;

@@ -31,6 +31,7 @@ import { PipelineOrchestratorService } from './services/pipeline-orchestrator.se
 import { SeriesService } from './services/series.service';
 import { SeriesArchitectAgent } from './agents/series-architect.agent';
 import { AudioAgent } from './agents/audio.agent';
+import { ChannelVideoFetcherService } from './services/channel-video-fetcher.service';
 import { LessonFormat, isLessonFormat } from './entities/content-series.entity';
 import { DlqService } from './services/dlq.service';
 import { AuditService } from './services/audit.service';
@@ -90,6 +91,7 @@ export class ContentStudioController {
     private readonly seriesSvc: SeriesService,
     private readonly seriesArchitect: SeriesArchitectAgent,
     private readonly audio: AudioAgent,
+    private readonly channelVideos: ChannelVideoFetcherService,
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly intelQueue: Queue,
   ) {}
 
@@ -510,6 +512,47 @@ export class ContentStudioController {
       writer: this.writerFrom(req),
     });
     return { success: true };
+  }
+
+  // ── Own-channel back catalog (ingest + insights) ──────────────────────
+
+  /** Set the brand channel's YouTube handle/id. Body: { handle?, channelId? } */
+  @Patch('brands/:id/channel')
+  async setChannelHandle(
+    @Param('id') brandId: string,
+    @Body() body: { handle?: string; channelId?: string },
+  ) {
+    const ch = await this.channelRepo.findOne({ where: { brandId } });
+    if (!ch) throw new NotFoundException('Brand has no channel');
+    const patch: Partial<ChannelEntity> = {};
+    if (body.handle !== undefined) patch.youtubeHandle = body.handle.trim() || null;
+    if (body.channelId !== undefined) patch.youtubeChannelId = body.channelId.trim() || null;
+    await this.channelRepo.update(ch.id, patch);
+    return this.channelRepo.findOne({ where: { id: ch.id } });
+  }
+
+  /** Pull the brand's own YouTube uploads + stats into Content Studio. */
+  @Post('brands/:id/channel/sync')
+  syncChannel(@Param('id') brandId: string) {
+    return this.channelVideos.fetchForBrand(brandId);
+  }
+
+  /** Back-catalog videos for the brand (top by views + recent + count). */
+  @Get('brands/:id/channel/videos')
+  async channelVideoList(@Param('id') brandId: string) {
+    const [top, recent, count] = await Promise.all([
+      this.channelVideos.topForBrand(brandId, 15),
+      this.channelVideos.listForBrand(brandId, 60),
+      this.channelVideos.countForBrand(brandId),
+    ]);
+    return { top, recent, count };
+  }
+
+  /** Mine winning patterns from the back catalog into BrandMemory (manual). */
+  @Post('brands/:id/channel/mine')
+  async mineChannel(@Param('id') brandId: string) {
+    const promoted = await this.improvement.mineChannelWinnersForBrand(brandId);
+    return { promoted };
   }
 
   // ── Phase D: competitor channels (D1 + intelligence digest) ────────────

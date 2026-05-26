@@ -13,6 +13,7 @@ import {
 } from '../entities/content-series.entity';
 import { CompetitorVideo } from '../entities/competitor-video.entity';
 import { CompetitorChannel } from '../entities/competitor-channel.entity';
+import { ChannelVideo } from '../entities/channel-video.entity';
 import { NewsItem } from '../../ai-quick-bytes/entities/news-item.entity';
 import { NewsScore } from '../../ai-quick-bytes/entities/news-score.entity';
 import { ModelRouterService } from '../services/model-router.service';
@@ -133,6 +134,7 @@ export class StrategyAgent {
     @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
     @InjectRepository(ContentSeries) private readonly seriesRepo: Repository<ContentSeries>,
     @InjectRepository(CompetitorVideo) private readonly competitorVidRepo: Repository<CompetitorVideo>,
+    @InjectRepository(ChannelVideo) private readonly channelVidRepo: Repository<ChannelVideo>,
     @InjectRepository(NewsItem) private readonly newsRepo: Repository<NewsItem>,
     @InjectRepository(ContentAsset) private readonly assetRepo: Repository<ContentAsset>,
     private readonly router: ModelRouterService,
@@ -150,10 +152,12 @@ export class StrategyAgent {
     const channel = await this.channelRepo.findOne({ where: { brandId } });
     const memories = await this.memories.relevantFor(brandId, 'strategy');
 
-    // ── Enrichment: last 8 themes (anti-repeat), competitor top, AQB news ──
-    const [recentThemes, competitorTop, newsTop, seriesArcBlock] =
+    // ── Enrichment: last 8 themes (anti-repeat), own top videos, competitor
+    //    top, AQB news ──
+    const [recentThemes, ownChannelTop, competitorTop, newsTop, seriesArcBlock] =
       await Promise.all([
         this.recentThemes(brandId, 8),
+        this.ownChannelTopBlock(brandId, 10),
         this.competitorTopBlock(brandId, 30, 12),
         this.newsTopBlock(7, 5),
         this.seriesArcBlock(opts.seriesId ?? null, opts.seriesWeekNumber ?? null),
@@ -184,6 +188,7 @@ export class StrategyAgent {
         (seriesArcBlock ? `${seriesArcBlock}\n\n` : '') +
         `RECENT THEMES (last 8 weeks — DO NOT repeat these):\n` +
         `${recentThemes.length ? recentThemes.map((t, i) => `  ${i + 1}. ${t}`).join('\n') : '  (none)'}\n\n` +
+        `YOUR CHANNEL'S TOP VIDEOS (what already works for THIS audience — lean into these angles):\n${ownChannelTop}\n\n` +
         `WHAT COMPETITORS PUBLISHED (last 30 days, top by views):\n${competitorTop}\n\n` +
         `WHAT'S HAPPENING IN THE FIELD (last 7 days news, top-scored):\n${newsTop}\n\n` +
         `Plan this week now. Output the JSON object only.`;
@@ -398,6 +403,26 @@ export class StrategyAgent {
     return rows
       .map((r) => r.theme)
       .filter((t): t is string => !!t && t.trim().length > 0);
+  }
+
+  private async ownChannelTopBlock(brandId: string, limit: number): Promise<string> {
+    try {
+      const rows = await this.channelVidRepo.find({
+        where: { brandId },
+        order: { viewCount: 'DESC' },
+        take: limit,
+      });
+      if (!rows.length) return '  (no back-catalog data yet — sync your channel)';
+      return rows
+        .map((v) => {
+          const k = Math.round(Number(v.viewCount ?? 0) / 1000);
+          return `  • [${k}k views] ${v.title.slice(0, 140)}`;
+        })
+        .join('\n');
+    } catch (e) {
+      this.logger.warn(`ownChannelTopBlock failed: ${(e as Error).message}`);
+      return '  (own-channel data unavailable)';
+    }
   }
 
   private async competitorTopBlock(

@@ -21,6 +21,16 @@ export class Channel {
   @Column({ type: 'varchar', length: 500, nullable: true })
   channelUrl: string | null;
 
+  /** YouTube channel id (UC…) + handle (@…) for back-catalog ingestion. */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  youtubeChannelId: string | null;
+
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  youtubeHandle: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  lastSyncedAt: Date | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   cadence: string | null;
 

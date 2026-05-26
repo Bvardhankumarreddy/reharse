@@ -23,6 +23,7 @@ import { LessonMetrics } from './entities/lesson-metrics.entity';
 import { LessonPostmortem } from './entities/lesson-postmortem.entity';
 import { PublishedVideo } from './entities/published-video.entity';
 import { ContentSeries } from './entities/content-series.entity';
+import { ChannelVideo } from './entities/channel-video.entity';
 import { NewsItem } from '../ai-quick-bytes/entities/news-item.entity';
 
 import { OpenAIAdapter } from './services/openai.adapter';
@@ -62,6 +63,7 @@ import { CommentReplyAgent } from './agents/comment-reply.agent';
 import { NotificationService } from './services/notification.service';
 import { SeriesArchitectAgent } from './agents/series-architect.agent';
 import { SeriesService } from './services/series.service';
+import { ChannelVideoFetcherService } from './services/channel-video-fetcher.service';
 import { AudioAgent } from './agents/audio.agent';
 import {
   OpenAITtsProvider, ElevenLabsTtsProvider,
@@ -87,6 +89,7 @@ import { ContentStudioController } from './content-studio.controller';
       CompetitorChannel, CompetitorVideo, LessonMetrics, LessonPostmortem,
       PublishedVideo,
       ContentSeries,
+      ChannelVideo,
       NewsItem,
     ]),
     BullModule.registerQueue(
@@ -134,6 +137,7 @@ import { ContentStudioController } from './content-studio.controller';
     IntelligenceWorker,
     SeriesArchitectAgent,
     SeriesService,
+    ChannelVideoFetcherService,
     OpenAITtsProvider,
     ElevenLabsTtsProvider,
     AudioAgent,

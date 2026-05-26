@@ -21,6 +21,7 @@ import {
   type SeriesWeekArc,
   type LessonFormat, LESSON_FORMATS,
   type AudioAsset,
+  type ChannelVideosResp,
 } from "./_helpers";
 
 export default function ContentStudioPage() {
@@ -72,6 +73,7 @@ export default function ContentStudioPage() {
       ) : (
         <>
           <DashboardPanel />
+          <ChannelPanel brands={brands} onToast={setToast} />
           <IntelligencePanel brands={brands} onToast={setToast} />
           <SeriesPanel brands={brands} onToast={setToast} onChange={load} />
           <DlqPanel onToast={setToast} />
@@ -2711,6 +2713,105 @@ function PrimaryBtn({ label, onClick, busy }: { label: string; onClick: () => vo
     >
       {label}
     </button>
+  );
+}
+
+// ── Own-channel back catalog ───────────────────────────────────────────────
+
+function ChannelPanel({ brands, onToast }: {
+  brands: Brand[]; onToast: (m: string) => void;
+}) {
+  const [brandId, setBrandId] = useState(brands[0]?.id ?? "");
+  const [handle, setHandle] = useState("");
+  const [data, setData] = useState<ChannelVideosResp | null>(null);
+  const [busy, setBusy] = useState<"sync" | "mine" | "save" | null>(null);
+
+  const load = useCallback(async (id: string) => {
+    if (!id) return;
+    const token = await fetchToken();
+    if (!token) return;
+    try { setData(await api<ChannelVideosResp>(token, `/brands/${id}/channel/videos`)); }
+    catch { setData(null); }
+  }, []);
+
+  useEffect(() => { if (brandId) void load(brandId); }, [brandId, load]);
+
+  async function call(path: string, busyKey: "sync" | "mine" | "save", body?: object): Promise<unknown> {
+    setBusy(busyKey);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return null; }
+    try {
+      const r = await api(token, path, { method: body ? "PATCH" : "POST", ...(body ? { body: JSON.stringify(body) } : {}) });
+      return r;
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); return null; }
+    finally { setBusy(null); }
+  }
+
+  async function saveHandle() {
+    if (!handle.trim()) return onToast("⚠ Enter a @handle or channel ID");
+    const r = await call(`/brands/${brandId}/channel`, "save", { handle: handle.trim() });
+    if (r) onToast("✓ Channel handle saved — now Sync");
+  }
+  async function sync() {
+    const r = await call(`/brands/${brandId}/channel/sync`, "sync") as { saved?: number } | null;
+    if (r) { onToast(`✓ Synced — ${r.saved ?? 0} new/updated videos`); void load(brandId); }
+  }
+  async function mine() {
+    const r = await call(`/brands/${brandId}/channel/mine`, "mine") as { promoted?: number } | null;
+    if (r) onToast(`✓ Mined back catalog — promoted ${r.promoted ?? 0} winning pattern(s) into BrandMemory`);
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-sm font-semibold text-[#B8C5E0] uppercase tracking-wide">
+        📺 Your channel (back catalog)
+      </h2>
+      <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={brandId}
+            onChange={(e) => setBrandId(e.target.value)}
+            className="bg-[#0F1330] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-[#00D4FF]/40"
+          >
+            {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+          <input
+            type="text"
+            value={handle}
+            onChange={(e) => setHandle(e.target.value)}
+            placeholder="@aetherstackai or UC… channel ID"
+            className="flex-1 min-w-[180px] bg-[#0F1330] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-[#00D4FF]/40"
+          />
+          <Btn label={busy === "save" ? "…" : "Save handle"} onClick={saveHandle} />
+          <PrimaryBtn label="🔄 Sync back catalog" busy={busy === "sync"} onClick={sync} />
+          <Btn label={busy === "mine" ? "Mining…" : "🧠 Mine winning patterns"} onClick={mine} />
+        </div>
+
+        {data && (
+          <p className="text-[11px] text-[#6B7799]">
+            {data.count} video(s) ingested. Top performers feed the Strategy agent;
+            “Mine” extracts winning patterns into BrandMemory.
+          </p>
+        )}
+        {data && data.top.length > 0 ? (
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase text-[#6B7799]">Top by views</p>
+            {data.top.map((v) => (
+              <div key={v.id} className="flex items-center justify-between gap-2 text-[12px]">
+                <span className="text-[#B8C5E0] truncate">{v.title}</span>
+                <span className="text-[#00D4FF] text-[11px] shrink-0">
+                  {Math.round(Number(v.viewCount ?? 0) / 1000)}k views
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-[#6B7799]">
+            No videos yet. Set your channel handle (e.g. @aetherstackai) → Save → Sync.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 
