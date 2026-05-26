@@ -102,7 +102,7 @@ export default function ContentStudioPage() {
               <Empty>No plans yet. Generate a week from a brand above.</Empty>
             ) : (
               plans.map((p) => (
-                <PlanCard key={p.id} plan={p} brands={brands} onToast={setToast} />
+                <PlanCard key={p.id} plan={p} brands={brands} onToast={setToast} onChange={load} />
               ))
             )}
           </section>
@@ -399,13 +399,29 @@ function AddMemoryForm({ brandId, onToast, onAdded }: {
   );
 }
 
-function PlanCard({ plan, brands, onToast }: {
-  plan: WeeklyPlan; brands: Brand[]; onToast: (m: string) => void;
+function PlanCard({ plan, brands, onToast, onChange }: {
+  plan: WeeklyPlan; brands: Brand[]; onToast: (m: string) => void; onChange?: () => void;
 }) {
   const [full, setFull] = useState<WeeklyPlan | null>(null);
   const [open, setOpen] = useState(false);
   const [approval, setApprovalState] = useState(plan.approvalStatus ?? "pending");
   const [approvalBusy, setApprovalBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function deletePlan() {
+    if (!confirm(`Delete this week plan (${plan.weekOf})? This removes its lessons, assets, quiz and runs — cannot be undone.`)) return;
+    setDeleting(true);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setDeleting(false); return; }
+    try {
+      await api(token, `/plans/${plan.id}`, { method: "DELETE" });
+      onToast("✓ Plan deleted");
+      onChange?.();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+      setDeleting(false);
+    }
+  }
   const brandName = brands.find((b) => b.id === plan.brandId)?.name ?? "—";
 
   async function setApproval(status: "approved" | "rejected") {
@@ -499,6 +515,14 @@ function PlanCard({ plan, brands, onToast }: {
         {approval !== "approved" && (
           <span className="text-[10px] text-[#6B7799]">pipeline blocked until approved</span>
         )}
+        <button
+          onClick={deletePlan}
+          disabled={deleting}
+          className="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-400/30 text-red-300 hover:bg-red-400/10 disabled:opacity-50 transition"
+          title="Delete this week plan and everything under it"
+        >
+          {deleting ? "Deleting…" : "🗑 Delete plan"}
+        </button>
       </div>
       {open && full && (
         <div className="px-4 py-4 border-t border-white/5 bg-[#0F1330] space-y-4">

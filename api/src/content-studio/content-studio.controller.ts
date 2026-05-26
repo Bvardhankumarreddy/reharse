@@ -983,6 +983,46 @@ export class ContentStudioController {
     return { ...plan, agentRuns };
   }
 
+  /**
+   * Delete a week plan and everything under it (lessons, assets, quiz pool,
+   * delivered quizzes, pipeline + agent runs). Useful for clearing rejected
+   * plans. Blocked while a pipeline run is in-flight.
+   */
+  @Delete('plans/:id')
+  async deletePlan(@Param('id') id: string, @Req() req: Request) {
+    const plan = await this.planRepo.findOne({ where: { id } });
+    if (!plan) throw new NotFoundException('Plan not found');
+
+    const active: Array<{ c: string }> = await this.planRepo.query(
+      `SELECT COUNT(*)::text c FROM cs_pipeline_runs WHERE "planId" = $1 AND status IN ('queued','running')`,
+      [id],
+    );
+    if (Number(active[0]?.c ?? 0) > 0) {
+      throw new BadRequestException(
+        'A pipeline run is in-flight for this plan — wait for it to finish before deleting.',
+      );
+    }
+
+    // Children first (no reliance on DB cascades).
+    await this.planRepo.query(
+      `DELETE FROM cs_content_assets WHERE "planId" = $1 OR "lessonId" IN (SELECT id FROM cs_lessons WHERE "planId" = $1)`,
+      [id],
+    );
+    await this.planRepo.query(`DELETE FROM cs_question_pools   WHERE "planId" = $1`, [id]);
+    await this.planRepo.query(`DELETE FROM cs_delivered_quizzes WHERE "planId" = $1`, [id]);
+    await this.planRepo.query(`DELETE FROM cs_pipeline_runs     WHERE "planId" = $1`, [id]);
+    await this.planRepo.query(`DELETE FROM cs_agent_runs        WHERE "planId" = $1`, [id]);
+    await this.planRepo.query(`DELETE FROM cs_lessons           WHERE "planId" = $1`, [id]);
+    await this.planRepo.delete(id);
+
+    await this.audit.log({
+      entityType: 'plan', entityId: id, action: 'deleted',
+      summary: `Deleted week plan (week ${plan.weekOf}, status ${plan.approvalStatus})`,
+      writer: this.writerFrom(req),
+    });
+    return { ok: true };
+  }
+
   // ── Phase E: multi-week Series ────────────────────────────────────────
 
   /** List series, optionally filtered by brand. */
