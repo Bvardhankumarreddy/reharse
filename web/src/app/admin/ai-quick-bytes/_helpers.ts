@@ -61,6 +61,33 @@ export type ThumbnailStyle =
   | "shocked_reaction" | "bold_text" | "visual_metaphor"
   | "brand_signature";
 
+export interface AqbMemoryRow {
+  id: string;
+  memoryType: string;     // 'hook' | 'style' | 'thumbnail_style' | 'topic' | 'hashtag' | 'do' | 'dont'
+  content: string;
+  weight: number;
+  appliesTo: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AqbPostmortemRow {
+  id: string;
+  scriptId: string;
+  content: {
+    worked?: string[];
+    didntWork?: string[];
+    next?: string[];
+    reusableHookPattern?: string;
+    winningThumbnailStyle?: string;
+    topicSignal?: string;
+  };
+  modelUsed: string | null;
+  costUsd: number | string | null;
+  createdAt: string;
+}
+
 export interface ThumbnailVariation {
   style: ThumbnailStyle;
   headline: string;

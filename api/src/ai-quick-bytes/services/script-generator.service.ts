@@ -8,6 +8,7 @@ import { ShortScript, AvatarKey } from '../entities/short-script.entity';
 import { AnthropicClientService } from './anthropic-client.service';
 import { ThumbnailPromptService } from './thumbnail-prompt.service';
 import { DistributionPackageService } from './distribution-package.service';
+import { AqbMemoryService } from './aqb-memory.service';
 
 const SCRIPT_SYSTEM_PROMPT = `
 You write YouTube Shorts scripts for AetherStackAI — an Indian AI
@@ -115,6 +116,7 @@ export class ScriptGeneratorService {
     private readonly config: ConfigService,
     private readonly thumbnail: ThumbnailPromptService,
     private readonly distribution: DistributionPackageService,
+    private readonly memory: AqbMemoryService,
   ) {}
 
   async generateScript(itemId: string): Promise<ShortScript> {
@@ -127,9 +129,15 @@ export class ScriptGeneratorService {
     const score = await this.scoreRepo.findOne({ where: { newsItemId: itemId } });
     const dayNumber = await this.getNextDayNumber();
 
+    // Learning-loop block (empty until AqbMemory has script patterns).
+    const memoryBlock = this.memory.format(await this.memory.relevantFor('script', 8));
+    const userPrompt = memoryBlock
+      ? `${this.buildPrompt(item, score, dayNumber)}\n\n${memoryBlock}`
+      : this.buildPrompt(item, score, dayNumber);
+
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
       system: SCRIPT_SYSTEM_PROMPT,
-      user: this.buildPrompt(item, score, dayNumber),
+      user: userPrompt,
       temperature: 0.8,
       maxTokens: 2000,
     });

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { NewsItem } from '../entities/news-item.entity';
 import { NewsScore } from '../entities/news-score.entity';
+import { AqbMemoryService } from './aqb-memory.service';
 import { OpenAIClientService } from './openai-client.service';
 
 const SCORING_SYSTEM_PROMPT = `
@@ -56,6 +57,7 @@ export class ScoringService {
     private readonly scoreRepo: Repository<NewsScore>,
     private readonly openai: OpenAIClientService,
     private readonly config: ConfigService,
+    private readonly memory: AqbMemoryService,
   ) {}
 
   async scoreItem(itemId: string): Promise<NewsScore> {
@@ -68,11 +70,17 @@ export class ScoringService {
     const model = this.config.get<string>('aiQuickBytes.openai.scoringModel')
       ?? 'gpt-4o-mini';
 
+    // Learning-loop block (empty until AqbMemory has scoring patterns).
+    const memoryBlock = this.memory.format(await this.memory.relevantFor('scoring', 5));
+    const userPrompt = memoryBlock
+      ? `${this.buildPrompt(item)}\n\n${memoryBlock}`
+      : this.buildPrompt(item);
+
     const completion = await this.openai.getClient().chat.completions.create({
       model,
       messages: [
         { role: 'system', content: SCORING_SYSTEM_PROMPT },
-        { role: 'user', content: this.buildPrompt(item) },
+        { role: 'user', content: userPrompt },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.3,

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AnthropicClientService } from './anthropic-client.service';
+import { AqbMemoryService } from './aqb-memory.service';
 import { NewsItem } from '../entities/news-item.entity';
 import { ShortScript } from '../entities/short-script.entity';
 import {
@@ -58,15 +59,22 @@ export class DistributionPackageService {
   constructor(
     private readonly anthropic: AnthropicClientService,
     private readonly config: ConfigService,
+    private readonly memory: AqbMemoryService,
   ) {}
 
   async generatePackage(
     script: ShortScript,
     newsItem: NewsItem,
   ): Promise<{ package: DistributionPackage; cost_usd: number }> {
+    // Learning-loop block (empty until AqbMemory has distribution patterns).
+    const memoryBlock = this.memory.format(await this.memory.relevantFor('distribution', 6));
+    const userPrompt = memoryBlock
+      ? `${this.buildUserPrompt(script, newsItem)}\n\n${memoryBlock}`
+      : this.buildUserPrompt(script, newsItem);
+
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
       system: DISTRIBUTION_SYSTEM_PROMPT,
-      user: this.buildUserPrompt(script, newsItem),
+      user: userPrompt,
       temperature: 0.7,
       maxTokens: 3000,
     });

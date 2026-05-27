@@ -8,9 +8,10 @@ import {
   fetchToken, api, STATUS_COLOR,
   type NewsItem, type ShortScript, type NewsSourceRow, type DailyStats,
   type DistributionResp, type ThumbnailPromptResp, type ThumbnailVariation,
+  type AqbMemoryRow, type AqbPostmortemRow,
 } from "./_helpers";
 
-type Tab = "pipeline" | "news" | "approval";
+type Tab = "pipeline" | "news" | "approval" | "learnings";
 
 export default function AiQuickBytesPage() {
   const [tab, setTab] = useState<Tab>("pipeline");
@@ -38,7 +39,7 @@ export default function AiQuickBytesPage() {
       )}
 
       <div className="flex gap-2 border-b border-white/10">
-        {(["pipeline", "news", "approval"] as Tab[]).map((t) => (
+        {(["pipeline", "news", "approval", "learnings"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -48,7 +49,7 @@ export default function AiQuickBytesPage() {
                 : "border-transparent text-[#6B7799] hover:text-[#B8C5E0]"
             }`}
           >
-            {t === "approval" ? "Approval Queue" : t}
+            {t === "approval" ? "Approval Queue" : t === "learnings" ? "🧠 Learnings" : t}
           </button>
         ))}
       </div>
@@ -56,6 +57,7 @@ export default function AiQuickBytesPage() {
       {tab === "pipeline" && <PipelineTab onToast={setToast} />}
       {tab === "news" && <NewsTab />}
       {tab === "approval" && <ApprovalTab onToast={setToast} />}
+      {tab === "learnings" && <LearningsTab onToast={setToast} />}
     </div>
   );
 }
@@ -627,6 +629,125 @@ function ScriptCard({ script, onAct }: {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Learnings tab (learning loop: metrics → postmortems → memories) ────────
+
+function LearningsTab({ onToast }: { onToast: (m: string) => void }) {
+  const [memories, setMemories] = useState<AqbMemoryRow[]>([]);
+  const [postmortems, setPostmortems] = useState<AqbPostmortemRow[]>([]);
+  const [busy, setBusy] = useState<"metrics" | "postmortem" | "improvement" | null>(null);
+
+  const load = useCallback(async () => {
+    const token = await fetchToken();
+    if (!token) return;
+    try {
+      const [m, p] = await Promise.all([
+        api<AqbMemoryRow[]>(token, "/intelligence/memories"),
+        api<{ data: AqbPostmortemRow[] }>(token, "/intelligence/postmortems?limit=20"),
+      ]);
+      setMemories(m);
+      setPostmortems(p.data);
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+  }, [onToast]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function trigger(kind: "metrics" | "postmortem" | "improvement", label: string) {
+    setBusy(kind);
+    onToast(`${label} running…`);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<Record<string, unknown>>(
+        token, `/intelligence/${kind}-sweep`, { method: "POST" },
+      );
+      onToast(`✓ ${label}: ${JSON.stringify(r)}`);
+      await load();
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(null); }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-4 space-y-3">
+        <p className="text-[12px] text-[#B8C5E0]">
+          The learning loop runs automatically (metrics hourly, postmortems daily after 3d, improvement weekly).
+          Use these to trigger a sweep manually.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => trigger("metrics", "Metrics sweep")}
+            disabled={busy === "metrics"}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#00D4FF]/40 text-[#00D4FF] hover:bg-[#00D4FF]/10 disabled:opacity-50 transition"
+          >
+            ⚡ {busy === "metrics" ? "…" : "Pull YouTube stats"}
+          </button>
+          <button
+            onClick={() => trigger("postmortem", "Postmortem sweep")}
+            disabled={busy === "postmortem"}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-amber-400/40 text-amber-300 hover:bg-amber-400/10 disabled:opacity-50 transition"
+          >
+            📝 {busy === "postmortem" ? "…" : "Generate postmortems"}
+          </button>
+          <button
+            onClick={() => trigger("improvement", "Improvement sweep")}
+            disabled={busy === "improvement"}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 disabled:opacity-50 transition"
+          >
+            🧠 {busy === "improvement" ? "…" : "Mine winners → memories"}
+          </button>
+        </div>
+      </div>
+
+      <Block title={`🧠 Learned patterns (${memories.length})`}>
+        {memories.length === 0 ? (
+          <p className="text-[12px] text-[#6B7799]">
+            No memories yet. Patterns appear after metrics → postmortems → improvement sweep.
+          </p>
+        ) : memories.map((m) => (
+          <div key={m.id} className="border border-white/5 rounded-lg p-2.5 space-y-1">
+            <div className="flex items-center gap-2 text-[10px]">
+              <span className="px-1.5 py-0.5 rounded bg-[#00D4FF]/15 text-[#00D4FF] uppercase">{m.memoryType}</span>
+              <span className="text-[#6B7799]">applies to: {m.appliesTo.join(", ") || "all"}</span>
+              <span className="text-[#6B7799] ml-auto">weight {m.weight}</span>
+            </div>
+            <p className="text-[12px] text-[#B8C5E0]">{m.content}</p>
+          </div>
+        ))}
+      </Block>
+
+      <Block title={`📝 Recent postmortems (${postmortems.length})`}>
+        {postmortems.length === 0 ? (
+          <p className="text-[12px] text-[#6B7799]">
+            No postmortems yet. They generate for shorts published ≥3 days ago that have metrics.
+          </p>
+        ) : postmortems.map((p) => (
+          <div key={p.id} className="border border-white/5 rounded-lg p-2.5 space-y-1">
+            <p className="text-[10px] text-[#6B7799]">
+              {new Date(p.createdAt).toLocaleString()} · script {p.scriptId.slice(0, 8)}
+              {p.content.topicSignal ? ` · ${p.content.topicSignal}` : ""}
+            </p>
+            {p.content.reusableHookPattern && (
+              <p className="text-[12px] text-[#B8C5E0]">
+                <span className="text-[#00F5A0]">Hook pattern:</span> {p.content.reusableHookPattern}
+              </p>
+            )}
+            {(p.content.worked ?? []).length > 0 && (
+              <p className="text-[11px] text-emerald-300">
+                ✓ {(p.content.worked ?? []).join(" · ")}
+              </p>
+            )}
+            {(p.content.didntWork ?? []).length > 0 && (
+              <p className="text-[11px] text-red-300">
+                ✕ {(p.content.didntWork ?? []).join(" · ")}
+              </p>
+            )}
+          </div>
+        ))}
+      </Block>
     </div>
   );
 }

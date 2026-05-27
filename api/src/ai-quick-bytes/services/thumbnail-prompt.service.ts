@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AnthropicClientService } from './anthropic-client.service';
+import { AqbMemoryService } from './aqb-memory.service';
 import { NewsItem } from '../entities/news-item.entity';
 import { ShortScript } from '../entities/short-script.entity';
 import {
@@ -143,19 +144,25 @@ export class ThumbnailPromptService {
   constructor(
     private readonly anthropic: AnthropicClientService,
     private readonly config: ConfigService,
+    private readonly memory: AqbMemoryService,
   ) {}
 
   async generate(
     script: ShortScript,
     item: NewsItem,
   ): Promise<{ result: ThumbnailPromptResult; cost_usd: number }> {
+    // Learning-loop block (empty until AqbMemory has thumbnail patterns).
+    const memoryBlock = this.memory.format(await this.memory.relevantFor('thumbnail', 4));
+    const userPrompt =
+      `TOPIC: ${item.title}\n` +
+      `AVATAR: ${script.avatarId ?? 'vardhan'}\n` +
+      `HOOK: ${script.hook}\n` +
+      (memoryBlock ? `\n${memoryBlock}\n\n` : '') +
+      `Generate 4 thumbnail variations (3 clean MrBeast + 1 brand_signature). JSON only.`;
+
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
       system: THUMBNAIL_SYSTEM_PROMPT,
-      user:
-        `TOPIC: ${item.title}\n` +
-        `AVATAR: ${script.avatarId ?? 'vardhan'}\n` +
-        `HOOK: ${script.hook}\n` +
-        `Generate 4 thumbnail variations (3 clean MrBeast + 1 brand_signature). JSON only.`,
+      user: userPrompt,
       temperature: 0.85,
       maxTokens: 3200, // 4 variations × ~150 words + reasoning
     });

@@ -8,6 +8,9 @@ import { NewsItem } from './entities/news-item.entity';
 import { NewsScore } from './entities/news-score.entity';
 import { ShortScript } from './entities/short-script.entity';
 import { PublishingLog } from './entities/publishing-log.entity';
+import { AqbShortMetric } from './entities/short-metric.entity';
+import { AqbShortPostmortem } from './entities/short-postmortem.entity';
+import { AqbMemory } from './entities/aqb-memory.entity';
 import { AdminModule } from '../admin/admin.module';
 
 import { OpenAIClientService } from './services/openai-client.service';
@@ -33,11 +36,19 @@ import { HackerNewsAdapter } from './sources/hackernews.adapter';
 import { IngestionWorker, AQB_INGESTION_QUEUE } from './workers/ingestion.worker';
 import { ScoringWorker, AQB_SCORING_QUEUE } from './workers/scoring.worker';
 import { ScriptGenWorker, AQB_SCRIPT_GEN_QUEUE } from './workers/script-gen.worker';
+import {
+  AqbIntelligenceWorker, AQB_INTELLIGENCE_QUEUE,
+} from './workers/aqb-intelligence.worker';
+import { AqbMemoryService } from './services/aqb-memory.service';
+import { AqbMetricsFetcherService } from './services/aqb-metrics-fetcher.service';
+import { AqbPostmortemAgent } from './agents/aqb-postmortem.agent';
+import { AqbImprovementAgent } from './agents/aqb-improvement.agent';
 
 import { NewsController } from './controllers/news.controller';
 import { ScriptsController } from './controllers/scripts.controller';
 import { ApprovalController } from './controllers/approval.controller';
 import { WebhooksController } from './controllers/webhooks.controller';
+import { AqbIntelligenceController } from './controllers/intelligence.controller';
 
 /**
  * AI Quick Bytes — fetches AI news from 8 sources, dedups, LLM-scores,
@@ -49,11 +60,13 @@ import { WebhooksController } from './controllers/webhooks.controller';
     ConfigModule.forFeature(aiQuickBytesConfig),
     TypeOrmModule.forFeature([
       NewsSource, NewsItem, NewsScore, ShortScript, PublishingLog,
+      AqbShortMetric, AqbShortPostmortem, AqbMemory,
     ]),
     BullModule.registerQueue(
       { name: AQB_INGESTION_QUEUE },
       { name: AQB_SCORING_QUEUE },
       { name: AQB_SCRIPT_GEN_QUEUE },
+      { name: AQB_INTELLIGENCE_QUEUE },
     ),
     AdminModule,
   ],
@@ -62,6 +75,7 @@ import { WebhooksController } from './controllers/webhooks.controller';
     ScriptsController,
     ApprovalController,
     WebhooksController,
+    AqbIntelligenceController,
   ],
   providers: [
     OpenAIClientService,
@@ -83,10 +97,16 @@ import { WebhooksController } from './controllers/webhooks.controller';
     AnthropicNewsAdapter,
     ArxivAdapter,
     HackerNewsAdapter,
+    // Learning loop (additive — no behaviour change until memories exist)
+    AqbMemoryService,
+    AqbMetricsFetcherService,
+    AqbPostmortemAgent,
+    AqbImprovementAgent,
     // Workers
     IngestionWorker,
     ScoringWorker,
     ScriptGenWorker,
+    AqbIntelligenceWorker,
   ],
 })
 export class AiQuickBytesModule {}
