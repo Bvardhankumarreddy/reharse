@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import ExcelJS from 'exceljs';
+// exceljs is CommonJS; the default import resolves to undefined without
+// esModuleInterop. Namespace import works in both modes.
+import * as ExcelJS from 'exceljs';
 import { QuestionPool } from '../entities/question-pool.entity';
 
 export type XlsxVariant = 'public' | 'private';
