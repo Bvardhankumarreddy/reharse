@@ -10,6 +10,7 @@ import {
   type ScriptAsset, type PptAsset,
   type SeoAsset, type ThumbnailAsset, type PromoAsset,
   type QuizPoolListResponse, type DeliveredQuizSummary,
+  type QuizBundleResp,
   type PipelineRun, type PipelineStage, PIPELINE_STAGE_ORDER,
   type DlqJob,
   type AuditEntry, type AssetVersionMeta, type RollbackableAssetType,
@@ -2486,6 +2487,9 @@ function PipelineRunPanel({ planId, onToast }: {
 function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) => void }) {
   const [pool, setPool] = useState<QuizPoolListResponse | null>(null);
   const [drawn, setDrawn] = useState<DeliveredQuizSummary | null>(null);
+  const [bundle, setBundle] = useState<QuizBundleResp | null>(null);
+  const [bundleBusy, setBundleBusy] = useState(false);
+  const [bundleOpen, setBundleOpen] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
   const [drawBusy, setDrawBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -2503,6 +2507,13 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
     try {
       const d = await api<DeliveredQuizSummary>(token, `/plans/${planId}/quiz`);
       setDrawn(d);
+    } catch { /* ignore */ }
+    try {
+      const b = await api<QuizBundleResp | { bundle: null }>(
+        token, `/plans/${planId}/quiz/bundle`,
+      );
+      // GET returns either the full bundle or { bundle: null }.
+      setBundle("id" in b ? b : null);
     } catch { /* ignore */ }
   }, [planId]);
 
@@ -2549,6 +2560,56 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setDrawBusy(false); }
+  }
+
+  async function generateBundle() {
+    const n = Math.max(5, Math.min(100, Number(count) || 40));
+    const t = toughness.trim() === "" ? undefined : Math.max(1, Math.min(5, Number(toughness)));
+    setBundleBusy(true);
+    onToast(`Generating Quiz Module bundle (${n} Qs + title + tie-breaker)… (~30-90s)`);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBundleBusy(false); return; }
+    try {
+      const r = await api<QuizBundleResp>(
+        token, `/plans/${planId}/quiz/bundle/generate`,
+        { method: "POST", body: JSON.stringify({ count: n, toughness: t }) },
+      );
+      setBundle(r);
+      setToughness(String(r.toughness));
+      onToast(
+        `✓ Bundle: ${r.questionCount} Qs + tie-breaker · toughness ${r.toughness}/5 · ` +
+        `$${r.costUsd.toFixed(4)}`,
+      );
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBundleBusy(false); }
+  }
+
+  async function downloadBundleCsv() {
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); return; }
+    onToast("Downloading bundle CSV…");
+    try {
+      const res = await fetch(
+        `/api/v1/admin/content-studio/plans/${planId}/quiz/bundle/csv`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const cd = res.headers.get("content-disposition") ?? "";
+      const m = /filename="?([^";]+)"?/i.exec(cd);
+      const filename = m?.[1] ?? `quiz-bundle.csv`;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      onToast(`⬇ Downloaded ${filename}`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    }
   }
 
   async function download(variant: "public" | "private") {
@@ -2693,6 +2754,91 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
             ))}
           </div>
         )}
+
+        {/* ── Quiz Module bundle (admin Quiz Module CSV upload) ─────────── */}
+        <div className="border-t border-white/5 pt-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] text-[#B8C5E0] font-semibold">
+              📦 Quiz Module Bundle
+              <span className="ml-2 text-[10px] font-normal text-[#6B7799]">
+                LLM-generated · mixed types · title + description + tie-breaker
+              </span>
+            </span>
+            {bundle && (
+              <span className="text-[10px] text-[#6B7799]">
+                {bundle.questionCount} Qs · t{bundle.toughness}/5 · ${bundle.costUsd.toFixed(4)}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <PrimaryBtn
+              label={
+                bundleBusy
+                  ? "Generating…"
+                  : bundle
+                  ? "🔁 Regenerate Bundle"
+                  : `📝 Generate Bundle (${Math.max(5, Math.min(100, Number(count) || 40))})`
+              }
+              busy={bundleBusy}
+              onClick={generateBundle}
+            />
+            {bundle && (
+              <>
+                <Btn label="⬇ Download Quiz Module CSV" onClick={downloadBundleCsv} />
+                <Btn
+                  label={bundleOpen ? "Hide bundle" : "👀 View bundle"}
+                  onClick={() => setBundleOpen((v) => !v)}
+                />
+              </>
+            )}
+          </div>
+
+          {bundle && bundleOpen && (
+            <div className="space-y-2 text-[11px] text-[#B8C5E0] bg-white/[0.02] border border-white/5 rounded-lg p-2">
+              <div>
+                <span className="text-[#6B7799] uppercase tracking-wide text-[9px]">
+                  Title
+                </span>
+                <div className="font-semibold">{bundle.title}</div>
+              </div>
+              <div>
+                <span className="text-[#6B7799] uppercase tracking-wide text-[9px]">
+                  Description
+                </span>
+                <div className="whitespace-pre-line text-[#B8C5E0]/90">
+                  {bundle.description}
+                </div>
+              </div>
+              <div>
+                <span className="text-[#6B7799] uppercase tracking-wide text-[9px]">
+                  Tie-breaker
+                </span>
+                <div className="text-[#B8C5E0]/90">
+                  {bundle.tieBreaker.question}
+                  <span className="ml-2 text-[#FFB800]">
+                    → {bundle.tieBreaker.answer}
+                    {bundle.tieBreaker.unit ? ` ${bundle.tieBreaker.unit}` : ""}
+                    {bundle.tieBreaker.tolerance > 0 ? ` ±${bundle.tieBreaker.tolerance}` : ""}
+                  </span>
+                </div>
+              </div>
+              <div className="max-h-72 overflow-y-auto space-y-1 border-t border-white/5 pt-2">
+                {bundle.questions.map((q) => (
+                  <div key={q.position} className="text-[11px]">
+                    <span className="text-[10px] uppercase mr-1.5 text-[#00D4FF]">
+                      {q.questionType}
+                    </span>
+                    <span className="text-[10px] uppercase mr-1.5 text-[#6B7799]">
+                      {q.difficulty} · {q.points}pt
+                    </span>
+                    {q.position}. {q.questionText}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

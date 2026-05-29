@@ -182,6 +182,52 @@ export interface QuizPoolListResponse {
   passRate: number;
 }
 
+// ── Admin-Quiz-Module CSV bundle ───────────────────────────────────────────
+export type BundleQuestionType =
+  | "mcq" | "true_false" | "multi_select" | "numeric";
+
+export interface QuizBundleQuestionItem {
+  position: number;
+  questionType: BundleQuestionType;
+  questionText: string;
+  optionA: string | null; optionB: string | null;
+  optionC: string | null; optionD: string | null;
+  correctAnswer: string | null;
+  correctAnswers: string | null;
+  correctNumber: number | null;
+  numericTolerance: number | null;
+  numericUnit: string | null;
+  points: number;
+  difficulty: "easy" | "medium" | "hard";
+  category: string | null;
+  isMandatory: boolean;
+}
+
+export interface QuizBundleResp {
+  id: string;
+  planId: string;
+  brandId: string;
+  weekOf: string;
+  title: string;
+  description: string;
+  tieBreaker: {
+    question: string;
+    answer: number;
+    tolerance: number;
+    unit: string | null;
+  };
+  questionCount: number;
+  toughness: number;
+  generatorModel: string | null;
+  costUsd: number;
+  createdAt: string;
+  questions: QuizBundleQuestionItem[];
+}
+
+export interface QuizBundleEnvelope {
+  bundle: null;
+}
+
 export type PipelineStage =
   | "script" | "ppt" | "seo" | "thumbnail" | "promo" | "quiz" | "draw";
 export type PipelineStatus =

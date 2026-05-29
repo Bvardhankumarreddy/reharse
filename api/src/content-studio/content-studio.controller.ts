@@ -22,6 +22,8 @@ import { ThumbnailAgent } from './agents/thumbnail.agent';
 import type { ThumbnailStyle, AspectRatio } from './agents/thumbnail.agent';
 import { PromoAgent } from './agents/promo.agent';
 import { QuizAgent } from './agents/quiz.agent';
+import { QuizBundleAgent } from './agents/quiz-bundle.agent';
+import { QuizBundleCsvService } from './services/quiz-bundle-csv.service';
 import { PostmortemAgent } from './agents/postmortem.agent';
 import { ImprovementAgent } from './agents/improvement.agent';
 import { ThumbnailImageAgent } from './agents/thumbnail-image.agent';
@@ -92,6 +94,8 @@ export class ContentStudioController {
     private readonly seriesArchitect: SeriesArchitectAgent,
     private readonly audio: AudioAgent,
     private readonly channelVideos: ChannelVideoFetcherService,
+    private readonly quizBundle: QuizBundleAgent,
+    private readonly quizBundleCsv: QuizBundleCsvService,
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly intelQueue: Queue,
   ) {}
 
@@ -353,6 +357,105 @@ export class ContentStudioController {
   @Get('plans/:id/quiz')
   quizLatest(@Param('id') id: string) {
     return this.quiz.latestDelivered(id);
+  }
+
+  // ── Quiz Module bundle (mixed-type + title + description + tie-breaker) ─
+
+  /**
+   * Generate (or regenerate) the admin-Quiz-Module-ready bundle for a plan.
+   * Body: { count?: number (5-100), toughness?: number (1-5) }.
+   * Driven by the same count + toughness selector as the existing pool.
+   */
+  @Post('plans/:id/quiz/bundle/generate')
+  async generateQuizBundle(
+    @Param('id') id: string,
+    @Body() body: { count?: number; toughness?: number },
+  ) {
+    const bundle = await this.quizBundle.generate(id, {
+      count: body?.count,
+      toughness: body?.toughness,
+    });
+    return this.shapeBundle(bundle);
+  }
+
+  @Get('plans/:id/quiz/bundle')
+  async getQuizBundle(@Param('id') id: string) {
+    const bundle = await this.quizBundle.latest(id);
+    if (!bundle) return { bundle: null };
+    return this.shapeBundle(bundle);
+  }
+
+  /**
+   * Stream the bundle as an admin-Quiz-Module-importer CSV. Defaults to
+   * the plan's seriesWeekNumber for `quiz_week`; override with ?quizWeek=N.
+   */
+  @Get('plans/:id/quiz/bundle/csv')
+  async downloadQuizBundleCsv(
+    @Param('id') id: string,
+    @Query('quizWeek') quizWeekQ: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { bundle, questions } =
+      await this.quizBundle.latestWithOrderedQuestions(id);
+    if (!bundle) throw new NotFoundException('No bundle generated yet');
+
+    const plan = await this.planRepo.findOne({ where: { id } });
+    const defaultWeek = plan?.seriesWeekNumber ?? 1;
+    const quizWeek = Math.max(
+      1, Math.min(999, Number(quizWeekQ) || defaultWeek),
+    );
+
+    const csv = this.quizBundleCsv.render(bundle, questions, quizWeek);
+    const filename = `quiz-bundle-week-${quizWeek}-${bundle.weekOf}.csv`;
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(Buffer.byteLength(csv, 'utf8')),
+    });
+    res.send(csv);
+  }
+
+  /** Trim the bundle response so the wire payload doesn't include FK joins. */
+  private shapeBundle(bundle: import('./entities/quiz-bundle.entity').QuizBundle) {
+    const questions = (bundle.questions ?? [])
+      .slice()
+      .sort((a, b) => a.position - b.position);
+    return {
+      id: bundle.id,
+      planId: bundle.planId,
+      brandId: bundle.brandId,
+      weekOf: bundle.weekOf,
+      title: bundle.title,
+      description: bundle.description,
+      tieBreaker: {
+        question: bundle.tieBreakerQuestion,
+        answer: Number(bundle.tieBreakerAnswer),
+        tolerance: Number(bundle.tieBreakerTolerance),
+        unit: bundle.tieBreakerUnit,
+      },
+      questionCount: bundle.questionCount,
+      toughness: bundle.toughness,
+      generatorModel: bundle.generatorModel,
+      costUsd: Number(bundle.costUsd),
+      createdAt: bundle.createdAt,
+      questions: questions.map((q) => ({
+        position: q.position,
+        questionType: q.questionType,
+        questionText: q.questionText,
+        optionA: q.optionA, optionB: q.optionB,
+        optionC: q.optionC, optionD: q.optionD,
+        correctAnswer: q.correctAnswer,
+        correctAnswers: q.correctAnswers,
+        correctNumber: q.correctNumber === null ? null : Number(q.correctNumber),
+        numericTolerance:
+          q.numericTolerance === null ? null : Number(q.numericTolerance),
+        numericUnit: q.numericUnit,
+        points: q.points,
+        difficulty: q.difficulty,
+        category: q.category,
+        isMandatory: q.isMandatory,
+      })),
+    };
   }
 
   // ── Curator approval gate ──────────────────────────────────────────────

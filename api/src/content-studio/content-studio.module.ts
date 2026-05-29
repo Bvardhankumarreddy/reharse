@@ -24,6 +24,8 @@ import { LessonPostmortem } from './entities/lesson-postmortem.entity';
 import { PublishedVideo } from './entities/published-video.entity';
 import { ContentSeries } from './entities/content-series.entity';
 import { ChannelVideo } from './entities/channel-video.entity';
+import { QuizBundle } from './entities/quiz-bundle.entity';
+import { QuizBundleQuestion } from './entities/quiz-bundle-question.entity';
 import { NewsItem } from '../ai-quick-bytes/entities/news-item.entity';
 
 import { OpenAIAdapter } from './services/openai.adapter';
@@ -40,6 +42,8 @@ import { SeoAgent } from './agents/seo.agent';
 import { ThumbnailAgent } from './agents/thumbnail.agent';
 import { PromoAgent } from './agents/promo.agent';
 import { QuizAgent } from './agents/quiz.agent';
+import { QuizBundleAgent } from './agents/quiz-bundle.agent';
+import { QuizBundleCsvService } from './services/quiz-bundle-csv.service';
 import { PostmortemAgent } from './agents/postmortem.agent';
 import { ImprovementAgent } from './agents/improvement.agent';
 import { ThumbnailImageAgent } from './agents/thumbnail-image.agent';
@@ -90,6 +94,7 @@ import { ContentStudioController } from './content-studio.controller';
       PublishedVideo,
       ContentSeries,
       ChannelVideo,
+      QuizBundle, QuizBundleQuestion,
       NewsItem,
     ]),
     BullModule.registerQueue(
@@ -116,6 +121,8 @@ import { ContentStudioController } from './content-studio.controller';
     ThumbnailAgent,
     PromoAgent,
     QuizAgent,
+    QuizBundleAgent,
+    QuizBundleCsvService,
     PostmortemAgent,
     ImprovementAgent,
     ThumbnailImageAgent,
