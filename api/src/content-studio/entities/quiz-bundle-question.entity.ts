@@ -74,6 +74,13 @@ export class QuizBundleQuestion {
   @Column({ type: 'text', nullable: true })
   category: string | null;
 
+  /**
+   * Which lesson (by lessonNumber) this question belongs to. NULL for
+   * rows created before migration-015. Enables per-lesson regeneration.
+   */
+  @Column({ type: 'int', nullable: true, name: 'lesson_number' })
+  lessonNumber: number | null;
+
   @Column({ type: 'boolean', default: false, name: 'is_mandatory' })
   isMandatory: boolean;
 

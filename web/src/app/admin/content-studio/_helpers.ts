@@ -200,6 +200,7 @@ export interface QuizBundleQuestionItem {
   points: number;
   difficulty: "easy" | "medium" | "hard";
   category: string | null;
+  lessonNumber: number | null;
   isMandatory: boolean;
 }
 

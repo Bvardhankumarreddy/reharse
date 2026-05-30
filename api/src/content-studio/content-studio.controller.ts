@@ -408,6 +408,28 @@ export class ContentStudioController {
   }
 
   /**
+   * Regenerate ONLY one lesson's questions in the bundle. Other lessons
+   * are untouched. Optional `customPrompt` steers the LLM (e.g. "focus on
+   * OAuth scopes" or "add a question about rate limits").
+   */
+  @Post('plans/:id/quiz/bundle/lessons/:lessonNumber/regenerate')
+  async regenerateBundleLesson(
+    @Param('id') id: string,
+    @Param('lessonNumber') lessonNumberStr: string,
+    @Body() body: { count?: number; customPrompt?: string },
+  ) {
+    const lessonNumber = Math.round(Number(lessonNumberStr));
+    if (!Number.isFinite(lessonNumber) || lessonNumber < 1) {
+      throw new BadRequestException('Invalid lessonNumber');
+    }
+    const bundle = await this.quizBundle.regenerateForLesson(id, lessonNumber, {
+      count: body?.count,
+      customPrompt: body?.customPrompt,
+    });
+    return this.shapeBundle(bundle);
+  }
+
+  /**
    * Stream the bundle as an admin-Quiz-Module-importer CSV. Defaults to
    * the plan's seriesWeekNumber for `quiz_week`; override with ?quizWeek=N.
    */
@@ -525,6 +547,7 @@ export class ContentStudioController {
         points: q.points,
         difficulty: q.difficulty,
         category: q.category,
+        lessonNumber: q.lessonNumber,
         isMandatory: q.isMandatory,
       })),
     };

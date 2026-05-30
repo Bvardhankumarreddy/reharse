@@ -67,6 +67,8 @@ Rules for ALL questions:
 
 Points by difficulty: easy=1, medium=2, hard=3.
 "category" = the lesson title the question belongs to.
+"lessonNumber" = the integer lesson number (from the LESSONS block) the
+question belongs to. EVERY question must have a lessonNumber.
 
 OUTPUT STRICT JSON ONLY:
 {
@@ -83,6 +85,7 @@ OUTPUT STRICT JSON ONLY:
       "points": <int>,
       "difficulty": "easy" | "medium" | "hard",
       "category": "…",
+      "lessonNumber": <int>,
       "isMandatory": false
     }
   ]
@@ -128,6 +131,7 @@ interface LlmQuestion {
   points?: unknown;
   difficulty?: unknown;
   category?: unknown;
+  lessonNumber?: unknown;
   isMandatory?: unknown;
 }
 interface LlmMetadata {
@@ -374,6 +378,8 @@ export class QuizBundleAgent {
       }),
     );
 
+    const validLessonNumbers = new Set(lessons.map((l) => l.lessonNumber));
+
     const rows = rawQs.slice(0, count).map((q, i) => {
       const qType = normaliseType(q.questionType);
       const diff = normaliseDifficulty(q.difficulty);
@@ -382,6 +388,11 @@ export class QuizBundleAgent {
         Number.isInteger(q.points) && Number(q.points) > 0
           ? Math.min(10, Number(q.points))
           : defaultPoints;
+
+      // Validate lessonNumber — must match a real lesson; otherwise null.
+      const lnRaw = Number(q.lessonNumber);
+      const lessonNumber =
+        Number.isInteger(lnRaw) && validLessonNumbers.has(lnRaw) ? lnRaw : null;
 
       const row: Partial<QuizBundleQuestion> = {
         bundleId: bundle.id,
@@ -397,6 +408,7 @@ export class QuizBundleAgent {
         points,
         difficulty: diff,
         category: asStringOrNull(q.category, 300),
+        lessonNumber,
         isMandatory: q.isMandatory === true,
       };
 
@@ -452,6 +464,212 @@ export class QuizBundleAgent {
       order: { createdAt: 'DESC' },
       relations: ['questions'],
     });
+  }
+
+  /**
+   * Regenerate JUST one lesson's questions in an existing bundle. Other
+   * lessons are untouched. The user can pass `customPrompt` to steer the
+   * LLM (e.g. "focus on OAuth scopes" or "add a question about rate limits").
+   *
+   * Defaults: count = number of existing questions for that lesson (or 5 if
+   * the lesson had none); toughness = bundle.toughness; difficulty split
+   * proportional to that count.
+   */
+  async regenerateForLesson(planId: string, lessonNumber: number, opts: {
+    count?: number; customPrompt?: string;
+  } = {}): Promise<QuizBundle> {
+    const bundle = await this.latest(planId);
+    if (!bundle) throw new NotFoundException('No bundle for plan');
+
+    const plan = await this.planRepo.findOne({ where: { id: planId } });
+    if (!plan) throw new NotFoundException('Plan not found');
+    const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
+    if (!brand) throw new BadRequestException('Plan has no brand');
+
+    const lessons = await this.lessonRepo.find({
+      where: { planId },
+      order: { lessonNumber: 'ASC' },
+    });
+    const lesson = lessons.find((l) => l.lessonNumber === lessonNumber);
+    if (!lesson) {
+      throw new BadRequestException(`Plan has no lesson #${lessonNumber}`);
+    }
+
+    const existing = (bundle.questions ?? [])
+      .filter((q) => q.lessonNumber === lessonNumber)
+      .sort((a, b) => a.position - b.position);
+
+    // count: explicit > existing count > 5.
+    const count = Math.max(
+      1, Math.min(40, Math.round(opts.count ?? (existing.length || 5))),
+    );
+    const toughness = bundle.toughness;
+    const dist = splitByToughness(count, toughness);
+
+    const memories = await this.memoryService.relevantFor(brand.id, 'quiz');
+    const memoryBlock = this.memoryService.format(memories);
+    const lessonBlock =
+      `LESSON ${lesson.lessonNumber}: ${lesson.title}\n` +
+      `  hook: ${lesson.hook ?? '(none)'}\n` +
+      (lesson.outline ?? [])
+        .map((s) => `  - ${s.heading}: ${(s.points ?? []).join('; ')}`)
+        .join('\n');
+
+    const customBlock = opts.customPrompt && opts.customPrompt.trim()
+      ? `\nCUSTOM USER GUIDANCE (obey first):\n${opts.customPrompt.trim()}\n`
+      : '';
+
+    const maxTokens = Math.min(16000, Math.max(2500, count * 350 + 1000));
+    const qs = await this.router.run({
+      task: 'quiz',
+      agentType: 'quiz',
+      planId,
+      modelOverride: brand.modelOverrides?.quiz,
+      jsonOutput: true,
+      maxTokens,
+      temperature: 0.7,
+      system: QUESTIONS_SYSTEM,
+      user:
+        `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
+        `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
+        `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n` +
+        `REGENERATING JUST THIS LESSON:\n${lessonBlock}\n\n` +
+        `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n` +
+        customBlock +
+        `\nTOTAL QUESTIONS: EXACTLY ${count}. ` +
+        `Difficulty split: ${dist.easy} easy / ${dist.medium} medium / ${dist.hard} hard. ` +
+        `EVERY question must set lessonNumber=${lesson.lessonNumber} and ` +
+        `category="${lesson.title}". ` +
+        `Output the JSON object only.`,
+    });
+
+    let parsedQs: LlmQuestions;
+    try {
+      parsedQs = JSON.parse(qs.text || '{}') as LlmQuestions;
+    } catch (e) {
+      this.logger.error(
+        `Lesson-regen JSON parse failed (model=${qs.model}): ${(e as Error).message}`,
+      );
+      throw new Error('LLM returned unparseable JSON for lesson regeneration');
+    }
+    const rawNew = Array.isArray(parsedQs.questions) ? parsedQs.questions : [];
+    if (rawNew.length === 0) {
+      throw new Error('LLM returned no questions for the lesson');
+    }
+
+    // Strategy:
+    //   1. Compute the slot positions the existing lesson rows occupied
+    //      (e.g. positions 11, 12, 13 in a 40-Q bundle).
+    //   2. Delete those rows.
+    //   3. Insert the new rows. If count differs from existing, append
+    //      the leftover at the end and re-pack positions densely 1..N.
+    const existingIds = existing.map((e) => e.id);
+    if (existingIds.length) {
+      await this.questionRepo.delete(existingIds);
+    }
+
+    const validLessonNumbers = new Set(lessons.map((l) => l.lessonNumber));
+    const newRows = rawNew.slice(0, count).map((q) => {
+      const qType = normaliseType(q.questionType);
+      const diff = normaliseDifficulty(q.difficulty);
+      const defaultPoints = POINTS_BY_DIFFICULTY[diff];
+      const points =
+        Number.isInteger(q.points) && Number(q.points) > 0
+          ? Math.min(10, Number(q.points))
+          : defaultPoints;
+      // Force the lessonNumber to the one we're regenerating for. The LLM
+      // SHOULD have set it, but we don't trust it for this — we know the
+      // intent. Also reject anything outside the plan's lesson set.
+      const ln = validLessonNumbers.has(lesson.lessonNumber)
+        ? lesson.lessonNumber : null;
+
+      const row: Partial<QuizBundleQuestion> = {
+        bundleId: bundle.id,
+        position: 0, // temp; we re-pack below
+        questionType: qType,
+        questionText: asString(q.questionText, 1000),
+        optionA: null, optionB: null, optionC: null, optionD: null,
+        correctAnswer: null,
+        correctAnswers: null,
+        correctNumber: null,
+        numericTolerance: null,
+        numericUnit: null,
+        points,
+        difficulty: diff,
+        category: asStringOrNull(q.category, 300) ?? lesson.title,
+        lessonNumber: ln,
+        isMandatory: q.isMandatory === true,
+      };
+
+      if (qType === 'mcq') {
+        row.optionA = asStringOrNull(q.optionA, 300);
+        row.optionB = asStringOrNull(q.optionB, 300);
+        row.optionC = asStringOrNull(q.optionC, 300);
+        row.optionD = asStringOrNull(q.optionD, 300);
+        row.correctAnswer = normaliseLetter(q.correctAnswer) ?? 'A';
+      } else if (qType === 'true_false') {
+        row.optionA = 'True';
+        row.optionB = 'False';
+        row.correctAnswer = normaliseLetter(q.correctAnswer) ?? 'A';
+      } else if (qType === 'multi_select') {
+        row.optionA = asStringOrNull(q.optionA, 300);
+        row.optionB = asStringOrNull(q.optionB, 300);
+        row.optionC = asStringOrNull(q.optionC, 300);
+        row.optionD = asStringOrNull(q.optionD, 300);
+        row.correctAnswers = normaliseLetterSet(q.correctAnswers) ?? 'A';
+      } else {
+        const cn = asNumber(q.correctNumber);
+        row.correctNumber = cn !== null ? String(cn) : '0';
+        const nt = asNumber(q.numericTolerance) ?? 0;
+        row.numericTolerance = String(nt);
+        row.numericUnit = asStringOrNull(q.numericUnit, 60);
+      }
+      return this.questionRepo.create(row);
+    });
+
+    await this.questionRepo.save(newRows);
+    await this.repackPositions(bundle.id);
+
+    // Update bundle metadata: cost ledger + question_count.
+    await this.bundleRepo.update(bundle.id, {
+      costUsd: String(Number(bundle.costUsd) + qs.costUsd),
+      generatorModel:
+        bundle.generatorModel
+          ? `${bundle.generatorModel}+${qs.model}`
+          : qs.model,
+    });
+    await this.planRepo.update(plan.id, {
+      totalCostUsd: Number(plan.totalCostUsd ?? 0) + qs.costUsd,
+    });
+
+    this.logger.log(
+      `Quiz bundle plan=${planId} L${lessonNumber} regenerated: ` +
+      `${newRows.length} new Qs (was ${existing.length}), model=${qs.model}, ` +
+      `cost $${qs.costUsd.toFixed(4)}` +
+      (opts.customPrompt ? `, custom-prompt=true` : ''),
+    );
+
+    const refreshed = await this.latest(planId);
+    return refreshed as QuizBundle;
+  }
+
+  /** Re-pack positions densely 1..N, ordered by lessonNumber then position. */
+  private async repackPositions(bundleId: string): Promise<void> {
+    const rows = await this.questionRepo.find({ where: { bundleId } });
+    rows.sort((a, b) => {
+      const al = a.lessonNumber ?? 999;
+      const bl = b.lessonNumber ?? 999;
+      if (al !== bl) return al - bl;
+      return a.position - b.position;
+    });
+    for (let i = 0; i < rows.length; i++) {
+      const nextPos = i + 1;
+      if (rows[i].position !== nextPos) {
+        await this.questionRepo.update(rows[i].id, { position: nextPos });
+      }
+    }
+    // Update bundle's question_count to match.
+    await this.bundleRepo.update(bundleId, { questionCount: rows.length });
   }
 
   /** Patch bundle metadata in place (no LLM call). */

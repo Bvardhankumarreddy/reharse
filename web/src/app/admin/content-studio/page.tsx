@@ -2494,6 +2494,11 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   const [promoBusy, setPromoBusy] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [weekBusy, setWeekBusy] = useState(false);
+  // Per-lesson regenerate UI state — keyed by lessonNumber.
+  const [lessonBusy, setLessonBusy] = useState<number | null>(null);
+  const [lessonOpen, setLessonOpen] = useState<number | null>(null);
+  const [lessonPrompt, setLessonPrompt] = useState<Record<number, string>>({});
+  const [lessonCount, setLessonCount] = useState<Record<number, string>>({});
   const [promoTab, setPromoTab] = useState<"youtube" | "linkedin" | "instagram" | "wac" | "was" | "lc">("youtube");
   // Quiz week # written into every CSV row. Empty = let the server default
   // (uses the bundle's stored week, then plan.seriesWeekNumber, then 1).
@@ -2608,6 +2613,36 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setBundleBusy(false); }
+  }
+
+  async function regenerateLesson(lessonNumber: number) {
+    const promptText = (lessonPrompt[lessonNumber] ?? "").trim();
+    const countRaw = lessonCount[lessonNumber];
+    const count = countRaw && countRaw.trim() !== ""
+      ? Math.max(1, Math.min(40, Number(countRaw)))
+      : undefined;
+    setLessonBusy(lessonNumber);
+    onToast(`Regenerating Lesson ${lessonNumber} questions${promptText ? " with custom guidance" : ""}…`);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setLessonBusy(null); return; }
+    try {
+      const r = await api<QuizBundleResp>(
+        token,
+        `/plans/${planId}/quiz/bundle/lessons/${lessonNumber}/regenerate`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            count,
+            customPrompt: promptText || undefined,
+          }),
+        },
+      );
+      setBundle(r);
+      const got = r.questions.filter((q) => q.lessonNumber === lessonNumber).length;
+      onToast(`✓ Lesson ${lessonNumber}: ${got} new questions · $${r.costUsd.toFixed(4)} total bundle cost`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setLessonBusy(null); }
   }
 
   async function saveWeek() {
@@ -3074,18 +3109,99 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
                   </span>
                 </div>
               </div>
-              <div className="max-h-72 overflow-y-auto space-y-1 border-t border-white/5 pt-2">
-                {bundle.questions.map((q) => (
-                  <div key={q.position} className="text-[11px]">
-                    <span className="text-[10px] uppercase mr-1.5 text-[#00D4FF]">
-                      {q.questionType}
-                    </span>
-                    <span className="text-[10px] uppercase mr-1.5 text-[#6B7799]">
-                      {q.difficulty} · {q.points}pt
-                    </span>
-                    {q.position}. {q.questionText}
-                  </div>
-                ))}
+              {/* Group by lesson — each group has its own regenerate button. */}
+              <div className="max-h-[420px] overflow-y-auto space-y-3 border-t border-white/5 pt-2">
+                {(() => {
+                  // Build [lessonNumber, questions[]] tuples, preserving
+                  // order: known lessons first, then "unassigned" (null).
+                  const groups = new Map<number | null, typeof bundle.questions>();
+                  for (const q of bundle.questions) {
+                    const key = q.lessonNumber;
+                    if (!groups.has(key)) groups.set(key, []);
+                    groups.get(key)!.push(q);
+                  }
+                  const entries = Array.from(groups.entries()).sort((a, b) => {
+                    const al = a[0] ?? 999;
+                    const bl = b[0] ?? 999;
+                    return al - bl;
+                  });
+                  return entries.map(([lessonNum, qs]) => {
+                    const heading = lessonNum != null
+                      ? `Lesson ${lessonNum}${qs[0]?.category ? ` — ${qs[0].category}` : ""}`
+                      : "Unassigned (pre-migration questions)";
+                    const isOpen = lessonOpen === lessonNum;
+                    const isBusy = lessonBusy === lessonNum;
+                    return (
+                      <div key={String(lessonNum)} className="border border-white/5 rounded-md">
+                        <div className="flex items-center justify-between gap-2 px-2 py-1.5 bg-white/[0.03]">
+                          <span className="text-[11px] text-[#B8C5E0] font-semibold truncate">
+                            {heading}
+                            <span className="ml-2 text-[10px] font-normal text-[#6B7799]">
+                              {qs.length} Q · {qs.reduce((s, q) => s + q.points, 0)} pt
+                            </span>
+                          </span>
+                          {lessonNum != null && (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => setLessonOpen(isOpen ? null : lessonNum)}
+                                className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-[#B8C5E0] hover:text-white hover:bg-white/5"
+                              >
+                                {isOpen ? "✕" : "✏️ Edit & regen"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {isOpen && lessonNum != null && (
+                          <div className="p-2 space-y-1.5 border-t border-white/5 bg-[#0F1330]/40">
+                            <textarea
+                              value={lessonPrompt[lessonNum] ?? ""}
+                              onChange={(e) =>
+                                setLessonPrompt((m) => ({ ...m, [lessonNum]: e.target.value }))
+                              }
+                              placeholder={`Optional custom guidance — e.g. "focus on OAuth scopes" or "add a question about rate limits". Leave blank to just re-roll the questions.`}
+                              rows={3}
+                              className="w-full bg-[#0F1330] border border-white/10 rounded px-2 py-1.5 text-[11px] text-white outline-none focus:border-[#00D4FF]/40 resize-y"
+                            />
+                            <div className="flex items-center gap-2">
+                              <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
+                                # questions
+                                <input
+                                  type="number" min={1} max={40}
+                                  value={lessonCount[lessonNum] ?? String(qs.length)}
+                                  onChange={(e) =>
+                                    setLessonCount((m) => ({ ...m, [lessonNum]: e.target.value }))
+                                  }
+                                  className="w-14 bg-[#0F1330] border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white outline-none focus:border-[#00D4FF]/40"
+                                />
+                              </label>
+                              <PrimaryBtn
+                                label={isBusy ? "Regenerating…" : "🔁 Regenerate this lesson"}
+                                busy={isBusy}
+                                onClick={() => regenerateLesson(lessonNum)}
+                              />
+                              <span className="text-[9px] text-[#6B7799]">
+                                Replaces only this lesson&apos;s questions · other lessons stay intact
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        <ul className="px-2 py-1.5 space-y-0.5">
+                          {qs.map((q) => (
+                            <li key={q.position} className="text-[11px]">
+                              <span className="text-[10px] uppercase mr-1.5 text-[#00D4FF]">
+                                {q.questionType}
+                              </span>
+                              <span className="text-[10px] uppercase mr-1.5 text-[#6B7799]">
+                                {q.difficulty} · {q.points}pt
+                              </span>
+                              {q.position}. {q.questionText}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}
