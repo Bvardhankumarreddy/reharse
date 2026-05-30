@@ -508,4 +508,76 @@ export class QuizPromoAgent {
       order: { createdAt: 'DESC' },
     });
   }
+
+  /**
+   * Return the current publish status of every lesson in the plan — used by
+   * the UI to show which lessons have a YouTube URL ready to embed in the
+   * footer. No LLM call.
+   */
+  async lessonStatus(planId: string): Promise<QuizPromoLessonLink[]> {
+    const lessons = await this.lessonRepo.find({
+      where: { planId },
+      order: { lessonNumber: 'ASC' },
+    });
+    if (lessons.length === 0) return [];
+    const published = await this.publishedRepo.find({
+      where: lessons.map((l) => ({ lessonId: l.id })),
+    });
+    const urlByLessonId = new Map(
+      published.map((p) => [p.lessonId, p.youtubeUrl] as const),
+    );
+    return lessons.map((l) => ({
+      lessonNumber: l.lessonNumber,
+      title: l.title,
+      youtubeUrl: urlByLessonId.get(l.id) ?? null,
+    }));
+  }
+
+  /**
+   * Re-pulls current lesson YouTube URLs and rebuilds the social footer +
+   * the YT/LinkedIn/Instagram full_text fields, WITHOUT touching the
+   * LLM-authored body. Idempotent — safe to call as often as you want.
+   * Returns the refreshed promo. Throws if no promo exists.
+   */
+  async refreshLessonLinks(planId: string): Promise<QuizPromoPackage> {
+    const promo = await this.promoRepo.findOne({
+      where: { planId },
+      order: { createdAt: 'DESC' },
+    });
+    if (!promo) {
+      throw new NotFoundException('No promo to refresh — generate one first');
+    }
+
+    const lessonLinks = await this.lessonStatus(planId);
+    const bundle = await this.bundleRepo.findOne({ where: { id: promo.bundleId } });
+    const quizWeek = bundle?.quizWeek ?? 1;
+    const footer = buildSocialFooter(lessonLinks, quizWeek);
+
+    const payload: QuizPromoPayload = { ...promo.payload };
+
+    // Rebuild full_text for the three platforms that carry the footer.
+    if (payload.youtube_community) {
+      const yt = payload.youtube_community;
+      yt.full_text = [
+        yt.description, '', footer.block, '', joinTags(yt.hashtags),
+      ].join('\n');
+    }
+    if (payload.linkedin) {
+      const li = payload.linkedin;
+      li.full_text = [
+        li.hook, li.body, li.cta, footer.block, joinTags(li.hashtags),
+      ].filter(Boolean).join('\n\n');
+    }
+    if (payload.instagram) {
+      const ig = payload.instagram;
+      ig.full_text = [ig.caption, footer.block, joinTags(ig.hashtags)]
+        .filter(Boolean).join('\n\n');
+    }
+
+    payload.lesson_links = lessonLinks;
+    payload.social_footer = footer;
+
+    promo.payload = payload;
+    return this.promoRepo.save(promo);
+  }
 }

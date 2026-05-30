@@ -389,6 +389,25 @@ export class ContentStudioController {
   }
 
   /**
+   * Patch bundle metadata in place (currently just quizWeek). No LLM call.
+   * Useful when the user wants to retarget the CSV's quiz_week column
+   * without burning tokens regenerating questions.
+   *
+   * Note: the promo agent embeds the week # in its LLM-written copy, so
+   * if a promo already exists the user should regenerate it to match.
+   */
+  @Patch('plans/:id/quiz/bundle')
+  async patchQuizBundle(
+    @Param('id') id: string,
+    @Body() body: { quizWeek?: number },
+  ) {
+    const bundle = await this.quizBundle.patchMetadata(id, {
+      quizWeek: body?.quizWeek,
+    });
+    return this.shapeBundle(bundle);
+  }
+
+  /**
    * Stream the bundle as an admin-Quiz-Module-importer CSV. Defaults to
    * the plan's seriesWeekNumber for `quiz_week`; override with ?quizWeek=N.
    */
@@ -433,6 +452,20 @@ export class ContentStudioController {
     const pkg = await this.quizPromo.latest(id);
     if (!pkg) return { promo: null };
     return this.shapeQuizPromo(pkg);
+  }
+
+  /** Re-pull lesson URLs and rebuild the footer; no LLM call. */
+  @Post('plans/:id/quiz/promo/refresh-links')
+  async refreshQuizPromoLinks(@Param('id') id: string) {
+    const pkg = await this.quizPromo.refreshLessonLinks(id);
+    return this.shapeQuizPromo(pkg);
+  }
+
+  /** Lesson publish status — small read used by the UI's status table. */
+  @Get('plans/:id/quiz/promo/lesson-status')
+  async quizPromoLessonStatus(@Param('id') id: string) {
+    const links = await this.quizPromo.lessonStatus(id);
+    return { lessons: links };
   }
 
   private shapeQuizPromo(

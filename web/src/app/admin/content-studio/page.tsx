@@ -2492,6 +2492,8 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   const [bundleOpen, setBundleOpen] = useState(false);
   const [promo, setPromo] = useState<QuizPromoResp | null>(null);
   const [promoBusy, setPromoBusy] = useState(false);
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [weekBusy, setWeekBusy] = useState(false);
   const [promoTab, setPromoTab] = useState<"youtube" | "linkedin" | "instagram" | "wac" | "was" | "lc">("youtube");
   // Quiz week # written into every CSV row. Empty = let the server default
   // (uses the bundle's stored week, then plan.seriesWeekNumber, then 1).
@@ -2606,6 +2608,46 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setBundleBusy(false); }
+  }
+
+  async function saveWeek() {
+    if (!bundle) { onToast("⚠ Generate the bundle first"); return; }
+    const w = Math.max(1, Math.min(999, Number(bundleWeek) || 1));
+    setWeekBusy(true);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setWeekBusy(false); return; }
+    try {
+      const r = await api<QuizBundleResp>(
+        token, `/plans/${planId}/quiz/bundle`,
+        { method: "PATCH", body: JSON.stringify({ quizWeek: w }) },
+      );
+      setBundle(r);
+      onToast(
+        `✓ Week saved → ${r.quizWeek}. Promo still references the old week — ` +
+        `regenerate promo to flow the new number into the copy.`,
+      );
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setWeekBusy(false); }
+  }
+
+  async function refreshPromoLinks() {
+    setRefreshBusy(true);
+    onToast("Re-pulling lesson YouTube URLs into the promo footer…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setRefreshBusy(false); return; }
+    try {
+      const r = await api<QuizPromoResp>(
+        token, `/plans/${planId}/quiz/promo/refresh-links`,
+        { method: "POST" },
+      );
+      setPromo(r);
+      const total = r.payload.lesson_links?.length ?? 0;
+      const live  = (r.payload.lesson_links ?? []).filter((l) => !!l.youtubeUrl).length;
+      onToast(`✓ Footer refreshed · ${live}/${total} lessons have YouTube URLs`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setRefreshBusy(false); }
   }
 
   async function generatePromo() {
@@ -2828,6 +2870,16 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
                 className="w-16 bg-[#0F1330] border border-white/10 rounded px-2 py-1 text-[12px] text-white outline-none focus:border-[#00D4FF]/40"
               />
             </label>
+            {bundle && bundleWeek.trim() !== "" && Number(bundleWeek) !== bundle.quizWeek && (
+              <button
+                onClick={saveWeek}
+                disabled={weekBusy}
+                className="px-2 py-1 text-[10px] rounded border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 disabled:opacity-50"
+                title="Persist this week # without regenerating the bundle"
+              >
+                {weekBusy ? "Saving…" : "💾 Save Week"}
+              </button>
+            )}
             <PrimaryBtn
               label={
                 bundleBusy
@@ -2882,11 +2934,57 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
                   onClick={generatePromo}
                 />
                 {promo && (
-                  <span className="text-[10px] text-[#B8C5E0]">
-                    🗓 {promo.startsAtLabel} → {promo.endsAtLabel}
-                  </span>
+                  <>
+                    <span className="text-[10px] text-[#B8C5E0]">
+                      🗓 {promo.startsAtLabel} → {promo.endsAtLabel}
+                    </span>
+                    <Btn
+                      label={refreshBusy ? "Refreshing…" : "🔄 Refresh lesson URLs"}
+                      onClick={refreshPromoLinks}
+                    />
+                  </>
                 )}
               </div>
+              {/* Lesson publish status — visible whenever a promo exists. */}
+              {promo && (promo.payload.lesson_links?.length ?? 0) > 0 && (
+                <div className="bg-white/[0.02] border border-white/5 rounded-lg p-2">
+                  <div className="text-[10px] text-[#6B7799] uppercase tracking-wide mb-1">
+                    Lesson publish status
+                  </div>
+                  <ul className="text-[11px] space-y-0.5">
+                    {(promo.payload.lesson_links ?? []).map((l) => (
+                      <li key={l.lessonNumber} className="flex items-center gap-2 text-[#B8C5E0]">
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded ${
+                            l.youtubeUrl
+                              ? "bg-emerald-500/20 text-emerald-300"
+                              : "bg-amber-500/20 text-amber-300"
+                          }`}
+                        >
+                          {l.youtubeUrl ? "✓ on YT" : "⏳ unpublished"}
+                        </span>
+                        <span className="text-[#6B7799]">L{l.lessonNumber}:</span>
+                        <span className="truncate">{l.title}</span>
+                        {l.youtubeUrl && (
+                          <a
+                            href={l.youtubeUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ml-auto text-[10px] text-[#00D4FF] hover:underline"
+                          >
+                            open ↗
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[9px] text-[#6B7799] mt-1.5">
+                    Unpublished lessons appear in the footer without a link.
+                    Publish them, then hit Refresh lesson URLs to pick them up
+                    — no LLM regen needed.
+                  </p>
+                </div>
+              )}
               {promo && (
                 <div className="bg-white/[0.02] border border-white/5 rounded-lg p-2 space-y-2">
                   <div className="flex flex-wrap gap-1.5">

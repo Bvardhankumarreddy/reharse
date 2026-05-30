@@ -454,6 +454,16 @@ export class QuizBundleAgent {
     });
   }
 
+  /** Patch bundle metadata in place (no LLM call). */
+  async patchMetadata(planId: string, patch: { quizWeek?: number }): Promise<QuizBundle> {
+    const bundle = await this.latest(planId);
+    if (!bundle) throw new NotFoundException('No bundle to patch');
+    if (patch.quizWeek != null) {
+      bundle.quizWeek = Math.max(1, Math.min(999, Math.round(patch.quizWeek)));
+    }
+    return this.bundleRepo.save(bundle);
+  }
+
   async latestWithOrderedQuestions(planId: string): Promise<{
     bundle: QuizBundle | null;
     questions: QuizBundleQuestion[];
