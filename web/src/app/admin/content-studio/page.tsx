@@ -2490,6 +2490,9 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   const [bundle, setBundle] = useState<QuizBundleResp | null>(null);
   const [bundleBusy, setBundleBusy] = useState(false);
   const [bundleOpen, setBundleOpen] = useState(false);
+  // Quiz week # written into every CSV row. Empty = let the server default
+  // (uses the bundle's stored week, then plan.seriesWeekNumber, then 1).
+  const [bundleWeek, setBundleWeek] = useState<string>("");
   const [genBusy, setGenBusy] = useState(false);
   const [drawBusy, setDrawBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -2513,7 +2516,13 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
         token, `/plans/${planId}/quiz/bundle`,
       );
       // GET returns either the full bundle or { bundle: null }.
-      setBundle("id" in b ? b : null);
+      if ("id" in b) {
+        setBundle(b);
+        // Reflect the stored week in the UI so users see what'll be written.
+        if (b.quizWeek != null) setBundleWeek(String(b.quizWeek));
+      } else {
+        setBundle(null);
+      }
     } catch { /* ignore */ }
   }, [planId]);
 
@@ -2565,20 +2574,25 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   async function generateBundle() {
     const n = Math.max(5, Math.min(100, Number(count) || 40));
     const t = toughness.trim() === "" ? undefined : Math.max(1, Math.min(5, Number(toughness)));
+    const w =
+      bundleWeek.trim() === ""
+        ? undefined
+        : Math.max(1, Math.min(999, Number(bundleWeek)));
     setBundleBusy(true);
-    onToast(`Generating Quiz Module bundle (${n} Qs + title + tie-breaker)… (~30-90s)`);
+    onToast(`Generating Quiz Module bundle (${n} Qs · week ${w ?? "auto"}) … (~30-90s)`);
     const token = await fetchToken();
     if (!token) { onToast("⚠ Not signed in"); setBundleBusy(false); return; }
     try {
       const r = await api<QuizBundleResp>(
         token, `/plans/${planId}/quiz/bundle/generate`,
-        { method: "POST", body: JSON.stringify({ count: n, toughness: t }) },
+        { method: "POST", body: JSON.stringify({ count: n, toughness: t, quizWeek: w }) },
       );
       setBundle(r);
       setToughness(String(r.toughness));
+      if (r.quizWeek != null) setBundleWeek(String(r.quizWeek));
       onToast(
-        `✓ Bundle: ${r.questionCount} Qs + tie-breaker · toughness ${r.toughness}/5 · ` +
-        `$${r.costUsd.toFixed(4)}`,
+        `✓ Bundle: ${r.questionCount} Qs + tie-breaker · week ${r.quizWeek ?? "?"} · ` +
+        `toughness ${r.toughness}/5 · $${r.costUsd.toFixed(4)}`,
       );
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
@@ -2590,8 +2604,11 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
     if (!token) { onToast("⚠ Not signed in"); return; }
     onToast("Downloading bundle CSV…");
     try {
+      // Honour the UI week field as a download-time override too — so users
+      // can re-download for a different quiz_week without regenerating.
+      const wQ = bundleWeek.trim() === "" ? "" : `?quizWeek=${Math.max(1, Math.min(999, Number(bundleWeek)))}`;
       const res = await fetch(
-        `/api/v1/admin/content-studio/plans/${planId}/quiz/bundle/csv`,
+        `/api/v1/admin/content-studio/plans/${planId}/quiz/bundle/csv${wQ}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
       if (!res.ok) {
@@ -2772,6 +2789,16 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
+              quiz week #
+              <input
+                type="number" min={1} max={999}
+                value={bundleWeek}
+                onChange={(e) => setBundleWeek(e.target.value)}
+                placeholder="auto"
+                className="w-16 bg-[#0F1330] border border-white/10 rounded px-2 py-1 text-[12px] text-white outline-none focus:border-[#00D4FF]/40"
+              />
+            </label>
             <PrimaryBtn
               label={
                 bundleBusy
@@ -2792,6 +2819,9 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
                 />
               </>
             )}
+            <span className="text-[9px] text-[#6B7799]">
+              week # is written into every CSV row · change before regenerating to target a different week
+            </span>
           </div>
 
           {bundle && bundleOpen && (

@@ -209,7 +209,7 @@ export class QuizBundleAgent {
 
   /** Generate (or regenerate) the bundle for a plan. Overwrites any existing. */
   async generate(planId: string, opts: {
-    count?: number; toughness?: number;
+    count?: number; toughness?: number; quizWeek?: number;
   } = {}): Promise<QuizBundle> {
     const plan = await this.planRepo.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Plan not found');
@@ -238,6 +238,16 @@ export class QuizBundleAgent {
     );
     const dist = splitByToughness(count, toughness);
 
+    // Quiz-week is what appears in every CSV row's `quiz_week` column.
+    // Explicit opt wins; otherwise fall back to the plan's series week, then 1.
+    const quizWeek = Math.max(
+      1, Math.min(999,
+        opts.quizWeek != null
+          ? Math.round(opts.quizWeek)
+          : (plan.seriesWeekNumber ?? 1),
+      ),
+    );
+
     const memoryBlock = this.memoryService.format(memories);
     const lessonsBlock = lessons
       .map(
@@ -254,7 +264,7 @@ export class QuizBundleAgent {
       `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
       `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
       `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n` +
-      `WEEK NUMBER: ${plan.seriesWeekNumber ?? '(standalone)'}\n\n` +
+      `WEEK NUMBER: ${quizWeek}\n\n` +
       `LESSONS:\n${lessonsBlock}\n\n` +
       `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n`;
 
@@ -358,6 +368,7 @@ export class QuizBundleAgent {
         tieBreakerUnit: tbUnit,
         questionCount: rawQs.length,
         toughness,
+        quizWeek,
         generatorModel: gen.model,
         costUsd: String(gen.costUsd),
       }),

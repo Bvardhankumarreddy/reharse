@@ -51,6 +51,14 @@ export class QuizBundle {
   @Column({ type: 'int' })
   toughness: number;
 
+  /**
+   * The number written into every row's `quiz_week` column when this bundle
+   * is downloaded as CSV. Picked in the UI before generate; the download
+   * endpoint still honours ?quizWeek=N for ad-hoc overrides.
+   */
+  @Column({ type: 'int', nullable: true, name: 'quiz_week' })
+  quizWeek: number | null;
+
   @Column({ type: 'varchar', length: 80, nullable: true, name: 'generator_model' })
   generatorModel: string | null;
 

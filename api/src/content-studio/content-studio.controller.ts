@@ -369,11 +369,12 @@ export class ContentStudioController {
   @Post('plans/:id/quiz/bundle/generate')
   async generateQuizBundle(
     @Param('id') id: string,
-    @Body() body: { count?: number; toughness?: number },
+    @Body() body: { count?: number; toughness?: number; quizWeek?: number },
   ) {
     const bundle = await this.quizBundle.generate(id, {
       count: body?.count,
       toughness: body?.toughness,
+      quizWeek: body?.quizWeek,
     });
     return this.shapeBundle(bundle);
   }
@@ -400,7 +401,9 @@ export class ContentStudioController {
     if (!bundle) throw new NotFoundException('No bundle generated yet');
 
     const plan = await this.planRepo.findOne({ where: { id } });
-    const defaultWeek = plan?.seriesWeekNumber ?? 1;
+    // Precedence: ?quizWeek= override > bundle's stored week > plan series week > 1.
+    const defaultWeek =
+      bundle.quizWeek ?? plan?.seriesWeekNumber ?? 1;
     const quizWeek = Math.max(
       1, Math.min(999, Number(quizWeekQ) || defaultWeek),
     );
@@ -435,6 +438,7 @@ export class ContentStudioController {
       },
       questionCount: bundle.questionCount,
       toughness: bundle.toughness,
+      quizWeek: bundle.quizWeek,
       generatorModel: bundle.generatorModel,
       costUsd: Number(bundle.costUsd),
       createdAt: bundle.createdAt,

@@ -218,6 +218,7 @@ export interface QuizBundleResp {
   };
   questionCount: number;
   toughness: number;
+  quizWeek: number | null;
   generatorModel: string | null;
   costUsd: number;
   createdAt: string;
