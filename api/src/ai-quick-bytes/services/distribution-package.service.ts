@@ -52,6 +52,59 @@ Respond with STRICT JSON ONLY:
 }
 `.trim();
 
+const DISTRIBUTION_SYSTEM_PROMPT_TE = `
+You generate distribution posts in TELUGU for AetherStackAI's "AI Quick
+Bytes" series. Host: Vardhan. Each post promotes ONE Telugu Short.
+
+BRAND: Channel "AetherStackAI", series "AI Quick Bytes" (rojuvāri AI
+insights), host Vardhan.
+
+LANGUAGE — use natural Hyderabad-style Telugu code-mixing:
+- Telugu script (తెలుగు) for descriptive verbs / emotion / connectors
+- Keep tech terms in English: ChatGPT, GPT-4, Claude, OpenAI, Anthropic,
+  AI, ML, API, LLM, OAuth, IDE, SaaS
+- Keep numbers / dates / brand names in English
+- Energetic, conversational, NOT formal news-anchor Telugu
+- Code-mix examples:
+  ✅ "ChatGPT చాలా smart అయింది"
+  ✅ "ఇది ఎందుకు important అంటే..."
+  ❌ "ఇది ఎందుకు ముఖ్యమైనది అంటే..."  (over-translated)
+
+URL PLACEHOLDERS — use these EXACT tokens, never real URLs:
+{{YOUTUBE_URL}} {{INSTAGRAM_URL}} {{LINKEDIN_URL}} {{WHATSAPP_CHANNEL}}
+{{REHEARSE_URL}} {{SOURCE_URL}} {{SOURCE_NAME}}
+
+PLATFORM RULES (same structure as English, Telugu-style copy):
+- YouTube: title ≤60 chars ending "#Shorts" (title may be code-mixed
+  Telugu+English); description with hook + "Read more: {{SOURCE_NAME}} ->
+  {{SOURCE_URL}}" + follow links + 5-8 hashtags. Hashtags MAY be in
+  English (#AI #Telugu #AIShorts etc.) — better discoverability.
+- Instagram: punchy Telugu hook, 2-3 lines code-mixed, CTA, "Source:
+  {{SOURCE_NAME}}", subscribe with {{YOUTUBE_URL}}; 12-15 hashtags.
+  Include Telugu-audience hashtags (#TeluguAI #TeluguTech #Hyderabad).
+- LinkedIn: 100-200 words, professional code-mixed Telugu, max 2-3
+  emojis; insight + ఎందుకు important + question + "Follow Vardhan for
+  daily AI insights in Telugu" + source + subscribe; 4-6 hashtags.
+- WhatsApp channel: 60-100 words, WhatsApp *bold*, emoji opener, source,
+  "Watch: {{YOUTUBE_URL}}", signature "— Vardhan".
+- WhatsApp status: ≤50 words, 1 emoji, 1-line hook in Telugu, "Watch ->
+  {{YOUTUBE_URL}}".
+
+QUALITY: match the Telugu Short's energy; preserve tech names; each
+platform reads natively; always credit the source.
+
+Respond with STRICT JSON ONLY (same shape as the English prompt):
+{
+  "youtube": { "title": "...", "description": "...", "tags": ["...", "..."] },
+  "instagram": { "caption": "...", "hashtags": ["#..."], "full_text": "..." },
+  "linkedin": { "body": "...", "hashtags": ["#..."], "full_text": "..." },
+  "whatsapp_channel": { "full_text": "..." },
+  "whatsapp_status": { "full_text": "..." }
+}
+`.trim();
+
+export type DistributionLanguage = 'en' | 'te';
+
 @Injectable()
 export class DistributionPackageService {
   private readonly logger = new Logger(DistributionPackageService.name);
@@ -65,15 +118,20 @@ export class DistributionPackageService {
   async generatePackage(
     script: ShortScript,
     newsItem: NewsItem,
+    language: DistributionLanguage = 'en',
   ): Promise<{ package: DistributionPackage; cost_usd: number }> {
+    if (language === 'te' && !script.teluguFullScript) {
+      throw new Error('Cannot generate Telugu distribution: script has no Telugu translation');
+    }
+
     // Learning-loop block (empty until AqbMemory has distribution patterns).
     const memoryBlock = this.memory.format(await this.memory.relevantFor('distribution', 6));
     const userPrompt = memoryBlock
-      ? `${this.buildUserPrompt(script, newsItem)}\n\n${memoryBlock}`
-      : this.buildUserPrompt(script, newsItem);
+      ? `${this.buildUserPrompt(script, newsItem, language)}\n\n${memoryBlock}`
+      : this.buildUserPrompt(script, newsItem, language);
 
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
-      system: DISTRIBUTION_SYSTEM_PROMPT,
+      system: language === 'te' ? DISTRIBUTION_SYSTEM_PROMPT_TE : DISTRIBUTION_SYSTEM_PROMPT,
       user: userPrompt,
       temperature: 0.7,
       maxTokens: 3000,
@@ -99,7 +157,7 @@ export class DistributionPackageService {
     };
 
     this.logger.log(
-      `Distribution package for script ${script.id} (cost $${cost.toFixed(4)})`,
+      `Distribution package (${language}) for script ${script.id} (cost $${cost.toFixed(4)})`,
     );
     return { package: distributionPackage, cost_usd: cost };
   }
@@ -134,13 +192,17 @@ export class DistributionPackageService {
     return value;
   }
 
-  private buildUserPrompt(script: ShortScript, item: NewsItem): string {
-    return `GENERATE DISTRIBUTION PACKAGE FOR THIS SHORT
+  private buildUserPrompt(
+    script: ShortScript, item: NewsItem, language: DistributionLanguage,
+  ): string {
+    const hook = language === 'te' ? (script.teluguHook ?? script.hook) : script.hook;
+    const full = language === 'te' ? (script.teluguFullScript ?? script.fullScript) : script.fullScript;
+    return `GENERATE ${language === 'te' ? 'TELUGU ' : ''}DISTRIBUTION PACKAGE FOR THIS SHORT
 
 SCRIPT
 Day: ${script.dayNumber ?? 'n/a'} | Avatar: ${script.avatarId ?? 'vardhan'} | Duration: ${script.durationEstimateSeconds ?? '?'}s
-Hook: ${script.hook}
-Full script: ${script.fullScript}
+Hook: ${hook}
+Full script: ${full}
 
 SOURCE NEWS
 Title: ${item.title}

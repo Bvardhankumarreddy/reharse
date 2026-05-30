@@ -272,7 +272,53 @@ export class ApprovalController {
       teluguHeygenVideoId: script.teluguHeygenVideoId,
       teluguHeygenVideoUrl: script.teluguHeygenVideoUrl,
       teluguHeygenStatus: script.teluguHeygenStatus,
+      teluguDistributionPackage: script.teluguDistributionPackage,
     };
+  }
+
+  @Post(':id/telugu/distribution/regenerate')
+  async regenerateTeluguDistribution(@Param('id') id: string) {
+    const script = await this.scriptRepo.findOne({
+      where: { id },
+      relations: ['newsItem', 'newsItem.source'],
+    });
+    if (!script) throw new NotFoundException('Script not found');
+    if (!script.newsItem) {
+      throw new BadRequestException('Script has no linked news item');
+    }
+    if (!script.teluguFullScript) {
+      throw new BadRequestException(
+        'No Telugu translation on script — run /telugu/regenerate-translation first',
+      );
+    }
+    const { package: pkg, cost_usd } = await this.distribution.generatePackage(
+      script, script.newsItem, 'te',
+    );
+    script.teluguDistributionPackage = pkg as unknown as Record<string, unknown>;
+    script.distributionCostUsd =
+      Number(script.distributionCostUsd ?? 0) + cost_usd;
+    script.distributionGeneratedAt = new Date();
+    await this.scriptRepo.save(script);
+    return { success: true, package: pkg, costAdded: cost_usd };
+  }
+
+  @Patch(':id/telugu/distribution/:platform')
+  async updateTeluguPlatformPost(
+    @Param('id') id: string,
+    @Param('platform') platform: string,
+    @Body() updates: Record<string, unknown>,
+  ) {
+    const allowed = ['youtube', 'instagram', 'linkedin', 'whatsapp_channel', 'whatsapp_status'];
+    if (!allowed.includes(platform)) {
+      throw new BadRequestException(`platform must be one of ${allowed.join(', ')}`);
+    }
+    const script = await this.scriptRepo.findOne({ where: { id } });
+    if (!script) throw new NotFoundException('Script not found');
+    const pkg = (script.teluguDistributionPackage ?? {}) as Record<string, unknown>;
+    pkg[platform] = { ...((pkg[platform] as Record<string, unknown>) ?? {}), ...updates };
+    script.teluguDistributionPackage = pkg;
+    await this.scriptRepo.save(script);
+    return { success: true, updated: platform };
   }
 
   @Post(':id/telugu/regenerate-translation')
