@@ -23,16 +23,22 @@ export default registerAs('aiQuickBytes', () => ({
 
   // Telugu auto-generation knobs. The Telugu transcript ALWAYS auto-runs
   // when OpenAI is configured (cheap, useful for manual recording). The
-  // heavier outputs are gated by AQB_TELUGU_FULL_TRACK (default off):
-  //   - autoVideo:        on approve, queue the Telugu HeyGen video too
-  //   - autoDistribution: after translation, also LLM-generate the 5
-  //                       Telugu social posts
-  // Both manual endpoints still work regardless of the flag.
+  // heavier outputs are independently gated:
+  //   - AQB_TELUGU_AUTO_VIDEO         on approve, queue Telugu HeyGen video
+  //   - AQB_TELUGU_AUTO_DISTRIBUTION  after translation, LLM-generate the
+  //                                   5 Telugu social posts
+  //   - AQB_TELUGU_FULL_TRACK         legacy umbrella — turns BOTH on when
+  //                                   true; specific flags above win.
+  // Manual endpoints still work regardless of the flags.
   telugu: {
     autoVideo:
-      (process.env.AQB_TELUGU_FULL_TRACK ?? 'false').toLowerCase() === 'true',
+      ((process.env.AQB_TELUGU_AUTO_VIDEO
+        ?? process.env.AQB_TELUGU_FULL_TRACK
+        ?? 'false') as string).toLowerCase() === 'true',
     autoDistribution:
-      (process.env.AQB_TELUGU_FULL_TRACK ?? 'false').toLowerCase() === 'true',
+      ((process.env.AQB_TELUGU_AUTO_DISTRIBUTION
+        ?? process.env.AQB_TELUGU_FULL_TRACK
+        ?? 'false') as string).toLowerCase() === 'true',
   },
 
   heygen: {
