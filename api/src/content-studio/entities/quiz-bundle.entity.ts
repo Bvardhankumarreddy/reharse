@@ -15,13 +15,13 @@ export class QuizBundle {
   id: string;
 
   @Index()
-  @Column({ type: 'uuid' })
+  @Column({ type: 'uuid', name: 'plan_id' })
   planId: string;
 
-  @Column({ type: 'uuid' })
+  @Column({ type: 'uuid', name: 'brand_id' })
   brandId: string;
 
-  @Column({ type: 'date' })
+  @Column({ type: 'date', name: 'week_of' })
   weekOf: string;
 
   // LLM-authored metadata — copied straight into the admin Quiz Module's

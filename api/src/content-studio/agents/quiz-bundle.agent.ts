@@ -13,42 +13,22 @@ import {
 import { ModelRouterService } from '../services/model-router.service';
 import { BrandMemoryService } from '../services/brand-memory.service';
 
-const BUNDLE_SYSTEM = `
-You generate a complete weekly quiz BUNDLE for upload into an LMS-style Quiz
-Module. Quality matters — these questions are graded and shown to learners.
+// Two-call generation:
+//   1) METADATA  — title + description + numeric tie-breaker. Small output.
+//   2) QUESTIONS — just the N question objects. Big output (up to 100 Qs).
+// Splitting prevents JSON truncation when the LLM's max-output budget can't
+// fit both the header and a long question list in a single response.
 
-The bundle has FOUR sections:
+const META_SYSTEM = `
+You write the HEADER of a weekly Quiz Module: title + description + tie-breaker.
 
-1) TITLE — short, brandable headline for the quiz. ≤ 80 chars.
-2) DESCRIPTION — 3-5 lines, plain prose: what the quiz covers (lesson titles),
-   how many questions / points / minutes, the pass mark, what the tie-breaker
-   does. No emoji except where natural.
-3) TIE_BREAKER — ONE numeric question. The answer must be a SPECIFIC verifiable
-   fact pulled from the lessons (a number, a year, a count, a dollar amount).
-   Avoid "estimate"-style questions; tolerance should be 0 so closest-guess
-   wins. Mark it as the bundle's mandatory tie-breaker.
-4) QUESTIONS — EXACTLY the requested count, with the requested difficulty split.
-
-For each question in (4), choose the BEST type for the concept:
-  • "mcq"          → 4 distinct options, one correct (letter A-D).
-  • "true_false"   → option_a "True", option_b "False", correctAnswer "A" or "B".
-  • "multi_select" → 4 options, 2-3 correct (e.g. correctAnswers "A,C,D").
-                     Use SPARINGLY (≤ 15% of questions).
-  • "numeric"      → no options; a specific verifiable number + sensible
-                     tolerance + unit. Use SPARINGLY (≤ 10% of questions).
-
-Rules for ALL questions:
-- Test understanding (apply / distinguish / reason), not trivia.
-- Use real names / tools / numbers from the lessons when natural.
-- Distractors must be plausible but verifiably wrong.
-- NO "all of the above" / "none of the above".
-- NO trick wording or double negatives.
-- Acronyms must be expanded on first use.
-
-Points per question (the Quiz Module scores by summing these):
-  easy: 1, medium: 2, hard: 3.
-
-Each question carries a "category" — use the lesson title it belongs to.
+TITLE: short, brandable, ≤ 80 chars.
+DESCRIPTION: 3-5 lines, plain prose. List what the quiz covers (lesson
+titles), how many questions / points / minutes, the pass mark, what the
+tie-breaker does.
+TIE_BREAKER: ONE numeric question whose answer is a SPECIFIC verifiable fact
+from the lessons (a number, a year, a count, a dollar amount). Tolerance
+should be 0 so closest-guess wins. No "estimate" prompts.
 
 OUTPUT STRICT JSON ONLY:
 {
@@ -59,29 +39,56 @@ OUTPUT STRICT JSON ONLY:
     "answer": <number>,
     "tolerance": <number>,
     "unit": "…"
-  },
+  }
+}
+Output the JSON object only.
+`.trim();
+
+const QUESTIONS_SYSTEM = `
+You write quiz questions for an LMS-style Quiz Module. Quality matters —
+these are graded and shown to learners.
+
+Per question, choose the BEST type for the concept:
+  • "mcq"          → 4 distinct options, one correct (letter A-D).
+  • "true_false"   → optionA "True", optionB "False", correctAnswer "A" or "B".
+  • "multi_select" → 4 options, 2-3 correct (e.g. correctAnswers "A,C,D").
+                     Use SPARINGLY (≤ 15% of questions).
+  • "numeric"      → no options; a specific verifiable number + tolerance + unit.
+                     Use SPARINGLY (≤ 10% of questions).
+
+Rules for ALL questions:
+- Test understanding (apply / distinguish / reason), not trivia.
+- Use real names / tools / numbers from the lessons when natural.
+- Distractors plausible but verifiably wrong.
+- NO "all of the above" / "none of the above".
+- NO trick wording or double negatives.
+- Keep each question_text under ~220 chars.
+- Omit fields that don't apply (e.g. don't include optionA on a numeric).
+
+Points by difficulty: easy=1, medium=2, hard=3.
+"category" = the lesson title the question belongs to.
+
+OUTPUT STRICT JSON ONLY:
+{
   "questions": [
     {
       "questionType": "mcq" | "true_false" | "multi_select" | "numeric",
       "questionText": "…",
-      "optionA": "…" | null,
-      "optionB": "…" | null,
-      "optionC": "…" | null,
-      "optionD": "…" | null,
-      "correctAnswer": "A" | "B" | "C" | "D" | null,
-      "correctAnswers": "A,B,C" | null,
-      "correctNumber": <number> | null,
-      "numericTolerance": <number> | null,
-      "numericUnit": "…" | null,
+      "optionA": "…", "optionB": "…", "optionC": "…", "optionD": "…",
+      "correctAnswer": "A" | "B" | "C" | "D",
+      "correctAnswers": "A,B,C",
+      "correctNumber": <number>,
+      "numericTolerance": <number>,
+      "numericUnit": "…",
       "points": <int>,
       "difficulty": "easy" | "medium" | "hard",
       "category": "…",
       "isMandatory": false
     }
-    // … exactly N objects in this shape
   ]
 }
-Honour the requested difficulty split EXACTLY. Output the JSON object only.
+Generate EXACTLY the requested count and difficulty split. Output the JSON
+object only — no prose, no markdown fences.
 `.trim();
 
 const TOUGHNESS_MIN = 1;
@@ -123,10 +130,12 @@ interface LlmQuestion {
   category?: unknown;
   isMandatory?: unknown;
 }
-interface LlmBundle {
+interface LlmMetadata {
   title?: unknown;
   description?: unknown;
   tieBreaker?: LlmTieBreaker;
+}
+interface LlmQuestions {
   questions?: LlmQuestion[];
 }
 
@@ -241,45 +250,41 @@ export class QuizBundleAgent {
       )
       .join('\n\n');
 
-    // ~210 output tokens/Q is roomy enough for any of the four shapes + the
-    // header block (title + description + tie-breaker). Single call.
-    const maxTokens = Math.min(16000, Math.max(3000, count * 210 + 800));
+    const sharedContext =
+      `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
+      `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
+      `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n` +
+      `WEEK NUMBER: ${plan.seriesWeekNumber ?? '(standalone)'}\n\n` +
+      `LESSONS:\n${lessonsBlock}\n\n` +
+      `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n`;
 
-    const gen = await this.router.run({
+    // ── Call 1 — METADATA (title + description + tie-breaker) ────────────
+    const meta = await this.router.run({
       task: 'quiz',
       agentType: 'quiz',
       planId,
       modelOverride: brand.modelOverrides?.quiz,
       jsonOutput: true,
-      maxTokens,
+      maxTokens: 2000,
       temperature: 0.7,
-      system: BUNDLE_SYSTEM,
+      system: META_SYSTEM,
       user:
-        `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
-        `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
-        `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n` +
-        `WEEK NUMBER (for title): ${plan.seriesWeekNumber ?? '(standalone)'}\n\n` +
-        `LESSONS:\n${lessonsBlock}\n\n` +
-        `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
-        `TOUGHNESS LEVEL: ${toughness}/5 — ` +
-        `${toughness >= 4 ? 'expert-grade, multi-step reasoning and edge cases' : toughness >= 2 ? 'apply-and-distinguish, beyond recall' : 'foundational understanding'}.\n` +
-        `TOTAL QUESTIONS: ${count}. ` +
-        `Difficulty split: ${dist.easy} easy / ${dist.medium} medium / ${dist.hard} hard. ` +
-        `Points by difficulty: easy=1, medium=2, hard=3. ` +
-        `Use multi_select for at most ${Math.max(1, Math.floor(count * 0.15))} questions; ` +
-        `numeric for at most ${Math.max(1, Math.floor(count * 0.10))} questions. ` +
-        `The tie-breaker is separate from those ${count} questions — do not count it. ` +
+        sharedContext +
+        `The full quiz will have ${count} questions worth ` +
+        `${dist.easy + dist.medium * 2 + dist.hard * 3} points total ` +
+        `(difficulty split: ${dist.easy} easy / ${dist.medium} medium / ` +
+        `${dist.hard} hard). Pass mark 60%. ` +
         `Output the JSON object only.`,
     });
 
-    const parsed = JSON.parse(gen.text || '{}') as LlmBundle;
-    const title = asString(parsed.title, 200).trim();
-    const description = asString(parsed.description, 2000).trim();
+    const parsedMeta = JSON.parse(meta.text || '{}') as LlmMetadata;
+    const title = asString(parsedMeta.title, 200).trim();
+    const description = asString(parsedMeta.description, 2000).trim();
     if (!title || !description) {
       throw new Error('LLM returned no title or description');
     }
 
-    const tb = parsed.tieBreaker ?? {};
+    const tb = parsedMeta.tieBreaker ?? {};
     const tbQuestion = asString(tb.question, 1000).trim();
     const tbAnswer = asNumber(tb.answer);
     if (!tbQuestion || tbAnswer === null) {
@@ -288,10 +293,54 @@ export class QuizBundleAgent {
     const tbTolerance = asNumber(tb.tolerance) ?? 0;
     const tbUnit = asStringOrNull(tb.unit, 60);
 
-    const rawQs = Array.isArray(parsed.questions) ? parsed.questions : [];
+    // ── Call 2 — QUESTIONS (just the list) ───────────────────────────────
+    // ~350 tokens/Q covers any shape including the optional fields. Cap at
+    // 32k since Claude/Gemini support larger outputs than gpt-4o (16k).
+    const questionsMaxTokens = Math.min(32000, Math.max(4000, count * 350 + 1500));
+
+    const qs = await this.router.run({
+      task: 'quiz',
+      agentType: 'quiz',
+      planId,
+      modelOverride: brand.modelOverrides?.quiz,
+      jsonOutput: true,
+      maxTokens: questionsMaxTokens,
+      temperature: 0.7,
+      system: QUESTIONS_SYSTEM,
+      user:
+        sharedContext +
+        `TOUGHNESS LEVEL: ${toughness}/5 — ` +
+        `${toughness >= 4 ? 'expert-grade, multi-step reasoning and edge cases' : toughness >= 2 ? 'apply-and-distinguish, beyond recall' : 'foundational understanding'}.\n` +
+        `TOTAL QUESTIONS: EXACTLY ${count}. ` +
+        `Difficulty split: ${dist.easy} easy / ${dist.medium} medium / ${dist.hard} hard. ` +
+        `Use multi_select for at most ${Math.max(1, Math.floor(count * 0.15))} questions; ` +
+        `numeric for at most ${Math.max(1, Math.floor(count * 0.10))} questions. ` +
+        `Output the JSON object only.`,
+    });
+
+    let parsedQs: LlmQuestions;
+    try {
+      parsedQs = JSON.parse(qs.text || '{}') as LlmQuestions;
+    } catch (e) {
+      this.logger.error(
+        `Bundle question JSON parse failed (model=${qs.model}, ` +
+        `len=${qs.text?.length ?? 0}): ${(e as Error).message}`,
+      );
+      throw new Error(
+        `LLM returned unparseable JSON for ${count} questions ` +
+        `(likely token-budget truncation; try a smaller count).`,
+      );
+    }
+    const rawQs = Array.isArray(parsedQs.questions) ? parsedQs.questions : [];
     if (rawQs.length === 0) {
       throw new Error('LLM returned no bundle questions');
     }
+
+    // Combine costs for the plan ledger + logger.
+    const gen = {
+      model: `${meta.model}+${qs.model}`,
+      costUsd: meta.costUsd + qs.costUsd,
+    };
 
     // Replace any prior bundle for this plan.
     await this.bundleRepo.delete({ planId });
