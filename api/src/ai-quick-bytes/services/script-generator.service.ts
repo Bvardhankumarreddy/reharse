@@ -212,21 +212,26 @@ export class ScriptGeneratorService {
         script.teluguTranslatedAt = new Date();
         await this.scriptRepo.save(script);
 
-        // Telugu distribution package — only attempt when translation
-        // produced a Telugu script. Non-fatal: a Telugu post failure
-        // doesn't block anything else.
-        try {
-          const { package: tePkg, cost_usd: teDistCost } =
-            await this.distribution.generatePackage(script, item, 'te');
-          script.teluguDistributionPackage =
-            tePkg as unknown as Record<string, unknown>;
-          script.distributionCostUsd =
-            Number(script.distributionCostUsd ?? 0) + teDistCost;
-          await this.scriptRepo.save(script);
-        } catch (e) {
-          this.logger.error(
-            `Telugu distribution package failed for ${script.id}: ${(e as Error).message}`,
-          );
+        // Telugu distribution package — only when AQB_TELUGU_FULL_TRACK is
+        // on. Default is OFF so the host only gets the translated script
+        // (recorded manually); the 5 Telugu social posts are an opt-in
+        // extra. Manual regen endpoint still works either way.
+        const autoTeluguDist =
+          this.config.get<boolean>('aiQuickBytes.telugu.autoDistribution') ?? false;
+        if (autoTeluguDist) {
+          try {
+            const { package: tePkg, cost_usd: teDistCost } =
+              await this.distribution.generatePackage(script, item, 'te');
+            script.teluguDistributionPackage =
+              tePkg as unknown as Record<string, unknown>;
+            script.distributionCostUsd =
+              Number(script.distributionCostUsd ?? 0) + teDistCost;
+            await this.scriptRepo.save(script);
+          } catch (e) {
+            this.logger.error(
+              `Telugu distribution package failed for ${script.id}: ${(e as Error).message}`,
+            );
+          }
         }
       } catch (e) {
         this.logger.error(`Telugu translation failed for ${script.id}: ${(e as Error).message}`);

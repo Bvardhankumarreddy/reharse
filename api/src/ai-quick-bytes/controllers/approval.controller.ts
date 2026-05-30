@@ -116,11 +116,15 @@ export class ApprovalController {
       callbackUrl,
     });
 
-    // ── Telugu video (parallel; skipped if no Telugu voice or no script) ─
+    // ── Telugu video (parallel; skipped unless AQB_TELUGU_FULL_TRACK on) ─
     let teluguVideoId: string | null = null;
     let teluguError: string | null = null;
+    const autoTeluguVideo =
+      this.config.get<boolean>('aiQuickBytes.telugu.autoVideo') ?? false;
     const teluguVoiceId = this.heygen.resolveTeluguVoiceId(script.avatarId);
-    if (script.teluguFullScript && teluguVoiceId) {
+    if (!autoTeluguVideo) {
+      teluguError = 'AQB_TELUGU_FULL_TRACK=false — host records Telugu manually';
+    } else if (script.teluguFullScript && teluguVoiceId) {
       try {
         const tg = await this.heygen.generateVideo({
           avatarId,
