@@ -302,6 +302,23 @@ export class ApprovalController {
     return { success: true, package: pkg, costAdded: cost_usd };
   }
 
+  /**
+   * Mark the Telugu YouTube video as published. Parallel to the English
+   * mark-published flow — uploading is still manual per spec; this just
+   * records the URL on teluguYoutubeUrl and writes a publishing log entry.
+   */
+  @Post(':id/telugu/mark-published')
+  async markTeluguPublished(
+    @Param('id') id: string,
+    @Body() body: { url: string },
+  ) {
+    if (!body?.url) throw new BadRequestException('url is required');
+    const log = await this.publishing.markAsPublished(
+      id, 'youtube' as PublishPlatform, body.url, 'te',
+    );
+    return { success: true, logId: log.id };
+  }
+
   @Patch(':id/telugu/distribution/:platform')
   async updateTeluguPlatformPost(
     @Param('id') id: string,

@@ -55,8 +55,9 @@ export type ThumbnailStyle =
 
 export interface ThumbnailVariation {
   style: ThumbnailStyle;
-  headline: string;          // ≤6 words, ALL CAPS overlay text
-  prompt: string;            // clean 100-150 word ChatGPT/DALL-E prompt
+  headline: string;          // ≤6 words, ALL CAPS overlay text (English)
+  teluguHeadline?: string;   // ≤6 words Telugu overlay (for the Telugu video)
+  prompt: string;            // clean 100-150 word ChatGPT/DALL-E prompt (English — DALL-E renders English better)
   reasoning: string;         // 1 sentence: why this style fits
   estimatedCtrScore: number; // 1-100
 }

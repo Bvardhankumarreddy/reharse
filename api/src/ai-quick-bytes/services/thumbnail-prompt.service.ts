@@ -103,11 +103,21 @@ AVATAR USAGE (match script's avatar):
    - Still vivid and self-contained — 60-120 word prompt.
 
 ═══════════════════════════════════════
-HEADLINE RULES
+HEADLINE RULES (English + Telugu)
 ═══════════════════════════════════════
-- MAX 6 words, ALL CAPS, punchy, curiosity-driven, no empty clickbait.
-✅ "AI JUST LEARNED THIS"  "CHATGPT IS LYING"  "BUILD AI IN 5 MIN"
-❌ "How OpenAI Just Released Claude Opus 4.7 With New Features"
+- ENGLISH headline: MAX 6 words, ALL CAPS, punchy, curiosity-driven.
+  ✅ "AI JUST LEARNED THIS"  "CHATGPT IS LYING"  "BUILD AI IN 5 MIN"
+  ❌ "How OpenAI Just Released Claude Opus 4.7 With New Features"
+- TELUGU headline: produced for the Telugu video thumbnail variant. Same
+  ≤6 words, ALL CAPS where Telugu allows. Hyderabad code-mix style — keep
+  tech terms in English. Examples:
+  ✅ "AI ఇప్పుడు LEARN చేసింది"  "ChatGPT అబద్ధం చెప్తోంది"
+  ✅ "5 MIN లో AI BUILD"
+  ✅ pure English "CHATGPT IS LYING" if no natural Telugu fit
+Important: the IMAGE PROMPT for DALL-E STAYS ENGLISH — DALL-E renders
+English overlay text more reliably. The Telugu headline is supplied as
+metadata so the host can manually swap the overlay when generating the
+Telugu thumbnail variant.
 
 ═══════════════════════════════════════
 EACH PROMPT STRUCTURE (FOLLOW EXACTLY)
@@ -125,10 +135,10 @@ FINAL CHECK per variation: max 3 elements? 60%+ negative space? message a
 OUTPUT STRICT JSON ONLY:
 {
   "variations": [
-    {"style":"shocked_reaction","headline":"<≤6 WORDS ALL CAPS>","prompt":"<clean 100-150 word prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>},
-    {"style":"bold_text","headline":"<≤6 WORDS ALL CAPS>","prompt":"<clean 100-150 word prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>},
-    {"style":"visual_metaphor","headline":"<≤6 WORDS ALL CAPS>","prompt":"<clean 100-150 word prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>},
-    {"style":"brand_signature","headline":"<≤6 WORDS ALL CAPS>","prompt":"<richer 60-120 word AetherStackAI signature prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>}
+    {"style":"shocked_reaction","headline":"<≤6 WORDS EN ALL CAPS>","headline_te":"<≤6 WORDS TE>","prompt":"<clean 100-150 word EN prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>},
+    {"style":"bold_text","headline":"<≤6 WORDS EN ALL CAPS>","headline_te":"<≤6 WORDS TE>","prompt":"<clean 100-150 word EN prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>},
+    {"style":"visual_metaphor","headline":"<≤6 WORDS EN ALL CAPS>","headline_te":"<≤6 WORDS TE>","prompt":"<clean 100-150 word EN prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>},
+    {"style":"brand_signature","headline":"<≤6 WORDS EN ALL CAPS>","headline_te":"<≤6 WORDS TE>","prompt":"<richer 60-120 word EN signature prompt>","reasoning":"<1 sentence>","estimated_ctr_score":<1-100>}
   ]
 }
 `.trim();
@@ -169,7 +179,8 @@ export class ThumbnailPromptService {
 
     const parsed = JSON.parse(raw || '{}') as {
       variations?: Array<{
-        style?: string; headline?: string; prompt?: string;
+        style?: string; headline?: string; headline_te?: string; teluguHeadline?: string;
+        prompt?: string;
         reasoning?: string; estimated_ctr_score?: number; estimatedCtrScore?: number;
       }>;
     };
@@ -187,7 +198,8 @@ export class ThumbnailPromptService {
    */
   private normalizeVariations(
     raw: Array<{
-      style?: string; headline?: string; prompt?: string;
+      style?: string; headline?: string; headline_te?: string; teluguHeadline?: string;
+      prompt?: string;
       reasoning?: string; estimated_ctr_score?: number; estimatedCtrScore?: number;
     }>,
     script: ShortScript,
@@ -200,11 +212,18 @@ export class ThumbnailPromptService {
     return THUMBNAIL_STYLES.map((style) => {
       const v = byStyle.get(style);
       const score = Number(v?.estimated_ctr_score ?? v?.estimatedCtrScore ?? 0);
+      // Telugu headline is kept as-is (case preserved — Telugu doesn't have
+      // ALL-CAPS), only trimmed and length-capped. Don't strip Telugu glyphs
+      // via sanitize() — that's English-only. Falls back to undefined when
+      // the LLM doesn't provide one (legacy callers / older prompts).
+      const teRaw = (v?.teluguHeadline ?? v?.headline_te ?? '').trim();
+      const teluguHeadline = teRaw ? teRaw.slice(0, 80) : undefined;
       return {
         style,
         headline: this.sanitize(
           (v?.headline ?? script.hook.slice(0, 50)).trim(),
         ).toUpperCase().slice(0, 60),
+        teluguHeadline,
         prompt: this.sanitize(v?.prompt?.trim() || ''),
         reasoning: this.sanitize(v?.reasoning?.trim() || ''),
         estimatedCtrScore: Number.isFinite(score)

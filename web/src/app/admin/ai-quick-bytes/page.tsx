@@ -8,6 +8,7 @@ import {
   fetchToken, api, STATUS_COLOR,
   type NewsItem, type ShortScript, type NewsSourceRow, type DailyStats,
   type DistributionResp, type ThumbnailPromptResp, type ThumbnailVariation,
+  type TeluguResp,
   type AqbMemoryRow, type AqbPostmortemRow,
 } from "./_helpers";
 
@@ -412,6 +413,9 @@ function ScriptCard({ script, onAct }: {
   const [dist, setDist] = useState<DistributionResp | null>(null);
   const [thumb, setThumb] = useState<ThumbnailPromptResp | null>(null);
   const [distBusy, setDistBusy] = useState(false);
+  const [showTelugu, setShowTelugu] = useState(false);
+  const [telugu, setTelugu] = useState<TeluguResp | null>(null);
+  const [teluguBusy, setTeluguBusy] = useState(false);
 
   async function loadDist() {
     setDistBusy(true);
@@ -446,6 +450,58 @@ function ScriptCard({ script, onAct }: {
       await loadDist();
     } finally {
       setDistBusy(false);
+    }
+  }
+
+  async function loadTelugu() {
+    setTeluguBusy(true);
+    const token = await fetchToken();
+    if (!token) { setTeluguBusy(false); return; }
+    try {
+      const t = await api<TeluguResp>(token, `/approval/${script.id}/telugu`);
+      setTelugu(t);
+    } finally { setTeluguBusy(false); }
+  }
+
+  function toggleTelugu() {
+    const next = !showTelugu;
+    setShowTelugu(next);
+    if (next && !telugu) void loadTelugu();
+  }
+
+  async function regenerateTeluguTranslation() {
+    setTeluguBusy(true);
+    const token = await fetchToken();
+    if (!token) { setTeluguBusy(false); return; }
+    try {
+      await api(token, `/approval/${script.id}/telugu/regenerate-translation`, { method: "POST" });
+      await loadTelugu();
+    } finally { setTeluguBusy(false); }
+  }
+
+  async function regenerateTeluguDistribution() {
+    setTeluguBusy(true);
+    const token = await fetchToken();
+    if (!token) { setTeluguBusy(false); return; }
+    try {
+      await api(token, `/approval/${script.id}/telugu/distribution/regenerate`, { method: "POST" });
+      await loadTelugu();
+    } finally { setTeluguBusy(false); }
+  }
+
+  async function markTeluguPublished() {
+    const url = prompt("Telugu YouTube URL?") ?? "";
+    if (!url) return;
+    const token = await fetchToken();
+    if (!token) return;
+    try {
+      await api(token, `/approval/${script.id}/telugu/mark-published`, {
+        method: "POST",
+        body: JSON.stringify({ url }),
+      });
+      await loadTelugu();
+    } catch (e) {
+      alert(`⚠ ${(e as Error).message}`);
     }
   }
 
@@ -554,6 +610,11 @@ function ScriptCard({ script, onAct }: {
               accent="#FFB020"
               onClick={toggleDist}
             />
+            <Btn
+              label={showTelugu ? "🇮🇳 Hide Telugu" : "🇮🇳 Telugu"}
+              accent="#FF6B6B"
+              onClick={toggleTelugu}
+            />
           </>
         )}
       </div>
@@ -626,6 +687,127 @@ function ScriptCard({ script, onAct }: {
                 </p>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {showTelugu && (
+        <div className="px-4 py-4 border-t border-white/5 space-y-4 bg-[#0F1330]">
+          {teluguBusy && !telugu ? (
+            <p className="text-[#6B7799] text-sm">Loading Telugu track…</p>
+          ) : telugu ? (
+            <>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-[#B8C5E0] text-xs font-semibold uppercase tracking-wide">
+                  🇮🇳 Telugu · Day {telugu.dayNumber ?? "—"}
+                  <span className="ml-2 text-[10px] font-normal text-[#6B7799]">
+                    HeyGen status: {telugu.teluguHeygenStatus}
+                    {telugu.teluguTranslationModel ? ` · model ${telugu.teluguTranslationModel}` : ""}
+                    {` · $${Number(telugu.teluguTranslationCostUsd ?? 0).toFixed(4)}`}
+                  </span>
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={regenerateTeluguTranslation}
+                    disabled={teluguBusy}
+                    className="px-3 py-1 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-50"
+                  >
+                    {teluguBusy ? "…" : "🔁 Regen translation"}
+                  </button>
+                  <button
+                    onClick={regenerateTeluguDistribution}
+                    disabled={teluguBusy || !telugu.teluguFullScript}
+                    className="px-3 py-1 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-50"
+                  >
+                    {teluguBusy ? "…" : "🔁 Regen Telugu posts"}
+                  </button>
+                  {script.status !== "rejected" && (
+                    <button
+                      onClick={markTeluguPublished}
+                      className="px-3 py-1 text-xs font-semibold rounded-lg border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10"
+                    >
+                      📲 Mark Telugu Published
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Transcript */}
+              {telugu.teluguFullScript ? (
+                <Block title="📝 Telugu transcript">
+                  <CopyField label="Hook" value={telugu.teluguHook ?? ""} multiline />
+                  <CopyField label="Full script" value={telugu.teluguFullScript} multiline />
+                </Block>
+              ) : (
+                <p className="text-[#6B7799] text-xs">
+                  No Telugu translation yet — click 🔁 Regen translation.
+                </p>
+              )}
+
+              {/* Video */}
+              <Block title="🎬 Telugu HeyGen video">
+                {telugu.teluguHeygenVideoUrl ? (
+                  <div className="space-y-1.5">
+                    <a
+                      href={telugu.teluguHeygenVideoUrl}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-[#00D4FF] text-sm hover:underline break-all"
+                    >
+                      {telugu.teluguHeygenVideoUrl}
+                    </a>
+                    <video
+                      src={telugu.teluguHeygenVideoUrl}
+                      controls
+                      className="w-full max-w-[260px] rounded-lg border border-white/5"
+                    />
+                  </div>
+                ) : telugu.teluguHeygenStatus === "skipped" ? (
+                  <p className="text-[#FFB020] text-xs">
+                    Skipped — no HEYGEN_VOICE_*_TE_ID set for this avatar.
+                    Translation is still saved; set the env var and re-approve.
+                  </p>
+                ) : telugu.teluguHeygenStatus === "failed" ? (
+                  <p className="text-[#FF5C7C] text-xs">
+                    HeyGen Telugu video failed. Re-approve to retry.
+                  </p>
+                ) : (
+                  <p className="text-[#6B7799] text-xs">
+                    {telugu.teluguHeygenStatus === "pending"
+                      ? "Not queued yet — approve the script to start English + Telugu videos in parallel."
+                      : `Queued (${telugu.teluguHeygenStatus}) — webhook will land here when HeyGen finishes.`}
+                  </p>
+                )}
+              </Block>
+
+              {/* Telugu distribution package — same 5 platforms */}
+              {telugu.teluguDistributionPackage ? (
+                <>
+                  <Block title="▶️ YouTube (Telugu)">
+                    <CopyField label="Title" value={telugu.teluguDistributionPackage.youtube?.title ?? ""} />
+                    <CopyField label="Description" value={telugu.teluguDistributionPackage.youtube?.description ?? ""} multiline />
+                    <CopyField label="Tags" value={(telugu.teluguDistributionPackage.youtube?.tags ?? []).join(", ")} />
+                  </Block>
+                  <Block title="📸 Instagram (Telugu)">
+                    <CopyField label="Caption + hashtags" value={telugu.teluguDistributionPackage.instagram?.full_text ?? ""} multiline />
+                  </Block>
+                  <Block title="💼 LinkedIn (Telugu)">
+                    <CopyField label="Post" value={telugu.teluguDistributionPackage.linkedin?.full_text ?? ""} multiline />
+                  </Block>
+                  <Block title="💬 WhatsApp Channel (Telugu)">
+                    <CopyField label="Message" value={telugu.teluguDistributionPackage.whatsapp_channel?.full_text ?? ""} multiline />
+                  </Block>
+                  <Block title="📱 WhatsApp Status (Telugu)">
+                    <CopyField label="Status" value={telugu.teluguDistributionPackage.whatsapp_status?.full_text ?? ""} multiline />
+                  </Block>
+                </>
+              ) : (
+                <p className="text-[#6B7799] text-xs">
+                  No Telugu distribution package yet — generates automatically after translation, or click 🔁 Regen Telugu posts.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-[#6B7799] text-sm">No Telugu data yet.</p>
           )}
         </div>
       )}
@@ -801,7 +983,10 @@ function ThumbnailVariations({ variations }: { variations: ThumbnailVariation[] 
             {v.reasoning && (
               <p className="text-[11px] text-[#6B7799] italic">{v.reasoning}</p>
             )}
-            <CopyField label="Headline (overlay)" value={v.headline} />
+            <CopyField label="Headline (overlay · EN)" value={v.headline} />
+            {v.teluguHeadline && (
+              <CopyField label="Headline (overlay · TE)" value={v.teluguHeadline} />
+            )}
             <CopyField label="Image prompt" value={v.prompt} multiline />
           </div>
         );

@@ -91,6 +91,7 @@ export interface AqbPostmortemRow {
 export interface ThumbnailVariation {
   style: ThumbnailStyle;
   headline: string;
+  teluguHeadline?: string;
   prompt: string;
   reasoning: string;
   estimatedCtrScore: number;
@@ -121,6 +122,23 @@ export interface DistributionResp {
   dayNumber: number | null;
   package: DistributionPackage | null;
   generatedAt: string | null;
+}
+
+// ── Telugu track (AQB v2) ───────────────────────────────────────────────
+export interface TeluguResp {
+  scriptId: string;
+  dayNumber: number | null;
+  teluguHook: string | null;
+  teluguBody: string | null;
+  teluguCta: string | null;
+  teluguFullScript: string | null;
+  teluguTranslationModel: string | null;
+  teluguTranslationCostUsd: number;
+  teluguTranslatedAt: string | null;
+  teluguHeygenVideoId: string | null;
+  teluguHeygenVideoUrl: string | null;
+  teluguHeygenStatus: string;
+  teluguDistributionPackage: DistributionPackage | null;
 }
 
 export interface DailyStats {

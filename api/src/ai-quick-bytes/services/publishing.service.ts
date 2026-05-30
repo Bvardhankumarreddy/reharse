@@ -20,12 +20,21 @@ export class PublishingService {
 
   /**
    * MVP: record a manual publish. No auto-upload to YouTube (spec rule).
-   * Marks the script published when platform is youtube.
+   *
+   * For English YouTube publishes (default): sets script.status='published'
+   * and script.youtubeUrl. This is the primary track that flips overall
+   * status.
+   *
+   * For Telugu YouTube publishes (language='te'): sets only the Telugu
+   * columns (teluguYoutubeUrl + extracted teluguYoutubeVideoId). Overall
+   * script.status is NOT touched — English remains the primary publish
+   * gate. A log entry is still written so daily-stats counts it.
    */
   async markAsPublished(
     scriptId: string,
     platform: PublishPlatform,
     url: string,
+    language: 'en' | 'te' = 'en',
   ): Promise<PublishingLog> {
     const script = await this.scriptRepo.findOne({ where: { id: scriptId } });
     if (!script) throw new Error(`Script ${scriptId} not found`);
@@ -38,13 +47,23 @@ export class PublishingService {
       publishedAt: new Date(),
     }));
 
-    if (platform === 'youtube') {
+    if (platform === 'youtube' && language === 'te') {
+      // Extract video id from the YouTube URL (watch/shorts/youtu.be).
+      const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
+      await this.scriptRepo.update(scriptId, {
+        teluguYoutubeUrl: url,
+        teluguYoutubeVideoId: m ? m[1] : null,
+      });
+      this.logger.log(`Marked ${scriptId} (telugu) published on youtube: ${url}`);
+    } else if (platform === 'youtube') {
       await this.scriptRepo.update(scriptId, {
         status: 'published',
         youtubeUrl: url,
       });
+      this.logger.log(`Marked ${scriptId} published on ${platform}: ${url}`);
+    } else {
+      this.logger.log(`Marked ${scriptId} published on ${platform}: ${url}`);
     }
-    this.logger.log(`Marked ${scriptId} published on ${platform}: ${url}`);
     return log;
   }
 
