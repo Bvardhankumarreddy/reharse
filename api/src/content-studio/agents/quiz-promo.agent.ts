@@ -12,6 +12,8 @@ import {
   QuizPromoPackage, QuizPromoPayload, QuizPromoLessonLink,
   QuizPromoSocialFooter,
 } from '../entities/quiz-promo-package.entity';
+const SITE_URL = `https://reharse.inferix.in`;
+const TAKE_QUIZ_URL = `${SITE_URL}/quiz`;
 import { ModelRouterService } from '../services/model-router.service';
 import { BrandMemoryService } from '../services/brand-memory.service';
 import { SOCIAL_LINKS } from '../services/social-footer';
@@ -33,59 +35,181 @@ lessons themselves (those have their own promo flow).
 
 YOU pick:
 1) START / END time — pick a realistic window for this brand's audience.
-   Use the brand's locale + voice as hints. Default pattern for an Indian
-   English-speaking AI channel: "Saturday 9 PM IST – Sunday 9 PM IST".
-   ALWAYS write the timezone explicitly.
-2) REWARD — pick a sensible prize that matches a small/growing creator (NOT
-   thousands of dollars). Default range: ₹500 – ₹1500 in Amazon gift cards
-   or UPI cash, depending on tone. Keep it ONE prize for the winner; if you
-   tier (1st/2nd/3rd) keep the top prize within that range.
+   Default for an Indian English-speaking AI channel:
+   "Saturday 12 AM IST → Sunday 6 PM IST". Always include the timezone
+   somewhere in each post.
+2) REWARD — default TIERED ₹1,000 cash:
+     🥇 ₹500   🥈 ₹300   🥉 ₹200
+   Stay near this total unless the brand voice clearly says otherwise.
 
-Per-platform conventions:
-  • YOUTUBE — Title ≤ 100 chars. Description: 4-8 short paragraphs, the
-    last paragraph has the schedule + reward. Hashtags ≥ 20, appended at
-    the very end of the description.
-  • LINKEDIN — Hook (1 line) + body (4-6 short paragraphs) + CTA (1 line)
-    + ≥ 20 hashtags on their own line. Professional, value-first tone.
-  • INSTAGRAM — Caption ≤ 2200 chars, punchy + scannable + emoji-friendly.
-    Hashtags ≥ 20 on their own block at the end.
-  • WHATSAPP CHANNEL — One message ≤ 600 chars, conversational, links inline.
-  • WHATSAPP STATUS — One message ≤ 200 chars, urgent, "take the quiz".
+SITE: the take-the-quiz link is always {SITE_URL}/quiz — never paste
+individual lesson URLs into WhatsApp posts. (Lesson URLs only appear in
+the YouTube / LinkedIn / Instagram footer block, which is appended for
+you outside the JSON — do not include the footer yourself.)
+
+GOLD-STANDARD TEMPLATES — match each platform's tone and structure:
+
+—— WHATSAPP CHANNEL ────────────────────────────────────────────────
+🚨 *QUIZ #N IS LIVE!* 🚨
+
+Test your <topic> skills → Win *₹1,000* 💰
+
+📚 *Topics:*
+🔐 <Lesson title> (Lesson N)
+📨 <Lesson title> (Lesson N)
+
+🏆 *Prizes:*
+🥇 ₹500
+🥈 ₹300
+🥉 ₹200
+
+⏰ *Window:*
+Saturday 12:00 AM → Sunday 6:00 PM
+
+⚡ <N> questions • Beat the clock • Climb the leaderboard
+
+📝 Take it: <SITE>/quiz
+
+— <creator signature>
+─────────────────────────────────────────────────────────────────────
+
+—— WHATSAPP STATUS (≤ 200 chars, single urgent line) ──────────────
+🏆 QUIZ #N LIVE NOW
+
+<topic 1> + <topic 2>
+Win ₹1,000 💰
+
+Sat 12AM → Sun 6PM
+
+<SITE>/quiz
+─────────────────────────────────────────────────────────────────────
+
+—— INSTAGRAM (≤ 2200 chars, emoji-friendly, ends with hashtag block) ─
+QUIZ #N IS LIVE 🏆 Win ₹1,000 💰
+
+You've watched Lessons <N> & <N>. Now prove it 👇
+
+📚 Topics:
+🔐 <lesson 1 takeaway>
+📨 <lesson 2 takeaway>
+
+🏆 Prizes:
+🥇 ₹500  🥈 ₹300  🥉 ₹200
+
+⏰ Saturday 12 AM → Sunday 6 PM
+⚡ 10 questions. Speed matters.
+
+Link in bio → Take the quiz NOW
+
+<engagement hook — only if a real stat is in context, otherwise omit>
+
+Tag a developer friend who needs this 👇
+
+.
+.
+.
+(≥20 hashtags here — produced via the "hashtags" array, the renderer
+appends them; do NOT inline them in caption)
+─────────────────────────────────────────────────────────────────────
+
+—— LINKEDIN (professional, narrative, comment prompt) ─────────────
+Quiz #N is live on <brand> 🎯
+
+This week tests two practical developer skills:
+
+🔐 <Lesson 1 — production-safe take>
+📨 <Lesson 2 — common pitfall>
+
+If you've built <relevant artefact>, you've hit these exact problems.
+Or you will.
+
+40 questions. 10 random per attempt. Speed-ranked leaderboard.
+
+🏆 Cash prizes:
+🥇 ₹500
+🥈 ₹300
+🥉 ₹200
+
+⏰ Open: Saturday 12 AM → Sunday 6 PM
+
+<optional engagement stat — only if a real stat is in context>
+
+Take the quiz 👉 <SITE>/quiz
+
+<comment-prompt question — invites discussion>
+
+(≥20 hashtags here in the "hashtags" array)
+─────────────────────────────────────────────────────────────────────
+
+—— YOUTUBE COMMUNITY (medium, ends with engagement CTA) ───────────
+🏆 QUIZ #N IS LIVE!
+
+Topics: Lesson <N> (<topic>) + Lesson <N> (<topic>) 📨
+
+Win ₹1,000 in cash prizes 💰
+🥇 ₹500  🥈 ₹300  🥉 ₹200
+
+⏰ Saturday 12 AM → Sunday 6 PM
+⚡ 10 questions • Beat the clock
+
+<optional engagement stat — only if a real stat is in context>
+
+Take it now 👉 <SITE>/quiz
+
+Drop your score in the comments 👇
+
+(≥20 hashtags here in the "hashtags" array)
+─────────────────────────────────────────────────────────────────────
+
+—— LAST CHANCE (urgent reminder, sent ~4-6 hours before window closes) ─
+⏰ LAST CHANCE — Quiz #N closes at 6 PM TODAY!
+
+Win ₹1,000 💰
+🔐 <topic 1> + 📨 <topic 2>
+
+5 minutes. <N> questions. Real prizes.
+
+Take it now 👉 <SITE>/quiz
+
+Don't let the leaderboard slip away 🏆
+─────────────────────────────────────────────────────────────────────
 
 DO:
-- Mention the prize prominently in EVERY post.
-- Show the start/end window in EVERY post with the timezone.
-- Reference 1-2 standout questions/topics from the lessons (don't spoil
-  answers — tease the type of question).
-- Use the tie-breaker as a hook ("ties broken by …") in at least two posts.
+- Mention the tiered prize in EVERY post.
+- Show the start/end window in EVERY post with the timezone implied.
+- Reference 1-2 standout topics from the lessons (don't spoil answers).
+- Sign WhatsApp Channel with "— <creator>" if a name is in voice/style.
 
 DON'T:
-- Make up academic credentials or claim prizes you can't deliver.
-- Use clickbait that doesn't match the actual quiz topic.
+- Invent leaderboard stats ("Last week 7 people scored 6/6"). Only include
+  such claims if the user supplied them in LAST_WEEK_STATS. Otherwise omit.
+- Paste every lesson URL into WhatsApp posts — use only <SITE>/quiz.
+- Use markdown headers (#) in WhatsApp — only *bold* asterisks work.
 - Skip the timezone — "Saturday 9 PM" alone is ambiguous.
 
 OUTPUT STRICT JSON ONLY:
 {
-  "starts_at_label": "…",          // human-readable, e.g. "Sat 9 PM IST"
-  "ends_at_label":   "…",
-  "reward_label":    "…",          // e.g. "₹1000 Amazon gift card"
+  "starts_at_label": "Saturday 12 AM IST",
+  "ends_at_label":   "Sunday 6 PM IST",
+  "reward_label":    "🥇 ₹500  🥈 ₹300  🥉 ₹200 (total ₹1,000)",
   "youtube_community": {
     "title":       "…",
     "description": "…",
-    "hashtags":    ["…", "…", …]   // ≥ 20
+    "hashtags":    ["…", "…", "…"]
   },
   "linkedin": {
     "hook":     "…",
     "body":     "…",
     "cta":      "…",
-    "hashtags": ["…", …]            // ≥ 20
+    "hashtags": ["…", "…", "…"]
   },
   "instagram": {
     "caption":  "…",
-    "hashtags": ["…", …]            // ≥ 20
+    "hashtags": ["…", "…", "…"]
   },
   "whatsapp_channel": { "text": "…" },
-  "whatsapp_status":  { "text": "…" }
+  "whatsapp_status":  { "text": "…" },
+  "last_chance":      { "text": "…" }
 }
 Output the JSON object only — no prose, no markdown fences.
 `.trim();
@@ -109,6 +233,7 @@ interface LlmPromo {
   instagram?: LlmInstagram;
   whatsapp_channel?: LlmWhatsapp;
   whatsapp_status?: LlmWhatsapp;
+  last_chance?: LlmWhatsapp;
 }
 
 function asString(v: unknown, max = 5000): string {
@@ -245,11 +370,13 @@ export class QuizPromoAgent {
         `(answer: ${bundle.tieBreakerAnswer}${bundle.tieBreakerUnit ? ' ' + bundle.tieBreakerUnit : ''})\n` +
         `QUIZ WEEK #: ${quizWeek}\n` +
         `QUESTION COUNT: ${bundle.questionCount}\n` +
-        `MICROSITE: ${SOCIAL_LINKS.site}\n\n` +
+        `SITE_URL: ${SITE_URL}\n` +
+        `TAKE_QUIZ_URL: ${TAKE_QUIZ_URL}\n\n` +
         `THIS WEEK'S LESSONS (mention 1-2 standout topics):\n${lessonsContext}\n\n` +
         `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
-        `Pick a realistic start/end window and a sensible reward. ` +
-        `Each platform output must mention the schedule + reward. ` +
+        `LAST_WEEK_STATS: (none provided — DO NOT invent leaderboard claims)\n\n` +
+        `Pick a realistic start/end window and a TIERED reward. ` +
+        `Use ${TAKE_QUIZ_URL} as the take-it link in every platform. ` +
         `Output the JSON object only.`,
     });
 
@@ -306,14 +433,21 @@ export class QuizPromoAgent {
       .filter(Boolean).join('\n\n');
 
     // ── WhatsApp Channel ─────────────────────────────────────────────────
+    // No footer / lesson-URL spam here — the template only carries the
+    // single take-quiz link (per the gold-standard template).
     const wc = parsed.whatsapp_channel ?? {};
-    const wcText = asString(wc.text, 600) ||
-      `🧠 Week ${quizWeek} Quiz is LIVE!\n${startsAtLabel} → ${endsAtLabel}\n🎁 Win ${rewardLabel}\nTake it: ${SOCIAL_LINKS.site}`;
+    const wcText = asString(wc.text, 800) ||
+      `🚨 *QUIZ #${quizWeek} IS LIVE!* 🚨\n\n🏆 *Prizes:*\n🥇 ₹500  🥈 ₹300  🥉 ₹200\n\n⏰ ${startsAtLabel} → ${endsAtLabel}\n\n📝 Take it: ${TAKE_QUIZ_URL}`;
 
     // ── WhatsApp Status ──────────────────────────────────────────────────
     const ws = parsed.whatsapp_status ?? {};
-    const wsText = asString(ws.text, 200) ||
-      `🧠 Week ${quizWeek} Quiz · ${startsAtLabel} → ${endsAtLabel} · 🎁 ${rewardLabel} · ${SOCIAL_LINKS.site}`;
+    const wsText = asString(ws.text, 250) ||
+      `🏆 QUIZ #${quizWeek} LIVE NOW\nWin ₹1,000 💰\n${startsAtLabel} → ${endsAtLabel}\n${TAKE_QUIZ_URL}`;
+
+    // ── Last-chance reminder ─────────────────────────────────────────────
+    const lc = parsed.last_chance ?? {};
+    const lcText = asString(lc.text, 500) ||
+      `⏰ LAST CHANCE — Quiz #${quizWeek} closes soon!\n\nWin ₹1,000 💰\n\nTake it now 👉 ${TAKE_QUIZ_URL}`;
 
     const payload: QuizPromoPayload = {
       youtube_community: {
@@ -334,6 +468,7 @@ export class QuizPromoAgent {
       },
       whatsapp_channel: { full_text: wcText },
       whatsapp_status:  { full_text: wsText },
+      last_chance:      { full_text: lcText },
       lesson_links: lessonLinks,
       social_footer: footer,
       generated_at: new Date().toISOString(),

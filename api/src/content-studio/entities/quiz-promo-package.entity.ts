@@ -23,6 +23,7 @@ export interface QuizPromoInstagram {
 }
 export interface QuizPromoWhatsappChannel { full_text: string }
 export interface QuizPromoWhatsappStatus  { full_text: string }
+export interface QuizPromoLastChance      { full_text: string }
 
 /** Subscribe + follow + repo links + lesson # + microsite URL. */
 export interface QuizPromoSocialFooter {
@@ -43,6 +44,7 @@ export interface QuizPromoPayload {
   instagram?:         QuizPromoInstagram;
   whatsapp_channel?:  QuizPromoWhatsappChannel;
   whatsapp_status?:   QuizPromoWhatsappStatus;
+  last_chance?:       QuizPromoLastChance;
   // Echo of the prompt context so the UI can show it without re-querying.
   lesson_links?:      QuizPromoLessonLink[];
   social_footer?:     QuizPromoSocialFooter;

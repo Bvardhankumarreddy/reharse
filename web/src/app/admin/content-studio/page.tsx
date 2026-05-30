@@ -2492,7 +2492,7 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   const [bundleOpen, setBundleOpen] = useState(false);
   const [promo, setPromo] = useState<QuizPromoResp | null>(null);
   const [promoBusy, setPromoBusy] = useState(false);
-  const [promoTab, setPromoTab] = useState<"youtube" | "linkedin" | "instagram" | "wac" | "was">("youtube");
+  const [promoTab, setPromoTab] = useState<"youtube" | "linkedin" | "instagram" | "wac" | "was" | "lc">("youtube");
   // Quiz week # written into every CSV row. Empty = let the server default
   // (uses the bundle's stored week, then plan.seriesWeekNumber, then 1).
   const [bundleWeek, setBundleWeek] = useState<string>("");
@@ -2896,6 +2896,7 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
                       ["instagram", "📸 Instagram"],
                       ["wac",       "💬 WA Channel"],
                       ["was",       "📱 WA Status"],
+                      ["lc",        "⏰ Last chance"],
                     ].map(([key, label]) => (
                       <button
                         key={key}
@@ -2921,8 +2922,10 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
                       text = promo.payload.instagram?.full_text ?? "";
                     } else if (promoTab === "wac") {
                       text = promo.payload.whatsapp_channel?.full_text ?? "";
-                    } else {
+                    } else if (promoTab === "was") {
                       text = promo.payload.whatsapp_status?.full_text ?? "";
+                    } else {
+                      text = promo.payload.last_chance?.full_text ?? "";
                     }
                     return (
                       <>

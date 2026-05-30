@@ -247,6 +247,7 @@ export interface QuizPromoPayload {
   };
   whatsapp_channel?: { full_text: string };
   whatsapp_status?:  { full_text: string };
+  last_chance?:      { full_text: string };
   lesson_links?: QuizPromoLessonLink[];
   social_footer?: { lines: string[]; block: string };
   generated_at?: string;
