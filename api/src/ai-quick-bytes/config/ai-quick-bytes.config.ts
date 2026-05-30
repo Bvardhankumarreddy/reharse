@@ -6,11 +6,13 @@ import { registerAs } from '@nestjs/config';
  * Access with config.get('aiQuickBytes.<path>').
  */
 export default registerAs('aiQuickBytes', () => ({
-  // OpenAI: scoring (cheap) + embeddings (Claude has no embeddings API).
+  // OpenAI: scoring (cheap) + embeddings (Claude has no embeddings API) +
+  // translation (Telugu — gpt-4o is reliable on Indic + code-mixing).
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
     scoringModel: process.env.AQB_SCORING_MODEL ?? 'gpt-4o-mini',
     embeddingModel: process.env.AQB_EMBEDDING_MODEL ?? 'text-embedding-3-small',
+    translationModel: process.env.AQB_TRANSLATION_MODEL ?? 'gpt-4o',
   },
 
   // Anthropic: all the writing steps — script, thumbnail prompt, distribution.
@@ -30,6 +32,14 @@ export default registerAs('aiQuickBytes', () => ({
     },
     voiceClone: {
       vardhan: process.env.HEYGEN_VOICE_VARDHAN_ID,
+    },
+    // Telugu voice ids per avatar key — used by the Telugu HeyGen track.
+    // If none is set, the Telugu video step is skipped (translation still
+    // runs so the script + transcript are available).
+    voicesTelugu: {
+      cyber:   process.env.HEYGEN_VOICE_CYBER_TE_ID,
+      robot:   process.env.HEYGEN_VOICE_ROBOT_TE_ID,
+      vardhan: process.env.HEYGEN_VOICE_VARDHAN_TE_ID,
     },
   },
 

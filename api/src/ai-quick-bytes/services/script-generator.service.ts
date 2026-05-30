@@ -9,6 +9,7 @@ import { AnthropicClientService } from './anthropic-client.service';
 import { ThumbnailPromptService } from './thumbnail-prompt.service';
 import { DistributionPackageService } from './distribution-package.service';
 import { AqbMemoryService } from './aqb-memory.service';
+import { TranslationService } from './translation.service';
 
 const SCRIPT_SYSTEM_PROMPT = `
 You write YouTube Shorts scripts for AetherStackAI — an Indian AI
@@ -117,6 +118,7 @@ export class ScriptGeneratorService {
     private readonly thumbnail: ThumbnailPromptService,
     private readonly distribution: DistributionPackageService,
     private readonly memory: AqbMemoryService,
+    private readonly translation: TranslationService,
   ) {}
 
   async generateScript(itemId: string): Promise<ShortScript> {
@@ -190,6 +192,28 @@ export class ScriptGeneratorService {
       await this.scriptRepo.save(script);
     } catch (e) {
       this.logger.error(`Distribution package failed for ${script.id}: ${(e as Error).message}`);
+    }
+
+    // ── Telugu translation (non-fatal — English ships regardless) ──────
+    if (this.translation.isConfigured()) {
+      try {
+        const t = await this.translation.translateToTelugu({
+          hook: script.hook,
+          body: script.body,
+          cta: script.cta,
+          fullScript: script.fullScript,
+        });
+        script.teluguHook = t.teluguHook;
+        script.teluguBody = t.teluguBody;
+        script.teluguCta = t.teluguCta;
+        script.teluguFullScript = t.teluguFullScript;
+        script.teluguTranslationModel = t.model;
+        script.teluguTranslationCostUsd = t.costUsd;
+        script.teluguTranslatedAt = new Date();
+        await this.scriptRepo.save(script);
+      } catch (e) {
+        this.logger.error(`Telugu translation failed for ${script.id}: ${(e as Error).message}`);
+      }
     }
 
     return script;

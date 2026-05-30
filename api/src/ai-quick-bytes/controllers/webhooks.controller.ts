@@ -43,23 +43,53 @@ export class WebhooksController {
     const videoId = payload?.event_data?.video_id;
     if (!videoId) throw new BadRequestException('Missing event_data.video_id');
 
+    // The same /heygen webhook handles both tracks — find the script by
+    // either column, then update only the column that matched.
+    const script = await this.scriptRepo.findOne({
+      where: [{ heygenVideoId: videoId }, { teluguHeygenVideoId: videoId }],
+    });
+    if (!script) {
+      this.logger.warn(`HeyGen webhook for unknown video ${videoId} — ignoring`);
+      return { received: true, matched: false };
+    }
+    const isTelugu = script.teluguHeygenVideoId === videoId;
+    const lang = isTelugu ? 'telugu' : 'english';
+
     if (payload.event_type === 'avatar_video.success') {
-      await this.scriptRepo.update(
-        { heygenVideoId: videoId },
-        { status: 'ready', heygenVideoUrl: payload.event_data.url ?? null },
-      );
-      this.logger.log(`HeyGen video ready: ${videoId}`);
+      const url = payload.event_data.url ?? null;
+      if (isTelugu) {
+        await this.scriptRepo.update(script.id, {
+          teluguHeygenStatus: 'ready',
+          teluguHeygenVideoUrl: url,
+        });
+      } else {
+        // English is the primary track — overall `status` follows it.
+        await this.scriptRepo.update(script.id, {
+          status: 'ready',
+          heygenVideoUrl: url,
+        });
+      }
+      this.logger.log(`HeyGen ${lang} video ready: ${videoId}`);
     } else if (payload.event_type === 'avatar_video.fail') {
-      await this.scriptRepo.update(
-        { heygenVideoId: videoId },
-        { status: 'failed', rejectionReason: payload.event_data.msg ?? 'HeyGen generation failed' },
-      );
-      this.logger.warn(`HeyGen video failed: ${videoId} — ${payload.event_data.msg}`);
+      const msg = payload.event_data.msg ?? 'HeyGen generation failed';
+      if (isTelugu) {
+        // Telugu failure is non-fatal: English ships on its own.
+        await this.scriptRepo.update(script.id, {
+          teluguHeygenStatus: 'failed',
+        });
+        this.logger.warn(`HeyGen telugu video failed: ${videoId} — ${msg}`);
+      } else {
+        await this.scriptRepo.update(script.id, {
+          status: 'failed',
+          rejectionReason: msg,
+        });
+        this.logger.warn(`HeyGen english video failed: ${videoId} — ${msg}`);
+      }
     } else {
       this.logger.log(`Unhandled HeyGen event: ${payload.event_type}`);
     }
 
-    return { received: true };
+    return { received: true, lang };
   }
 
   /**

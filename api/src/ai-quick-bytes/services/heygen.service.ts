@@ -37,6 +37,18 @@ export class HeyGenService {
     return avatars[avatarKey ?? 'vardhan'] ?? avatars['vardhan'];
   }
 
+  /**
+   * Resolve the Telugu HeyGen voice id for an avatar key. Returns undefined
+   * if no Telugu voice is configured — callers should treat that as "skip
+   * the Telugu video step" (the English flow still ships).
+   */
+  resolveTeluguVoiceId(avatarKey: string | null): string | undefined {
+    const voices = this.config.get<Record<string, string | undefined>>(
+      'aiQuickBytes.heygen.voicesTelugu',
+    ) ?? {};
+    return voices[avatarKey ?? 'vardhan'] ?? voices['vardhan'];
+  }
+
   async generateVideo(params: HeyGenGenerateParams): Promise<{ videoId: string }> {
     if (!this.apiKey) {
       throw new Error('HeyGen not configured — set HEYGEN_API_KEY to enable video generation');

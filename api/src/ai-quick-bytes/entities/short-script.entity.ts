@@ -106,6 +106,52 @@ export class ShortScript {
   @Column({ type: 'timestamptz', nullable: true })
   distributionGeneratedAt: Date | null;
 
+  // ── Telugu auto-translation track (migration-003) ───────────────────
+  // Translated by gpt-4o post-save (non-fatal). On approval a Telugu
+  // HeyGen video is queued in parallel with the English one — the
+  // webhook matches against teluguHeygenVideoId to update the right
+  // status column.
+  @Column({ type: 'text', nullable: true })
+  teluguHook: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  teluguBody: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  teluguCta: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  teluguFullScript: string | null;
+
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  teluguTranslationModel: string | null;
+
+  @Column({ type: 'numeric', precision: 10, scale: 6, default: 0 })
+  teluguTranslationCostUsd: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  teluguTranslatedAt: Date | null;
+
+  @Index()
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  teluguHeygenVideoId: string | null;
+
+  @Column({ type: 'varchar', length: 2000, nullable: true })
+  teluguHeygenVideoUrl: string | null;
+
+  @Index()
+  @Column({ type: 'varchar', length: 50, default: 'pending' })
+  teluguHeygenStatus: string;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  teluguYoutubeVideoId: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  teluguYoutubeUrl: string | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  teluguDistributionPackage: Record<string, unknown> | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

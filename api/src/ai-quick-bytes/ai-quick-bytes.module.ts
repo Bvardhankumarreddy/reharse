@@ -19,6 +19,7 @@ import { DedupService } from './services/dedup.service';
 import { IngestionService } from './services/ingestion.service';
 import { ScoringService } from './services/scoring.service';
 import { ScriptGeneratorService } from './services/script-generator.service';
+import { TranslationService } from './services/translation.service';
 import { ThumbnailPromptService } from './services/thumbnail-prompt.service';
 import { DistributionPackageService } from './services/distribution-package.service';
 import { HeyGenService } from './services/heygen.service';
@@ -84,6 +85,7 @@ import { AqbIntelligenceController } from './controllers/intelligence.controller
     IngestionService,
     ScoringService,
     ScriptGeneratorService,
+    TranslationService,
     ThumbnailPromptService,
     DistributionPackageService,
     HeyGenService,

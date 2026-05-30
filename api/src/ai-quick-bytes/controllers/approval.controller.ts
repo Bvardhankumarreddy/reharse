@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Param, Body, UseGuards,
-  NotFoundException, BadRequestException, Req,
+  NotFoundException, BadRequestException, Req, Logger,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -12,6 +12,7 @@ import { HeyGenService } from '../services/heygen.service';
 import { PublishingService } from '../services/publishing.service';
 import { DistributionPackageService } from '../services/distribution-package.service';
 import { ThumbnailPromptService } from '../services/thumbnail-prompt.service';
+import { TranslationService } from '../services/translation.service';
 import { PublishPlatform } from '../entities/publishing-log.entity';
 
 @Controller('admin/ai-quick-bytes/approval')
@@ -24,6 +25,7 @@ export class ApprovalController {
     private readonly publishing: PublishingService,
     private readonly distribution: DistributionPackageService,
     private readonly thumbnail: ThumbnailPromptService,
+    private readonly translation: TranslationService,
     private readonly config: ConfigService,
   ) {}
 
@@ -103,22 +105,59 @@ export class ApprovalController {
     if (!avatarId) throw new BadRequestException('No HeyGen avatar id resolved');
 
     const appUrl = this.config.get<string>('aiQuickBytes.appUrl');
-    const result = await this.heygen.generateVideo({
+    const callbackUrl = `${appUrl}/api/v1/webhooks/ai-quick-bytes/heygen`;
+
+    // ── English video (primary) ─────────────────────────────────────────
+    const englishResult = await this.heygen.generateVideo({
       avatarId,
       voiceId: script.voiceId ?? '',
       script: script.fullScript,
       aspectRatio: '9:16',
-      callbackUrl: `${appUrl}/api/v1/webhooks/ai-quick-bytes/heygen`,
+      callbackUrl,
     });
+
+    // ── Telugu video (parallel; skipped if no Telugu voice or no script) ─
+    let teluguVideoId: string | null = null;
+    let teluguError: string | null = null;
+    const teluguVoiceId = this.heygen.resolveTeluguVoiceId(script.avatarId);
+    if (script.teluguFullScript && teluguVoiceId) {
+      try {
+        const tg = await this.heygen.generateVideo({
+          avatarId,
+          voiceId: teluguVoiceId,
+          script: script.teluguFullScript,
+          aspectRatio: '9:16',
+          callbackUrl,
+        });
+        teluguVideoId = tg.videoId;
+      } catch (e) {
+        teluguError = (e as Error).message;
+        this.logger.warn(`Telugu HeyGen failed for ${id}: ${teluguError}`);
+      }
+    } else if (script.teluguFullScript && !teluguVoiceId) {
+      teluguError = 'no Telugu voice configured for this avatar';
+    } else if (!script.teluguFullScript) {
+      teluguError = 'no Telugu translation on script';
+    }
 
     await this.scriptRepo.update(id, {
       status: 'generating',
-      heygenVideoId: result.videoId,
+      heygenVideoId: englishResult.videoId,
+      teluguHeygenVideoId: teluguVideoId,
+      teluguHeygenStatus: teluguVideoId ? 'queued' : 'skipped',
       approvedBy: email,
       approvedAt: new Date(),
     });
-    return { success: true, videoId: result.videoId };
+    return {
+      success: true,
+      videoId: englishResult.videoId,
+      telugu: teluguVideoId
+        ? { videoId: teluguVideoId, status: 'queued' }
+        : { videoId: null, status: 'skipped', reason: teluguError },
+    };
   }
+
+  private readonly logger = new Logger(ApprovalController.name);
 
   @Post(':id/reject')
   async reject(@Param('id') id: string, @Body() body: { reason: string }) {
@@ -212,6 +251,64 @@ export class ApprovalController {
     script.distributionGeneratedAt = new Date();
     await this.scriptRepo.save(script);
     return { success: true, package: pkg, costAdded: cost_usd };
+  }
+
+  // ── Telugu translation track ────────────────────────────────────────
+
+  @Get(':id/telugu')
+  async getTelugu(@Param('id') id: string) {
+    const script = await this.scriptRepo.findOne({ where: { id } });
+    if (!script) throw new NotFoundException('Script not found');
+    return {
+      scriptId: script.id,
+      dayNumber: script.dayNumber,
+      teluguHook: script.teluguHook,
+      teluguBody: script.teluguBody,
+      teluguCta: script.teluguCta,
+      teluguFullScript: script.teluguFullScript,
+      teluguTranslationModel: script.teluguTranslationModel,
+      teluguTranslationCostUsd: Number(script.teluguTranslationCostUsd ?? 0),
+      teluguTranslatedAt: script.teluguTranslatedAt,
+      teluguHeygenVideoId: script.teluguHeygenVideoId,
+      teluguHeygenVideoUrl: script.teluguHeygenVideoUrl,
+      teluguHeygenStatus: script.teluguHeygenStatus,
+    };
+  }
+
+  @Post(':id/telugu/regenerate-translation')
+  async regenerateTelugu(@Param('id') id: string) {
+    const script = await this.scriptRepo.findOne({ where: { id } });
+    if (!script) throw new NotFoundException('Script not found');
+    if (!script.fullScript) {
+      throw new BadRequestException('Script has no English fullScript to translate from');
+    }
+    if (!this.translation.isConfigured()) {
+      throw new BadRequestException('OpenAI not configured — translation unavailable');
+    }
+    const t = await this.translation.translateToTelugu({
+      hook: script.hook,
+      body: script.body,
+      cta: script.cta,
+      fullScript: script.fullScript,
+    });
+    await this.scriptRepo.update(id, {
+      teluguHook: t.teluguHook,
+      teluguBody: t.teluguBody,
+      teluguCta: t.teluguCta,
+      teluguFullScript: t.teluguFullScript,
+      teluguTranslationModel: t.model,
+      // Accumulate the cost so the ledger reflects every regeneration.
+      teluguTranslationCostUsd:
+        Number(script.teluguTranslationCostUsd ?? 0) + t.costUsd,
+      teluguTranslatedAt: new Date(),
+    });
+    return {
+      success: true,
+      model: t.model,
+      costAdded: t.costUsd,
+      teluguHook: t.teluguHook,
+      teluguFullScript: t.teluguFullScript,
+    };
   }
 
   @Patch(':id/distribution/:platform')
