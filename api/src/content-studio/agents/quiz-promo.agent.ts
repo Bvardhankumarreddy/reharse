@@ -1,0 +1,376 @@
+import {
+  Injectable, Logger, NotFoundException, BadRequestException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Brand } from '../entities/brand.entity';
+import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
+import { Lesson } from '../entities/lesson.entity';
+import { PublishedVideo } from '../entities/published-video.entity';
+import { QuizBundle } from '../entities/quiz-bundle.entity';
+import {
+  QuizPromoPackage, QuizPromoPayload, QuizPromoLessonLink,
+  QuizPromoSocialFooter,
+} from '../entities/quiz-promo-package.entity';
+import { ModelRouterService } from '../services/model-router.service';
+import { BrandMemoryService } from '../services/brand-memory.service';
+import { SOCIAL_LINKS } from '../services/social-footer';
+
+const HASHTAG_MIN = 20;
+const HASHTAG_FALLBACKS = [
+  '#AetherStackAI', '#AIQuiz', '#WeeklyQuiz', '#TestYourAI',
+  '#AIForBeginners', '#AILearning', '#LearnAI', '#AIEducation',
+  '#TechQuiz', '#AIBootcamp', '#ArtificialIntelligence',
+  '#MachineLearning', '#DeepLearning', '#GenerativeAI', '#LLM',
+  '#ChatGPT', '#OpenAI', '#Anthropic', '#Claude', '#AIIndia',
+  '#AICourse', '#FreeQuiz', '#WinPrize',
+];
+
+const PROMO_SYSTEM = `
+You write QUIZ PROMOTION social posts for a YouTube channel running a weekly
+quiz. Your job is to drive sign-ups for THIS week's quiz, not promote the
+lessons themselves (those have their own promo flow).
+
+YOU pick:
+1) START / END time — pick a realistic window for this brand's audience.
+   Use the brand's locale + voice as hints. Default pattern for an Indian
+   English-speaking AI channel: "Saturday 9 PM IST – Sunday 9 PM IST".
+   ALWAYS write the timezone explicitly.
+2) REWARD — pick a sensible prize that matches a small/growing creator (NOT
+   thousands of dollars). Default range: ₹500 – ₹1500 in Amazon gift cards
+   or UPI cash, depending on tone. Keep it ONE prize for the winner; if you
+   tier (1st/2nd/3rd) keep the top prize within that range.
+
+Per-platform conventions:
+  • YOUTUBE — Title ≤ 100 chars. Description: 4-8 short paragraphs, the
+    last paragraph has the schedule + reward. Hashtags ≥ 20, appended at
+    the very end of the description.
+  • LINKEDIN — Hook (1 line) + body (4-6 short paragraphs) + CTA (1 line)
+    + ≥ 20 hashtags on their own line. Professional, value-first tone.
+  • INSTAGRAM — Caption ≤ 2200 chars, punchy + scannable + emoji-friendly.
+    Hashtags ≥ 20 on their own block at the end.
+  • WHATSAPP CHANNEL — One message ≤ 600 chars, conversational, links inline.
+  • WHATSAPP STATUS — One message ≤ 200 chars, urgent, "take the quiz".
+
+DO:
+- Mention the prize prominently in EVERY post.
+- Show the start/end window in EVERY post with the timezone.
+- Reference 1-2 standout questions/topics from the lessons (don't spoil
+  answers — tease the type of question).
+- Use the tie-breaker as a hook ("ties broken by …") in at least two posts.
+
+DON'T:
+- Make up academic credentials or claim prizes you can't deliver.
+- Use clickbait that doesn't match the actual quiz topic.
+- Skip the timezone — "Saturday 9 PM" alone is ambiguous.
+
+OUTPUT STRICT JSON ONLY:
+{
+  "starts_at_label": "…",          // human-readable, e.g. "Sat 9 PM IST"
+  "ends_at_label":   "…",
+  "reward_label":    "…",          // e.g. "₹1000 Amazon gift card"
+  "youtube_community": {
+    "title":       "…",
+    "description": "…",
+    "hashtags":    ["…", "…", …]   // ≥ 20
+  },
+  "linkedin": {
+    "hook":     "…",
+    "body":     "…",
+    "cta":      "…",
+    "hashtags": ["…", …]            // ≥ 20
+  },
+  "instagram": {
+    "caption":  "…",
+    "hashtags": ["…", …]            // ≥ 20
+  },
+  "whatsapp_channel": { "text": "…" },
+  "whatsapp_status":  { "text": "…" }
+}
+Output the JSON object only — no prose, no markdown fences.
+`.trim();
+
+interface LlmYouTube {
+  title?: unknown; description?: unknown; hashtags?: unknown;
+}
+interface LlmLinkedIn {
+  hook?: unknown; body?: unknown; cta?: unknown; hashtags?: unknown;
+}
+interface LlmInstagram {
+  caption?: unknown; hashtags?: unknown;
+}
+interface LlmWhatsapp { text?: unknown }
+interface LlmPromo {
+  starts_at_label?: unknown;
+  ends_at_label?: unknown;
+  reward_label?: unknown;
+  youtube_community?: LlmYouTube;
+  linkedin?: LlmLinkedIn;
+  instagram?: LlmInstagram;
+  whatsapp_channel?: LlmWhatsapp;
+  whatsapp_status?: LlmWhatsapp;
+}
+
+function asString(v: unknown, max = 5000): string {
+  return String(v ?? '').slice(0, max).trim();
+}
+function asStringArr(v: unknown, max = 60): string[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((x) => String(x).trim())
+    .filter(Boolean)
+    .map((t) => (t.startsWith('#') ? t : `#${t.replace(/\s+/g, '')}`))
+    .slice(0, max);
+}
+function topUpTags(tags: string[]): string[] {
+  if (tags.length >= HASHTAG_MIN) return tags;
+  const have = new Set(tags.map((t) => t.toLowerCase()));
+  for (const t of HASHTAG_FALLBACKS) {
+    if (tags.length >= HASHTAG_MIN) break;
+    if (have.has(t.toLowerCase())) continue;
+    tags.push(t);
+    have.add(t.toLowerCase());
+  }
+  return tags;
+}
+function joinTags(tags: string[]): string {
+  return tags.join(' ');
+}
+
+/** Quiz-promo footer: lesson links + standard social block. */
+function buildSocialFooter(
+  links: QuizPromoLessonLink[],
+  quizWeek: number,
+): QuizPromoSocialFooter {
+  const lessonLines = links.map(
+    (l) =>
+      l.youtubeUrl
+        ? `📺 Lesson ${l.lessonNumber}: ${l.title} → ${l.youtubeUrl}`
+        : `📚 Lesson ${l.lessonNumber}: ${l.title}`,
+  );
+  const lines = [
+    `🧠 Week ${quizWeek} Quiz — take it at ${SOCIAL_LINKS.site}`,
+    '',
+    ...lessonLines,
+    '',
+    `Subscribe: ${SOCIAL_LINKS.youtube}`,
+    'Follow me:',
+    `💬 WhatsApp: ${SOCIAL_LINKS.whatsapp}`,
+    `📸 Instagram: ${SOCIAL_LINKS.instagram}`,
+    `💼 LinkedIn: ${SOCIAL_LINKS.linkedin}`,
+  ];
+  return { lines, block: lines.join('\n') };
+}
+
+@Injectable()
+export class QuizPromoAgent {
+  private readonly logger = new Logger(QuizPromoAgent.name);
+
+  constructor(
+    @InjectRepository(Brand) private readonly brandRepo: Repository<Brand>,
+    @InjectRepository(WeeklyContentPlan)
+    private readonly planRepo: Repository<WeeklyContentPlan>,
+    @InjectRepository(Lesson) private readonly lessonRepo: Repository<Lesson>,
+    @InjectRepository(PublishedVideo)
+    private readonly publishedRepo: Repository<PublishedVideo>,
+    @InjectRepository(QuizBundle)
+    private readonly bundleRepo: Repository<QuizBundle>,
+    @InjectRepository(QuizPromoPackage)
+    private readonly promoRepo: Repository<QuizPromoPackage>,
+    private readonly router: ModelRouterService,
+    private readonly memoryService: BrandMemoryService,
+  ) {}
+
+  /** Generate (or regenerate) the quiz promo posts for a plan. */
+  async generate(planId: string): Promise<QuizPromoPackage> {
+    const plan = await this.planRepo.findOne({ where: { id: planId } });
+    if (!plan) throw new NotFoundException('Plan not found');
+    const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
+    if (!brand) throw new BadRequestException('Plan has no brand');
+
+    const bundle = await this.bundleRepo.findOne({
+      where: { planId },
+      order: { createdAt: 'DESC' },
+    });
+    if (!bundle) {
+      throw new BadRequestException(
+        'Generate the quiz bundle first — promo references its title + tie-breaker',
+      );
+    }
+
+    const lessons = await this.lessonRepo.find({
+      where: { planId },
+      order: { lessonNumber: 'ASC' },
+    });
+    const published = lessons.length
+      ? await this.publishedRepo.find({
+          where: lessons.map((l) => ({ lessonId: l.id })),
+        })
+      : [];
+    const urlByLessonId = new Map(
+      published.map((p) => [p.lessonId, p.youtubeUrl] as const),
+    );
+    const lessonLinks: QuizPromoLessonLink[] = lessons.map((l) => ({
+      lessonNumber: l.lessonNumber,
+      title: l.title,
+      youtubeUrl: urlByLessonId.get(l.id) ?? null,
+    }));
+
+    const memories = await this.memoryService.relevantFor(brand.id, 'promo');
+    const memoryBlock = this.memoryService.format(memories);
+
+    const lessonsContext = lessonLinks
+      .map((l) =>
+        `Lesson ${l.lessonNumber}: ${l.title}` +
+        (l.youtubeUrl ? ` (${l.youtubeUrl})` : ' (not yet on YouTube)'),
+      )
+      .join('\n');
+
+    const quizWeek = bundle.quizWeek ?? plan.seriesWeekNumber ?? 1;
+
+    const llm = await this.router.run({
+      task: 'promo',
+      agentType: 'promo',
+      planId,
+      modelOverride: brand.modelOverrides?.promo,
+      jsonOutput: true,
+      maxTokens: 5500,
+      temperature: 0.75,
+      system: PROMO_SYSTEM,
+      user:
+        `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
+        `QUIZ TITLE: ${bundle.title}\n` +
+        `QUIZ DESCRIPTION: ${bundle.description}\n` +
+        `TIE-BREAKER: ${bundle.tieBreakerQuestion} ` +
+        `(answer: ${bundle.tieBreakerAnswer}${bundle.tieBreakerUnit ? ' ' + bundle.tieBreakerUnit : ''})\n` +
+        `QUIZ WEEK #: ${quizWeek}\n` +
+        `QUESTION COUNT: ${bundle.questionCount}\n` +
+        `MICROSITE: ${SOCIAL_LINKS.site}\n\n` +
+        `THIS WEEK'S LESSONS (mention 1-2 standout topics):\n${lessonsContext}\n\n` +
+        `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
+        `Pick a realistic start/end window and a sensible reward. ` +
+        `Each platform output must mention the schedule + reward. ` +
+        `Output the JSON object only.`,
+    });
+
+    let parsed: LlmPromo;
+    try {
+      parsed = JSON.parse(llm.text || '{}') as LlmPromo;
+    } catch (e) {
+      this.logger.error(
+        `Promo JSON parse failed (model=${llm.model}): ${(e as Error).message}`,
+      );
+      throw new Error('LLM returned unparseable JSON for quiz promo');
+    }
+
+    const startsAtLabel = asString(parsed.starts_at_label, 200) ||
+      'Saturday 9 PM IST';
+    const endsAtLabel = asString(parsed.ends_at_label, 200) ||
+      'Sunday 9 PM IST';
+    const rewardLabel = asString(parsed.reward_label, 200) ||
+      '₹1000 Amazon gift card';
+
+    const footer = buildSocialFooter(lessonLinks, quizWeek);
+
+    // ── YouTube community ─────────────────────────────────────────────────
+    const yt = parsed.youtube_community ?? {};
+    const ytTitle = asString(yt.title, 100) || bundle.title;
+    const ytDescription = asString(yt.description, 4000) || bundle.description;
+    const ytTags = topUpTags(asStringArr(yt.hashtags));
+    const ytFull = [
+      ytDescription,
+      '',
+      footer.block,
+      '',
+      joinTags(ytTags),
+    ].join('\n');
+
+    // ── LinkedIn ──────────────────────────────────────────────────────────
+    const li = parsed.linkedin ?? {};
+    const liHook = asString(li.hook, 200);
+    const liBody = asString(li.body, 3000);
+    const liCta = asString(li.cta, 300);
+    const liTags = topUpTags(asStringArr(li.hashtags));
+    const liFull = [
+      liHook, liBody, liCta,
+      footer.block,
+      joinTags(liTags),
+    ].filter(Boolean).join('\n\n');
+
+    // ── Instagram ─────────────────────────────────────────────────────────
+    const ig = parsed.instagram ?? {};
+    const igCaption = asString(ig.caption, 2200) ||
+      `${bundle.title}\n\n${startsAtLabel} → ${endsAtLabel}\n🎁 ${rewardLabel}`;
+    const igTags = topUpTags(asStringArr(ig.hashtags));
+    const igFull = [igCaption, footer.block, joinTags(igTags)]
+      .filter(Boolean).join('\n\n');
+
+    // ── WhatsApp Channel ─────────────────────────────────────────────────
+    const wc = parsed.whatsapp_channel ?? {};
+    const wcText = asString(wc.text, 600) ||
+      `🧠 Week ${quizWeek} Quiz is LIVE!\n${startsAtLabel} → ${endsAtLabel}\n🎁 Win ${rewardLabel}\nTake it: ${SOCIAL_LINKS.site}`;
+
+    // ── WhatsApp Status ──────────────────────────────────────────────────
+    const ws = parsed.whatsapp_status ?? {};
+    const wsText = asString(ws.text, 200) ||
+      `🧠 Week ${quizWeek} Quiz · ${startsAtLabel} → ${endsAtLabel} · 🎁 ${rewardLabel} · ${SOCIAL_LINKS.site}`;
+
+    const payload: QuizPromoPayload = {
+      youtube_community: {
+        title: ytTitle,
+        description: ytDescription,
+        hashtags: ytTags,
+        full_text: ytFull,
+      },
+      linkedin: {
+        hook: liHook, body: liBody, cta: liCta,
+        hashtags: liTags,
+        full_text: liFull,
+      },
+      instagram: {
+        caption: igCaption,
+        hashtags: igTags,
+        full_text: igFull,
+      },
+      whatsapp_channel: { full_text: wcText },
+      whatsapp_status:  { full_text: wsText },
+      lesson_links: lessonLinks,
+      social_footer: footer,
+      generated_at: new Date().toISOString(),
+    };
+
+    // Upsert — one package per bundle.
+    await this.promoRepo.delete({ bundleId: bundle.id });
+    const saved = await this.promoRepo.save(
+      this.promoRepo.create({
+        bundleId: bundle.id,
+        planId,
+        brandId: brand.id,
+        startsAtLabel,
+        endsAtLabel,
+        rewardLabel,
+        payload,
+        generatorModel: llm.model,
+        costUsd: String(llm.costUsd),
+      }),
+    );
+
+    await this.planRepo.update(plan.id, {
+      totalCostUsd: Number(plan.totalCostUsd ?? 0) + llm.costUsd,
+    });
+
+    this.logger.log(
+      `Quiz promo plan=${planId}: ${startsAtLabel} → ${endsAtLabel}, ` +
+      `reward "${rewardLabel}", model=${llm.model}, cost $${llm.costUsd.toFixed(4)}`,
+    );
+
+    return saved;
+  }
+
+  async latest(planId: string): Promise<QuizPromoPackage | null> {
+    return this.promoRepo.findOne({
+      where: { planId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+}

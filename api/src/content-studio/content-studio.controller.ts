@@ -24,6 +24,7 @@ import { PromoAgent } from './agents/promo.agent';
 import { QuizAgent } from './agents/quiz.agent';
 import { QuizBundleAgent } from './agents/quiz-bundle.agent';
 import { QuizBundleCsvService } from './services/quiz-bundle-csv.service';
+import { QuizPromoAgent } from './agents/quiz-promo.agent';
 import { PostmortemAgent } from './agents/postmortem.agent';
 import { ImprovementAgent } from './agents/improvement.agent';
 import { ThumbnailImageAgent } from './agents/thumbnail-image.agent';
@@ -96,6 +97,7 @@ export class ContentStudioController {
     private readonly channelVideos: ChannelVideoFetcherService,
     private readonly quizBundle: QuizBundleAgent,
     private readonly quizBundleCsv: QuizBundleCsvService,
+    private readonly quizPromo: QuizPromoAgent,
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly intelQueue: Queue,
   ) {}
 
@@ -416,6 +418,39 @@ export class ContentStudioController {
       'Content-Length': String(Buffer.byteLength(csv, 'utf8')),
     });
     res.send(csv);
+  }
+
+  // ── Quiz promo posts (LLM-picked schedule + reward + per-platform copy) ─
+
+  @Post('plans/:id/quiz/promo/generate')
+  async generateQuizPromo(@Param('id') id: string) {
+    const pkg = await this.quizPromo.generate(id);
+    return this.shapeQuizPromo(pkg);
+  }
+
+  @Get('plans/:id/quiz/promo')
+  async getQuizPromo(@Param('id') id: string) {
+    const pkg = await this.quizPromo.latest(id);
+    if (!pkg) return { promo: null };
+    return this.shapeQuizPromo(pkg);
+  }
+
+  private shapeQuizPromo(
+    pkg: import('./entities/quiz-promo-package.entity').QuizPromoPackage,
+  ) {
+    return {
+      id: pkg.id,
+      bundleId: pkg.bundleId,
+      planId: pkg.planId,
+      brandId: pkg.brandId,
+      startsAtLabel: pkg.startsAtLabel,
+      endsAtLabel: pkg.endsAtLabel,
+      rewardLabel: pkg.rewardLabel,
+      payload: pkg.payload,
+      generatorModel: pkg.generatorModel,
+      costUsd: Number(pkg.costUsd),
+      createdAt: pkg.createdAt,
+    };
   }
 
   /** Trim the bundle response so the wire payload doesn't include FK joins. */

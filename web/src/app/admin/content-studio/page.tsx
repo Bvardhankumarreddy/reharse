@@ -10,7 +10,7 @@ import {
   type ScriptAsset, type PptAsset,
   type SeoAsset, type ThumbnailAsset, type PromoAsset,
   type QuizPoolListResponse, type DeliveredQuizSummary,
-  type QuizBundleResp,
+  type QuizBundleResp, type QuizPromoResp,
   type PipelineRun, type PipelineStage, PIPELINE_STAGE_ORDER,
   type DlqJob,
   type AuditEntry, type AssetVersionMeta, type RollbackableAssetType,
@@ -2490,6 +2490,9 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   const [bundle, setBundle] = useState<QuizBundleResp | null>(null);
   const [bundleBusy, setBundleBusy] = useState(false);
   const [bundleOpen, setBundleOpen] = useState(false);
+  const [promo, setPromo] = useState<QuizPromoResp | null>(null);
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [promoTab, setPromoTab] = useState<"youtube" | "linkedin" | "instagram" | "wac" | "was">("youtube");
   // Quiz week # written into every CSV row. Empty = let the server default
   // (uses the bundle's stored week, then plan.seriesWeekNumber, then 1).
   const [bundleWeek, setBundleWeek] = useState<string>("");
@@ -2523,6 +2526,12 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
       } else {
         setBundle(null);
       }
+    } catch { /* ignore */ }
+    try {
+      const p = await api<QuizPromoResp | { promo: null }>(
+        token, `/plans/${planId}/quiz/promo`,
+      );
+      setPromo("id" in p ? p : null);
     } catch { /* ignore */ }
   }, [planId]);
 
@@ -2597,6 +2606,26 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setBundleBusy(false); }
+  }
+
+  async function generatePromo() {
+    if (!bundle) { onToast("⚠ Generate the bundle first"); return; }
+    setPromoBusy(true);
+    onToast("Generating quiz promo posts (schedule + reward + 5 platforms)… (~20-60s)");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setPromoBusy(false); return; }
+    try {
+      const r = await api<QuizPromoResp>(
+        token, `/plans/${planId}/quiz/promo/generate`,
+        { method: "POST" },
+      );
+      setPromo(r);
+      onToast(
+        `✓ Promo ready · ${r.startsAtLabel} → ${r.endsAtLabel} · 🎁 ${r.rewardLabel} · $${r.costUsd.toFixed(4)}`,
+      );
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setPromoBusy(false); }
   }
 
   async function downloadBundleCsv() {
@@ -2823,6 +2852,97 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
               week # is written into every CSV row · change before regenerating to target a different week
             </span>
           </div>
+
+          {/* ── Quiz promo posts ───────────────────────────────────── */}
+          {bundle && (
+            <div className="border-t border-white/5 pt-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-[#B8C5E0] font-semibold">
+                  📣 Quiz Promo Posts
+                  <span className="ml-2 text-[10px] font-normal text-[#6B7799]">
+                    LLM picks start/end + reward · 5 platforms · lesson links + footer baked in
+                  </span>
+                </span>
+                {promo && (
+                  <span className="text-[10px] text-[#6B7799]">
+                    🎁 {promo.rewardLabel} · ${promo.costUsd.toFixed(4)}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <PrimaryBtn
+                  label={
+                    promoBusy
+                      ? "Generating posts…"
+                      : promo
+                      ? "🔁 Regenerate Posts"
+                      : "📣 Generate Promo Posts"
+                  }
+                  busy={promoBusy}
+                  onClick={generatePromo}
+                />
+                {promo && (
+                  <span className="text-[10px] text-[#B8C5E0]">
+                    🗓 {promo.startsAtLabel} → {promo.endsAtLabel}
+                  </span>
+                )}
+              </div>
+              {promo && (
+                <div className="bg-white/[0.02] border border-white/5 rounded-lg p-2 space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      ["youtube",   "▶ YouTube"],
+                      ["linkedin",  "💼 LinkedIn"],
+                      ["instagram", "📸 Instagram"],
+                      ["wac",       "💬 WA Channel"],
+                      ["was",       "📱 WA Status"],
+                    ].map(([key, label]) => (
+                      <button
+                        key={key}
+                        onClick={() => setPromoTab(key as typeof promoTab)}
+                        className={`px-2 py-1 text-[10px] rounded ${
+                          promoTab === key
+                            ? "bg-[#00D4FF]/20 text-[#00D4FF] border border-[#00D4FF]/40"
+                            : "bg-white/5 text-[#B8C5E0] border border-white/10 hover:text-white"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {(() => {
+                    let text = "";
+                    if (promoTab === "youtube") {
+                      const yt = promo.payload.youtube_community;
+                      text = yt ? `TITLE: ${yt.title}\n\n${yt.full_text}` : "";
+                    } else if (promoTab === "linkedin") {
+                      text = promo.payload.linkedin?.full_text ?? "";
+                    } else if (promoTab === "instagram") {
+                      text = promo.payload.instagram?.full_text ?? "";
+                    } else if (promoTab === "wac") {
+                      text = promo.payload.whatsapp_channel?.full_text ?? "";
+                    } else {
+                      text = promo.payload.whatsapp_status?.full_text ?? "";
+                    }
+                    return (
+                      <>
+                        <pre className="text-[11px] text-[#B8C5E0] whitespace-pre-wrap break-words max-h-72 overflow-y-auto bg-[#0F1330] rounded p-2 border border-white/5">
+                          {text || "(no content for this platform)"}
+                        </pre>
+                        <Btn
+                          label="📋 Copy to clipboard"
+                          onClick={() => {
+                            navigator.clipboard.writeText(text);
+                            onToast(`⬇ ${promoTab.toUpperCase()} text copied`);
+                          }}
+                        />
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
 
           {bundle && bundleOpen && (
             <div className="space-y-2 text-[11px] text-[#B8C5E0] bg-white/[0.02] border border-white/5 rounded-lg p-2">
