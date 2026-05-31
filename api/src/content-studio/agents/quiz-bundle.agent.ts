@@ -113,6 +113,50 @@ const POINTS_BY_DIFFICULTY: Record<BundleDifficulty, number> = {
   easy: 1, medium: 2, hard: 3,
 };
 
+const ALL_QUESTION_TYPES: BundleQuestionType[] = [
+  'mcq', 'true_false', 'multi_select', 'numeric',
+];
+
+/**
+ * Build a type-restriction prompt block + the default-budget text. Returns
+ * both pieces so callers can splice them into their user prompt.
+ *
+ * No filter / empty / full set → returns the default ≤15% multi_select +
+ * ≤10% numeric budget. Subset → returns a "USE ONLY: …" line and replaces
+ * the budget guidance with proportional advice.
+ */
+function buildTypeInstructions(
+  count: number,
+  requested?: BundleQuestionType[],
+): { typeRestriction: string; typeBudget: string } {
+  const valid = (requested ?? [])
+    .filter((t): t is BundleQuestionType => ALL_QUESTION_TYPES.includes(t));
+  const unique = Array.from(new Set(valid));
+  // No restriction / all 4 → default budget rules.
+  if (unique.length === 0 || unique.length === ALL_QUESTION_TYPES.length) {
+    return {
+      typeRestriction: '',
+      typeBudget:
+        `Use multi_select for at most ${Math.max(1, Math.floor(count * 0.15))} questions; ` +
+        `numeric for at most ${Math.max(1, Math.floor(count * 0.10))} questions. `,
+    };
+  }
+  const list = unique.join(' | ');
+  const onlyOne = unique.length === 1;
+  return {
+    typeRestriction:
+      `STRICT TYPE FILTER: every question MUST use questionType from ` +
+      `{${list}}. Do NOT emit any other type. ` +
+      (unique.includes('multi_select') && !onlyOne
+        ? `Cap multi_select at ~30% of the count. ` : '') +
+      (unique.includes('numeric') && !onlyOne
+        ? `Cap numeric at ~20% of the count. ` : ''),
+    typeBudget: onlyOne
+      ? `All ${count} questions MUST be ${unique[0]}. `
+      : `Mix the allowed types evenly across the ${count} questions. `,
+  };
+}
+
 interface LlmTieBreaker {
   question?: unknown;
   answer?: unknown;
@@ -220,6 +264,13 @@ export class QuizBundleAgent {
      * AND every question are nudged toward this direction. Trimmed to 800 chars.
      */
     customPrompt?: string;
+    /**
+     * Restrict the question types the LLM may produce. Default = all four
+     * (mcq, true_false, multi_select, numeric) with the usual ≤15% / ≤10%
+     * budgets. Empty/undefined/all-four → no restriction. Subset → LLM is
+     * told "use ONLY these types" and a hint about the resulting distribution.
+     */
+    questionTypes?: BundleQuestionType[];
   } = {}): Promise<QuizBundle> {
     const plan = await this.planRepo.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Plan not found');
@@ -274,6 +325,10 @@ export class QuizBundleAgent {
       ? `CURATOR CUSTOM GUIDANCE (week-wide — apply to every question, title, ` +
         `description, and tie-breaker):\n${opts.customPrompt.trim().slice(0, 800)}\n\n`
       : '';
+
+    const { typeRestriction, typeBudget } = buildTypeInstructions(
+      count, opts.questionTypes,
+    );
 
     const sharedContext =
       `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
@@ -339,8 +394,8 @@ export class QuizBundleAgent {
         `${toughness >= 4 ? 'expert-grade, multi-step reasoning and edge cases' : toughness >= 2 ? 'apply-and-distinguish, beyond recall' : 'foundational understanding'}.\n` +
         `TOTAL QUESTIONS: EXACTLY ${count}. ` +
         `Difficulty split: ${dist.easy} easy / ${dist.medium} medium / ${dist.hard} hard. ` +
-        `Use multi_select for at most ${Math.max(1, Math.floor(count * 0.15))} questions; ` +
-        `numeric for at most ${Math.max(1, Math.floor(count * 0.10))} questions. ` +
+        typeBudget +
+        (typeRestriction ? `\n${typeRestriction}\n` : '') +
         `Output the JSON object only.`,
     });
 
@@ -489,6 +544,7 @@ export class QuizBundleAgent {
    */
   async regenerateForLesson(planId: string, lessonNumber: number, opts: {
     count?: number; customPrompt?: string;
+    questionTypes?: BundleQuestionType[];
   } = {}): Promise<QuizBundle> {
     const bundle = await this.latest(planId);
     if (!bundle) throw new NotFoundException('No bundle for plan');
@@ -531,6 +587,9 @@ export class QuizBundleAgent {
       ? `\nCUSTOM USER GUIDANCE (obey first):\n${opts.customPrompt.trim()}\n`
       : '';
 
+    const { typeRestriction: lessonTypeRestriction, typeBudget: lessonTypeBudget } =
+      buildTypeInstructions(count, opts.questionTypes);
+
     const maxTokens = Math.min(16000, Math.max(2500, count * 350 + 1000));
     const qs = await this.router.run({
       task: 'quiz',
@@ -550,6 +609,8 @@ export class QuizBundleAgent {
         customBlock +
         `\nTOTAL QUESTIONS: EXACTLY ${count}. ` +
         `Difficulty split: ${dist.easy} easy / ${dist.medium} medium / ${dist.hard} hard. ` +
+        lessonTypeBudget +
+        (lessonTypeRestriction ? `\n${lessonTypeRestriction}\n` : '') +
         `EVERY question must set lessonNumber=${lesson.lessonNumber} and ` +
         `category="${lesson.title}". ` +
         `Output the JSON object only.`,

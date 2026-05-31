@@ -396,6 +396,7 @@ export class ContentStudioController {
     @Body() body: {
       count?: number; toughness?: number; quizWeek?: number;
       customPrompt?: string;
+      questionTypes?: string[];
     },
   ) {
     const bundle = await this.quizBundle.generate(id, {
@@ -403,6 +404,7 @@ export class ContentStudioController {
       toughness: body?.toughness,
       quizWeek: body?.quizWeek,
       customPrompt: body?.customPrompt,
+      questionTypes: normaliseBundleQuestionTypes(body?.questionTypes),
     });
     return this.shapeBundle(bundle);
   }
@@ -442,7 +444,7 @@ export class ContentStudioController {
   async regenerateBundleLesson(
     @Param('id') id: string,
     @Param('lessonNumber') lessonNumberStr: string,
-    @Body() body: { count?: number; customPrompt?: string },
+    @Body() body: { count?: number; customPrompt?: string; questionTypes?: string[] },
   ) {
     const lessonNumber = Math.round(Number(lessonNumberStr));
     if (!Number.isFinite(lessonNumber) || lessonNumber < 1) {
@@ -451,6 +453,7 @@ export class ContentStudioController {
     const bundle = await this.quizBundle.regenerateForLesson(id, lessonNumber, {
       count: body?.count,
       customPrompt: body?.customPrompt,
+      questionTypes: normaliseBundleQuestionTypes(body?.questionTypes),
     });
     return this.shapeBundle(bundle);
   }
@@ -1344,4 +1347,17 @@ export class ContentStudioController {
     await this.lessonRepo.update(id, { lessonFormat: fmt as LessonFormat });
     return { ok: true, id, lessonFormat: fmt };
   }
+}
+
+const BUNDLE_QUESTION_TYPES = ['mcq', 'true_false', 'multi_select', 'numeric'] as const;
+type BundleQType = (typeof BUNDLE_QUESTION_TYPES)[number];
+
+/** Coerce a request body's questionTypes into the valid subset (or undefined). */
+function normaliseBundleQuestionTypes(input: unknown): BundleQType[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const allowed = new Set<string>(BUNDLE_QUESTION_TYPES);
+  const out = input
+    .map((v) => String(v).toLowerCase().trim())
+    .filter((v): v is BundleQType => allowed.has(v));
+  return out.length ? Array.from(new Set(out)) : undefined;
 }

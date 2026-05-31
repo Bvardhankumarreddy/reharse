@@ -2590,12 +2590,18 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   const [lessonOpen, setLessonOpen] = useState<number | null>(null);
   const [lessonPrompt, setLessonPrompt] = useState<Record<number, string>>({});
   const [lessonCount, setLessonCount] = useState<Record<number, string>>({});
+  // Per-lesson question-type restriction (defaults to inheriting bundleTypes).
+  const [lessonTypes, setLessonTypes] = useState<Record<number, Record<"mcq" | "true_false" | "multi_select" | "numeric", boolean>>>({});
   const [promoTab, setPromoTab] = useState<"youtube" | "linkedin" | "instagram" | "wac" | "was" | "lc">("youtube");
   // Quiz week # written into every CSV row. Empty = let the server default
   // (uses the bundle's stored week, then plan.seriesWeekNumber, then 1).
   const [bundleWeek, setBundleWeek] = useState<string>("");
   // Optional week-wide custom guidance applied to next bundle generation.
   const [bundleCustomPrompt, setBundleCustomPrompt] = useState<string>("");
+  // Which question types the LLM may produce. Empty / all 4 = no restriction.
+  const [bundleTypes, setBundleTypes] = useState<Record<"mcq" | "true_false" | "multi_select" | "numeric", boolean>>({
+    mcq: true, true_false: true, multi_select: true, numeric: true,
+  });
   const [genBusy, setGenBusy] = useState(false);
   const [drawBusy, setDrawBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -2693,6 +2699,15 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
     if (!token) { onToast("⚠ Not signed in"); setBundleBusy(false); return; }
     try {
       const cp = bundleCustomPrompt.trim();
+      const checkedTypes = (Object.keys(bundleTypes) as (keyof typeof bundleTypes)[])
+        .filter((k) => bundleTypes[k]);
+      // All 4 checked or none = no restriction → omit the field.
+      const typesToSend = checkedTypes.length === 4 || checkedTypes.length === 0
+        ? undefined
+        : checkedTypes;
+      if (typesToSend && typesToSend.length === 0) {
+        onToast("⚠ Pick at least one question type"); setBundleBusy(false); return;
+      }
       const r = await api<QuizBundleResp>(
         token, `/plans/${planId}/quiz/bundle/generate`,
         {
@@ -2700,6 +2715,7 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
           body: JSON.stringify({
             count: n, toughness: t, quizWeek: w,
             ...(cp ? { customPrompt: cp } : {}),
+            ...(typesToSend ? { questionTypes: typesToSend } : {}),
           }),
         },
       );
@@ -2721,6 +2737,16 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
     const count = countRaw && countRaw.trim() !== ""
       ? Math.max(1, Math.min(40, Number(countRaw)))
       : undefined;
+    // Type filter: per-lesson row > bundle-wide default. Empty / all 4 = omit.
+    const lTypes = lessonTypes[lessonNumber] ?? bundleTypes;
+    const checked = (Object.keys(lTypes) as (keyof typeof lTypes)[])
+      .filter((k) => lTypes[k]);
+    const typesToSend = checked.length === 4 || checked.length === 0
+      ? undefined
+      : checked;
+    if (typesToSend && typesToSend.length === 0) {
+      onToast("⚠ Pick at least one question type"); return;
+    }
     setLessonBusy(lessonNumber);
     onToast(`Regenerating Lesson ${lessonNumber} questions${promptText ? " with custom guidance" : ""}…`);
     const token = await fetchToken();
@@ -2734,6 +2760,7 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
           body: JSON.stringify({
             count,
             customPrompt: promptText || undefined,
+            ...(typesToSend ? { questionTypes: typesToSend } : {}),
           }),
         },
       );
@@ -3001,6 +3028,31 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
             rows={2}
             className="w-full bg-[#0F1330] border border-white/10 rounded px-3 py-1.5 text-[11px] text-[#B8C5E0] outline-none focus:border-[#00D4FF]/40 resize-y"
           />
+
+          <div className="flex flex-wrap items-center gap-3 text-[10px] text-[#6B7799]">
+            <span className="text-[10px] uppercase tracking-wide">Question types</span>
+            {([
+              ["mcq",          "MCQ"],
+              ["true_false",   "True/False"],
+              ["multi_select", "Multi-select"],
+              ["numeric",      "Numeric"],
+            ] as const).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-1 text-[#B8C5E0]">
+                <input
+                  type="checkbox"
+                  checked={bundleTypes[key]}
+                  onChange={(e) =>
+                    setBundleTypes((b) => ({ ...b, [key]: e.target.checked }))
+                  }
+                  className="accent-[#00D4FF]"
+                />
+                {label}
+              </label>
+            ))}
+            <span className="text-[9px] text-[#6B7799]">
+              uncheck a type to skip it · all 4 = default mix
+            </span>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
               quiz week #
@@ -3269,6 +3321,38 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
                               rows={3}
                               className="w-full bg-[#0F1330] border border-white/10 rounded px-2 py-1.5 text-[11px] text-white outline-none focus:border-[#00D4FF]/40 resize-y"
                             />
+                            <div className="flex flex-wrap items-center gap-3 text-[10px] text-[#6B7799]">
+                              <span className="uppercase tracking-wide">Types</span>
+                              {([
+                                ["mcq",          "MCQ"],
+                                ["true_false",   "True/False"],
+                                ["multi_select", "Multi-select"],
+                                ["numeric",      "Numeric"],
+                              ] as const).map(([key, label]) => {
+                                const current =
+                                  lessonTypes[lessonNum]?.[key] ??
+                                  bundleTypes[key];
+                                return (
+                                  <label key={key} className="flex items-center gap-1 text-[#B8C5E0]">
+                                    <input
+                                      type="checkbox"
+                                      checked={current}
+                                      onChange={(e) =>
+                                        setLessonTypes((m) => ({
+                                          ...m,
+                                          [lessonNum]: {
+                                            ...(m[lessonNum] ?? bundleTypes),
+                                            [key]: e.target.checked,
+                                          },
+                                        }))
+                                      }
+                                      className="accent-[#00D4FF]"
+                                    />
+                                    {label}
+                                  </label>
+                                );
+                              })}
+                            </div>
                             <div className="flex items-center gap-2">
                               <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
                                 # questions
