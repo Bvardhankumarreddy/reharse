@@ -214,6 +214,12 @@ export class QuizBundleAgent {
   /** Generate (or regenerate) the bundle for a plan. Overwrites any existing. */
   async generate(planId: string, opts: {
     count?: number; toughness?: number; quizWeek?: number;
+    /**
+     * Free-text week-wide steering from the curator. Injected into BOTH
+     * the metadata and questions LLM calls so title/description/tie-breaker
+     * AND every question are nudged toward this direction. Trimmed to 800 chars.
+     */
+    customPrompt?: string;
   } = {}): Promise<QuizBundle> {
     const plan = await this.planRepo.findOne({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Plan not found');
@@ -264,13 +270,19 @@ export class QuizBundleAgent {
       )
       .join('\n\n');
 
+    const customBlock = opts.customPrompt && opts.customPrompt.trim()
+      ? `CURATOR CUSTOM GUIDANCE (week-wide — apply to every question, title, ` +
+        `description, and tie-breaker):\n${opts.customPrompt.trim().slice(0, 800)}\n\n`
+      : '';
+
     const sharedContext =
       `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
       `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
       `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n` +
       `WEEK NUMBER: ${quizWeek}\n\n` +
       `LESSONS:\n${lessonsBlock}\n\n` +
-      `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n`;
+      `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
+      customBlock;
 
     // ── Call 1 — METADATA (title + description + tie-breaker) ────────────
     const meta = await this.router.run({

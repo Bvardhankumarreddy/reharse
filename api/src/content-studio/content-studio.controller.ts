@@ -190,11 +190,33 @@ export class ContentStudioController {
     weekOf?: string;
     seriesId?: string;
     seriesWeekNumber?: number;
+    customIdea?: string;
   }) {
     if (!body?.brandId) throw new BadRequestException('brandId is required');
     return this.strategy.generateWeek(body.brandId, body.weekOf, {
       seriesId: body.seriesId ?? null,
       seriesWeekNumber: body.seriesWeekNumber ?? null,
+      customIdea: body.customIdea ?? null,
+    });
+  }
+
+  /**
+   * Regenerate a whole week plan in place. Wipes lessons + assets + quiz
+   * pool + bundle + promo + delivered-quiz + agent runs, then re-runs the
+   * Strategy Agent. Body:
+   *   { customIdea?: string, keepTheme?: boolean }
+   *
+   * keepTheme=true preserves plan.theme + plan.quizScope so the regen
+   * stays within those rails (only lessons get re-picked).
+   */
+  @Post('plans/:id/regenerate')
+  regeneratePlan(
+    @Param('id') id: string,
+    @Body() body: { customIdea?: string; keepTheme?: boolean },
+  ) {
+    return this.strategy.regenerateWeek(id, {
+      customIdea: body?.customIdea ?? null,
+      keepTheme: body?.keepTheme === true,
     });
   }
 
@@ -371,12 +393,16 @@ export class ContentStudioController {
   @Post('plans/:id/quiz/bundle/generate')
   async generateQuizBundle(
     @Param('id') id: string,
-    @Body() body: { count?: number; toughness?: number; quizWeek?: number },
+    @Body() body: {
+      count?: number; toughness?: number; quizWeek?: number;
+      customPrompt?: string;
+    },
   ) {
     const bundle = await this.quizBundle.generate(id, {
       count: body?.count,
       toughness: body?.toughness,
       quizWeek: body?.quizWeek,
+      customPrompt: body?.customPrompt,
     });
     return this.shapeBundle(bundle);
   }

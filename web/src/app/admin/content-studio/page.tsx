@@ -120,6 +120,8 @@ function BrandCard({ brand, onToast, onChange }: {
   const [open, setOpen] = useState(false);
   const [weekOf, setWeekOf] = useState("");
   const [busy, setBusy] = useState(false);
+  // Optional curator steering for the next plan — empty = pure StrategyAgent.
+  const [customIdea, setCustomIdea] = useState("");
   const [openOverrides, setOpenOverrides] = useState(false);
   const [overridesText, setOverridesText] = useState(
     JSON.stringify(brand.modelOverrides ?? {}, null, 2),
@@ -162,7 +164,12 @@ function BrandCard({ brand, onToast, onChange }: {
 
   async function generate() {
     setBusy(true);
-    onToast("Strategy Agent planning the week… (~20-60s)");
+    const idea = customIdea.trim();
+    onToast(
+      idea
+        ? `Strategy Agent planning with your idea… (~20-60s)`
+        : "Strategy Agent planning the week… (~20-60s)",
+    );
     const token = await fetchToken();
     if (!token) {
       onToast("⚠ Not signed in — reload and sign in again");
@@ -175,10 +182,12 @@ function BrandCard({ brand, onToast, onChange }: {
         body: JSON.stringify({
           brandId: brand.id,
           ...(weekOf ? { weekOf } : {}),
+          ...(idea ? { customIdea: idea } : {}),
         }),
       });
       onToast("✓ Week plan generated — see Weekly plans below");
       onChange();
+      setCustomIdea(""); // clear after success
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setBusy(false); }
@@ -221,31 +230,40 @@ function BrandCard({ brand, onToast, onChange }: {
           {brand.slug}
         </span>
       </div>
-      <div className="px-4 py-2 border-t border-white/5 flex flex-wrap items-center gap-2">
-        <input
-          type="date"
-          value={weekOf}
-          onChange={(e) => setWeekOf(e.target.value)}
-          title="Week of (optional — defaults to this Monday)"
-          className="bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white"
+      <div className="px-4 py-2 border-t border-white/5 space-y-2">
+        <textarea
+          value={customIdea}
+          onChange={(e) => setCustomIdea(e.target.value)}
+          placeholder={`Optional custom idea for this week — e.g. "make it about evaluating LLM apps in production" or "two lessons on RAG vs fine-tuning trade-offs". Leave blank for pure auto.`}
+          rows={2}
+          className="w-full bg-[#0A0E27] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-[#B8C5E0] outline-none focus:border-[#00D4FF]/40 resize-y"
         />
-        <PrimaryBtn
-          label={busy ? "Planning…" : "✨ Generate Week"}
-          busy={busy}
-          onClick={generate}
-        />
-        <Btn label="📅 Plan N weeks" onClick={planAhead} />
-        <Btn label={open ? "Hide memories" : "🧠 Brand memories"} onClick={toggle} />
-        <Btn
-          label={
-            openOverrides
-              ? "Hide overrides"
-              : Object.keys(brand.modelOverrides ?? {}).length > 0
-              ? `🎛 Model overrides (${Object.keys(brand.modelOverrides).length})`
-              : "🎛 Model overrides"
-          }
-          onClick={() => setOpenOverrides((v) => !v)}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={weekOf}
+            onChange={(e) => setWeekOf(e.target.value)}
+            title="Week of (optional — defaults to this Monday)"
+            className="bg-[#0A0E27] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white"
+          />
+          <PrimaryBtn
+            label={busy ? "Planning…" : customIdea.trim() ? "✨ Generate Week (custom)" : "✨ Generate Week"}
+            busy={busy}
+            onClick={generate}
+          />
+          <Btn label="📅 Plan N weeks" onClick={planAhead} />
+          <Btn label={open ? "Hide memories" : "🧠 Brand memories"} onClick={toggle} />
+          <Btn
+            label={
+              openOverrides
+                ? "Hide overrides"
+                : Object.keys(brand.modelOverrides ?? {}).length > 0
+                ? `🎛 Model overrides (${Object.keys(brand.modelOverrides).length})`
+                : "🎛 Model overrides"
+            }
+            onClick={() => setOpenOverrides((v) => !v)}
+          />
+        </div>
       </div>
       {openOverrides && (
         <div className="px-4 py-3 border-t border-white/5 bg-[#0F1330] space-y-2">
@@ -408,6 +426,42 @@ function PlanCard({ plan, brands, onToast, onChange }: {
   const [approval, setApprovalState] = useState(plan.approvalStatus ?? "pending");
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [regenBusy, setRegenBusy] = useState(false);
+  const [regenIdea, setRegenIdea] = useState("");
+  const [regenKeepTheme, setRegenKeepTheme] = useState(false);
+
+  async function regeneratePlan() {
+    const idea = regenIdea.trim();
+    const label = regenKeepTheme
+      ? `Regenerating plan (keeping theme${idea ? ", with custom idea" : ""})…`
+      : `Regenerating whole plan${idea ? " with custom idea" : ""}…`;
+    if (
+      !confirm(
+        `Regenerate this plan? This wipes lessons + assets + quiz pool + bundle + promo. ` +
+        `Approval flips back to pending. ${regenKeepTheme ? "Theme will be preserved." : "Theme will be re-picked."}`,
+      )
+    ) return;
+    setRegenBusy(true);
+    onToast(label);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setRegenBusy(false); return; }
+    try {
+      await api(token, `/plans/${plan.id}/regenerate`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...(idea ? { customIdea: idea } : {}),
+          keepTheme: regenKeepTheme,
+        }),
+      });
+      onToast("✓ Plan regenerated — pipeline blocked until you re-approve");
+      setRegenIdea("");
+      setRegenOpen(false);
+      onChange?.();
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setRegenBusy(false); }
+  }
 
   async function deletePlan() {
     if (!confirm(`Delete this week plan (${plan.weekOf})? This removes its lessons, assets, quiz and runs — cannot be undone.`)) return;
@@ -517,14 +571,51 @@ function PlanCard({ plan, brands, onToast, onChange }: {
           <span className="text-[10px] text-[#6B7799]">pipeline blocked until approved</span>
         )}
         <button
+          onClick={() => setRegenOpen((v) => !v)}
+          className="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#FFB020]/40 text-[#FFB020] hover:bg-[#FFB020]/10 transition"
+          title="Wipe lessons + quiz + bundle + promo + assets and re-run the Strategy Agent"
+        >
+          {regenOpen ? "Hide regen" : "🔁 Regenerate plan"}
+        </button>
+        <button
           onClick={deletePlan}
           disabled={deleting}
-          className="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-400/30 text-red-300 hover:bg-red-400/10 disabled:opacity-50 transition"
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-400/30 text-red-300 hover:bg-red-400/10 disabled:opacity-50 transition"
           title="Delete this week plan and everything under it"
         >
           {deleting ? "Deleting…" : "🗑 Delete plan"}
         </button>
       </div>
+      {regenOpen && (
+        <div className="px-4 py-3 border-t border-white/5 bg-[#0F1330] space-y-2">
+          <textarea
+            value={regenIdea}
+            onChange={(e) => setRegenIdea(e.target.value)}
+            placeholder={`Optional custom idea — e.g. "pivot to RAG benchmarking" or "make lesson 2 a live-coding session on tool use". Leave blank to let the agent re-roll on its own.`}
+            rows={3}
+            className="w-full bg-[#0A0E27] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-[#B8C5E0] outline-none focus:border-[#FFB020]/40 resize-y"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-[11px] text-[#B8C5E0] flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={regenKeepTheme}
+                onChange={(e) => setRegenKeepTheme(e.target.checked)}
+                className="accent-[#FFB020]"
+              />
+              Keep current theme &amp; quiz scope
+            </label>
+            <PrimaryBtn
+              label={regenBusy ? "Regenerating…" : regenKeepTheme ? "🔁 Re-roll lessons" : "🔁 Regenerate plan"}
+              busy={regenBusy}
+              onClick={regeneratePlan}
+            />
+            <span className="text-[10px] text-[#6B7799]">
+              wipes everything below the plan row · approval re-resets
+            </span>
+          </div>
+        </div>
+      )}
       {open && full && (
         <div className="px-4 py-4 border-t border-white/5 bg-[#0F1330] space-y-4">
           <PipelineRunPanel planId={full.id} onToast={onToast} />
@@ -2503,6 +2594,8 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   // Quiz week # written into every CSV row. Empty = let the server default
   // (uses the bundle's stored week, then plan.seriesWeekNumber, then 1).
   const [bundleWeek, setBundleWeek] = useState<string>("");
+  // Optional week-wide custom guidance applied to next bundle generation.
+  const [bundleCustomPrompt, setBundleCustomPrompt] = useState<string>("");
   const [genBusy, setGenBusy] = useState(false);
   const [drawBusy, setDrawBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -2599,9 +2692,16 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
     const token = await fetchToken();
     if (!token) { onToast("⚠ Not signed in"); setBundleBusy(false); return; }
     try {
+      const cp = bundleCustomPrompt.trim();
       const r = await api<QuizBundleResp>(
         token, `/plans/${planId}/quiz/bundle/generate`,
-        { method: "POST", body: JSON.stringify({ count: n, toughness: t, quizWeek: w }) },
+        {
+          method: "POST",
+          body: JSON.stringify({
+            count: n, toughness: t, quizWeek: w,
+            ...(cp ? { customPrompt: cp } : {}),
+          }),
+        },
       );
       setBundle(r);
       setToughness(String(r.toughness));
@@ -2894,6 +2994,13 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
             )}
           </div>
 
+          <textarea
+            value={bundleCustomPrompt}
+            onChange={(e) => setBundleCustomPrompt(e.target.value)}
+            placeholder={`Optional week-wide custom guidance — e.g. "test rate-limit understanding across both lessons" or "make 30% of questions scenario-based". Leave blank for default.`}
+            rows={2}
+            className="w-full bg-[#0F1330] border border-white/10 rounded px-3 py-1.5 text-[11px] text-[#B8C5E0] outline-none focus:border-[#00D4FF]/40 resize-y"
+          />
           <div className="flex flex-wrap items-center gap-2">
             <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
               quiz week #

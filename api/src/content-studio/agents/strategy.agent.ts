@@ -2,7 +2,7 @@ import {
   Injectable, Logger, BadRequestException, NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
 import { Channel } from '../entities/channel.entity';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
@@ -14,6 +14,12 @@ import {
 import { CompetitorVideo } from '../entities/competitor-video.entity';
 import { CompetitorChannel } from '../entities/competitor-channel.entity';
 import { ChannelVideo } from '../entities/channel-video.entity';
+import { QuestionPool } from '../entities/question-pool.entity';
+import { DeliveredQuiz } from '../entities/delivered-quiz.entity';
+import { QuizBundle } from '../entities/quiz-bundle.entity';
+import { QuizPromoPackage } from '../entities/quiz-promo-package.entity';
+import { AgentRun } from '../entities/agent-run.entity';
+import { PipelineRun } from '../entities/pipeline-run.entity';
 import { NewsItem } from '../../ai-quick-bytes/entities/news-item.entity';
 import { NewsScore } from '../../ai-quick-bytes/entities/news-score.entity';
 import { ModelRouterService } from '../services/model-router.service';
@@ -112,6 +118,12 @@ interface StrategyJson {
 interface WeekOpts {
   seriesId?: string | null;
   seriesWeekNumber?: number | null;
+  /**
+   * Free-text steering note from the curator. Injected into the strategy
+   * prompt as 'CURATOR CUSTOM IDEA (obey first)' so the LLM prefers this
+   * direction over its own theme pick. Trimmed to 600 chars.
+   */
+  customIdea?: string | null;
 }
 
 /** Monday of the current week (UTC) as YYYY-MM-DD. */
@@ -137,6 +149,12 @@ export class StrategyAgent {
     @InjectRepository(ChannelVideo) private readonly channelVidRepo: Repository<ChannelVideo>,
     @InjectRepository(NewsItem) private readonly newsRepo: Repository<NewsItem>,
     @InjectRepository(ContentAsset) private readonly assetRepo: Repository<ContentAsset>,
+    @InjectRepository(QuestionPool) private readonly questionPoolRepo: Repository<QuestionPool>,
+    @InjectRepository(DeliveredQuiz) private readonly deliveredQuizRepo: Repository<DeliveredQuiz>,
+    @InjectRepository(QuizBundle) private readonly bundleRepo: Repository<QuizBundle>,
+    @InjectRepository(QuizPromoPackage) private readonly promoRepo: Repository<QuizPromoPackage>,
+    @InjectRepository(AgentRun) private readonly agentRunRepo: Repository<AgentRun>,
+    @InjectRepository(PipelineRun) private readonly pipelineRunRepo: Repository<PipelineRun>,
     private readonly router: ModelRouterService,
     private readonly memories: BrandMemoryService,
   ) {}
@@ -177,6 +195,7 @@ export class StrategyAgent {
 
     try {
       const memoryBlock = this.memories.format(memories);
+      const idea = (opts.customIdea ?? '').trim().slice(0, 600);
 
       const userPrompt =
         `BRAND: ${brand.name}\n` +
@@ -184,6 +203,10 @@ export class StrategyAgent {
         `Voice/style: ${brand.voiceStyle ?? ''}\n` +
         `Cadence: ${channel?.cadence ?? '2 lessons + 1 quiz / week'}\n` +
         `Week of: ${week}\n\n` +
+        (idea
+          ? `CURATOR CUSTOM IDEA (obey first — make the week's theme + ` +
+            `lessons concretely fit this direction):\n${idea}\n\n`
+          : '') +
         `BRAND MEMORIES (obey these):\n${memoryBlock}\n\n` +
         (seriesArcBlock ? `${seriesArcBlock}\n\n` : '') +
         `RECENT THEMES (last 8 weeks — DO NOT repeat these):\n` +
@@ -257,6 +280,177 @@ export class StrategyAgent {
       relations: ['lessons'],
     });
     if (!saved) throw new Error('Plan vanished after save');
+    saved.lessons?.sort((a, b) => a.lessonNumber - b.lessonNumber);
+    return saved;
+  }
+
+  /**
+   * Regenerate an ENTIRE week plan in place — wipes the plan's lessons,
+   * assets, quiz pool, quiz bundle (+questions), quiz promo, delivered
+   * quiz, and prior agent runs, then re-runs the strategy LLM. The plan
+   * row itself stays (same id, same brandId/weekOf/series ties).
+   *
+   * Opts:
+   *   - customIdea:  free-text steering (same shape as generateWeek)
+   *   - keepTheme:   preserve the existing plan.theme + plan.quizScope so
+   *                  the LLM regenerates lessons ONLY within those rails
+   *                  (won't pick a new theme).
+   *
+   * Active pipeline-runs block regen — same gate as deletePlan.
+   */
+  async regenerateWeek(planId: string, opts: {
+    customIdea?: string | null;
+    keepTheme?: boolean;
+  } = {}): Promise<WeeklyContentPlan> {
+    const plan = await this.planRepo.findOne({ where: { id: planId } });
+    if (!plan) throw new NotFoundException('Plan not found');
+    const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
+    if (!brand) throw new BadRequestException('Plan has no brand');
+
+    const active = await this.pipelineRunRepo.count({
+      where: [
+        { planId, status: 'queued' },
+        { planId, status: 'running' },
+      ],
+    });
+    if (active > 0) {
+      throw new BadRequestException(
+        `Plan has ${active} active pipeline run(s) — wait or cancel them before regenerating.`,
+      );
+    }
+
+    // ── Wipe everything below the plan row ──────────────────────────────
+    const lessons = await this.lessonRepo.find({ where: { planId } });
+    if (lessons.length) {
+      // Assets are scoped per-lesson — clear them before dropping lessons.
+      await this.assetRepo.delete({ lessonId: In(lessons.map((l) => l.id)) });
+    }
+    // Order matters: question_pool is FK'd by delivered_quiz.
+    await this.deliveredQuizRepo.delete({ planId });
+    await this.questionPoolRepo.delete({ planId });
+    // Bundle questions cascade with the bundle row.
+    const bundles = await this.bundleRepo.find({ where: { planId } });
+    if (bundles.length) {
+      await this.promoRepo.delete({ planId });
+      await this.bundleRepo.delete({ planId });
+    }
+    await this.agentRunRepo.delete({ planId });
+    await this.lessonRepo.delete({ planId });
+
+    // Existing theme/quizScope: keep if requested, otherwise wipe so the
+    // regenerator picks a fresh one.
+    const keptTheme = opts.keepTheme ? plan.theme : null;
+    const keptQuizScope = opts.keepTheme ? plan.quizScope : null;
+
+    await this.planRepo.update(planId, {
+      theme: keptTheme,
+      quizScope: keptQuizScope,
+      notes: null,
+      status: 'generating',
+      totalCostUsd: 0,
+      approvalStatus: 'pending', // re-trigger the curator gate
+      approvedBy: null,
+      approvedAt: null,
+      approvalNote: null,
+    });
+
+    try {
+      const memories = await this.memories.relevantFor(plan.brandId, 'strategy');
+      const channel = await this.channelRepo.findOne({ where: { brandId: plan.brandId } });
+      const [recentThemes, ownChannelTop, competitorTop, newsTop, seriesArcBlock] =
+        await Promise.all([
+          this.recentThemes(plan.brandId, 8),
+          this.ownChannelTopBlock(plan.brandId, 10),
+          this.competitorTopBlock(plan.brandId, 30, 12),
+          this.newsTopBlock(7, 5),
+          this.seriesArcBlock(plan.seriesId, plan.seriesWeekNumber),
+        ]);
+
+      const memoryBlock = this.memories.format(memories);
+      const idea = (opts.customIdea ?? '').trim().slice(0, 600);
+      const themeRail = keptTheme
+        ? `KEEP THIS THEME (rails — do NOT pick a new theme):\n  theme: ${keptTheme}\n  quizScope: ${keptQuizScope ?? '(none)'}\n\n`
+        : '';
+
+      const userPrompt =
+        `BRAND: ${brand.name}\n` +
+        `Description: ${brand.description ?? ''}\n` +
+        `Voice/style: ${brand.voiceStyle ?? ''}\n` +
+        `Cadence: ${channel?.cadence ?? '2 lessons + 1 quiz / week'}\n` +
+        `Week of: ${plan.weekOf}\n\n` +
+        themeRail +
+        (idea
+          ? `CURATOR CUSTOM IDEA (obey first):\n${idea}\n\n`
+          : '') +
+        `BRAND MEMORIES (obey these):\n${memoryBlock}\n\n` +
+        (seriesArcBlock ? `${seriesArcBlock}\n\n` : '') +
+        `RECENT THEMES (last 8 weeks — DO NOT repeat these):\n` +
+        `${recentThemes.length ? recentThemes.map((t, i) => `  ${i + 1}. ${t}`).join('\n') : '  (none)'}\n\n` +
+        `YOUR CHANNEL'S TOP VIDEOS:\n${ownChannelTop}\n\n` +
+        `COMPETITORS:\n${competitorTop}\n\n` +
+        `NEWS:\n${newsTop}\n\n` +
+        `Re-plan this week. Output the JSON object only.`;
+
+      const result = await this.router.run({
+        task: 'strategy',
+        agentType: 'strategy',
+        planId,
+        modelOverride: brand.modelOverrides?.strategy,
+        jsonOutput: true,
+        maxTokens: 3500,
+        temperature: 0.85,
+        system: SYSTEM,
+        user: userPrompt,
+      });
+
+      const parsed = JSON.parse(result.text || '{}') as StrategyJson;
+      const newLessons = (parsed.lessons ?? []).slice(0, 2);
+      if (newLessons.length === 0) throw new Error('Regenerate returned no lessons');
+
+      const arcFormats = await this.arcFormatsFor(plan.seriesId, plan.seriesWeekNumber);
+      await this.lessonRepo.save(
+        newLessons.map((l, i) => {
+          const requested = (l.lesson_format ?? '').toString();
+          const fmt: LessonFormat = isLessonFormat(requested)
+            ? requested
+            : (arcFormats[i] ?? 'lecture');
+          return this.lessonRepo.create({
+            planId,
+            lessonNumber: i + 1,
+            title: (l.title ?? `Lesson ${i + 1}`).slice(0, 500),
+            hook: l.hook ?? null,
+            outline: Array.isArray(l.outline) ? l.outline : [],
+            targetDurationMinutes: l.target_duration_minutes ?? this.defaultDurationFor(fmt),
+            lessonFormat: fmt,
+            status: 'planned',
+          });
+        }),
+      );
+
+      await this.planRepo.update(planId, {
+        // If keepTheme=false, the LLM picked a new theme/scope — adopt it.
+        // If keepTheme=true, leave whatever the LLM returned; trust the rails.
+        theme: keptTheme ?? parsed.theme?.slice(0, 500) ?? null,
+        quizScope: keptQuizScope ?? parsed.quiz_scope ?? null,
+        notes: parsed.rationale ? parsed.rationale.slice(0, 2000) : null,
+        status: 'ready',
+        totalCostUsd: result.costUsd,
+      });
+      this.logger.log(
+        `Regenerated plan ${planId} ` +
+        `(keepTheme=${!!opts.keepTheme}, customIdea=${!!idea}) — ` +
+        `${newLessons.length} lessons ($${result.costUsd.toFixed(4)}, ${result.model})`,
+      );
+    } catch (e) {
+      await this.planRepo.update(planId, { status: 'failed' });
+      throw e;
+    }
+
+    const saved = await this.planRepo.findOne({
+      where: { id: planId },
+      relations: ['lessons'],
+    });
+    if (!saved) throw new Error('Plan vanished after regenerate');
     saved.lessons?.sort((a, b) => a.lessonNumber - b.lessonNumber);
     return saved;
   }
