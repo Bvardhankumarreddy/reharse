@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import PptxGenJS from 'pptxgenjs';
+// pptxgenjs is CommonJS and its module.exports IS the constructor. With
+// `allowSyntheticDefaultImports: true` but no `esModuleInterop`, the
+// `import PptxGenJS from 'pptxgenjs'` form type-checks but compiles to
+// `require('pptxgenjs').default` — undefined at runtime. Use require for
+// the value, a type-only import for the typing, so we keep type-safety.
+import type PptxGenJSType from 'pptxgenjs';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const PptxGenJS = require('pptxgenjs') as typeof PptxGenJSType;
 import { Brand } from '../entities/brand.entity';
 
 export type SlideLayout = 'title' | 'kicker' | 'bullets' | 'end';
