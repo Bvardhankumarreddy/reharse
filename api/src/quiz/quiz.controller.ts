@@ -24,12 +24,19 @@ export class QuizPublicController {
   /** POST /api/v1/quiz/start — begin a new quiz session */
   @Post('start')
   start(
-    @Body() body: { fullName: string; email: string; upiId: string; youtubeHandle?: string },
+    @Body() body: {
+      fullName: string; email: string; upiId: string; youtubeHandle?: string;
+      // Trust & Safety signals from the frontend (all optional)
+      deviceFingerprint?: string;
+      browserId?: string;
+      screenResolution?: string;
+    },
     @Req() req: Request,
   ) {
     const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
       ?? req.socket.remoteAddress ?? undefined;
-    return this.quizService.startQuiz({ ...body, ipAddress });
+    const userAgent = req.headers['user-agent'] ?? undefined;
+    return this.quizService.startQuiz({ ...body, ipAddress, userAgent });
   }
 
   /** POST /api/v1/quiz/answer — submit answer for current question */
@@ -46,7 +53,16 @@ export class QuizPublicController {
   /** POST /api/v1/quiz/complete — finalize submission with optional tiebreaker */
   @Post('complete')
   complete(
-    @Body() body: { sessionId: string; tiebreakerAnswer?: number },
+    @Body() body: {
+      sessionId: string;
+      tiebreakerAnswer?: number;
+      // Trust & Safety signals captured during the quiz
+      deviceFingerprint?: string;
+      browserId?: string;
+      screenResolution?: string;
+      tabSwitchCount?: number;
+      copyPasteDetected?: boolean;
+    },
     @Req() req: Request,
   ) {
     const userAgent = req.headers['user-agent'] ?? undefined;

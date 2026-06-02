@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useQuizDeviceSignals } from "@/lib/quiz-trust-signals";
 
 export default function QuizStartPage() {
   const router = useRouter();
   const [form, setForm] = useState({ fullName: "", email: "", upiId: "", youtubeHandle: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { deviceFingerprint, browserId, screenResolution } = useQuizDeviceSignals();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,7 +21,12 @@ export default function QuizStartPage() {
       const res = await fetch("/api/v1/quiz/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          ...(deviceFingerprint ? { deviceFingerprint } : {}),
+          browserId,
+          screenResolution,
+        }),
       });
 
       if (!res.ok) {

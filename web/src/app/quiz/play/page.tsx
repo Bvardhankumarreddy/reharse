@@ -2,6 +2,10 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import {
+  useQuizDeviceSignals,
+  useQuizBehavioralCounters,
+} from "@/lib/quiz-trust-signals";
 
 type QType = "mcq" | "true_false" | "multi_select" | "numeric";
 type Letter = "A" | "B" | "C" | "D";
@@ -49,6 +53,10 @@ export default function QuizPlayPage() {
   const submittingRef = useRef(false);
   const expiredHandledRef = useRef(false);
 
+  // ── Trust & Safety signals — wired for the full lifetime of /play ───
+  const { deviceFingerprint, browserId, screenResolution } = useQuizDeviceSignals();
+  const { tabSwitchCountRef, copyPasteDetectedRef } = useQuizBehavioralCounters();
+
   // Restore session
   useEffect(() => {
     const raw = sessionStorage.getItem("quiz-session");
@@ -79,7 +87,16 @@ export default function QuizPlayPage() {
       const res = await fetch("/api/v1/quiz/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: state.sessionId, tiebreakerAnswer: tb }),
+        body: JSON.stringify({
+          sessionId: state.sessionId,
+          tiebreakerAnswer: tb,
+          // Trust & Safety final signals
+          ...(deviceFingerprint ? { deviceFingerprint } : {}),
+          browserId,
+          screenResolution,
+          tabSwitchCount: tabSwitchCountRef.current,
+          copyPasteDetected: copyPasteDetectedRef.current,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).message ?? "Complete failed");
       const result = await res.json();
@@ -90,7 +107,9 @@ export default function QuizPlayPage() {
       setError(e instanceof Error ? e.message : "Something went wrong");
       setSubmitting(false);
     }
-  }, [state, tiebreaker, router]);
+    // Refs (tabSwitchCountRef / copyPasteDetectedRef) are stable —
+    // not deps. deviceFingerprint can change once FP resolves.
+  }, [state, tiebreaker, router, deviceFingerprint, browserId, screenResolution, tabSwitchCountRef, copyPasteDetectedRef]);
 
   const submitAnswer = useCallback(async (
     body: { selectedAnswer?: string; selectedAnswers?: string[]; selectedNumber?: number },
