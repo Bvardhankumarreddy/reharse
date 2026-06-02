@@ -25,6 +25,7 @@ import { QuizAgent } from './agents/quiz.agent';
 import { QuizBundleAgent } from './agents/quiz-bundle.agent';
 import { QuizBundleCsvService } from './services/quiz-bundle-csv.service';
 import { QuizPromoAgent } from './agents/quiz-promo.agent';
+import { QuizWinnerAgent } from './agents/quiz-winner.agent';
 import { PostmortemAgent } from './agents/postmortem.agent';
 import { ImprovementAgent } from './agents/improvement.agent';
 import { ThumbnailImageAgent } from './agents/thumbnail-image.agent';
@@ -98,6 +99,7 @@ export class ContentStudioController {
     private readonly quizBundle: QuizBundleAgent,
     private readonly quizBundleCsv: QuizBundleCsvService,
     private readonly quizPromo: QuizPromoAgent,
+    private readonly quizWinner: QuizWinnerAgent,
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly intelQueue: Queue,
   ) {}
 
@@ -243,6 +245,41 @@ export class ContentStudioController {
   @Post('lessons/:id/script/generate')
   generateScript(@Param('id') id: string) {
     return this.script.generateScript(id);
+  }
+
+  /**
+   * Patch a lesson's explanation mode + target duration in place. Lets the
+   * curator switch a lesson between pure-narration and
+   * narration+screen-recording without regenerating the strategy plan.
+   */
+  @Patch('lessons/:id/script-config')
+  async setLessonScriptConfig(
+    @Param('id') id: string,
+    @Body() body: {
+      explanationMode?: 'inline' | 'with_screen_recording';
+      targetDurationMinutes?: number;
+    },
+  ) {
+    const lesson = await this.lessonRepo.findOne({ where: { id } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    const patch: Partial<Lesson> = {};
+    if (body?.explanationMode === 'inline' || body?.explanationMode === 'with_screen_recording') {
+      patch.explanationMode = body.explanationMode;
+    }
+    if (body?.targetDurationMinutes != null) {
+      const n = Math.round(Number(body.targetDurationMinutes));
+      if (!Number.isFinite(n) || n < 1 || n > 60) {
+        throw new BadRequestException('targetDurationMinutes must be 1-60');
+      }
+      patch.targetDurationMinutes = n;
+    }
+    if (Object.keys(patch).length === 0) {
+      throw new BadRequestException(
+        'Provide explanationMode and/or targetDurationMinutes',
+      );
+    }
+    await this.lessonRepo.update(id, patch);
+    return { ok: true, id, ...patch };
   }
 
   /**
@@ -517,6 +554,59 @@ export class ContentStudioController {
   async quizPromoLessonStatus(@Param('id') id: string) {
     const links = await this.quizPromo.lessonStatus(id);
     return { lessons: links };
+  }
+
+  // ── Quiz winners (post-quiz announcement posts + thumbnails) ───────────
+
+  /**
+   * Generate winner posts (5 platforms) + 3 thumbnail prompts for a plan's
+   * quiz. Overwrites any prior announcement for the plan.
+   *
+   * Body:
+   *   winners:           Array<{ rank, name, score, maxScore, timeSeconds, prizeInr }>
+   *   totalParticipants? number
+   *   speedHighlight?    string  (e.g. "22 seconds for 9 questions — fastest ever")
+   *   quizTopic?         string  (defaults to bundle.title or plan.theme)
+   *   quizNumber?        number  (defaults to bundle.quizWeek or plan.seriesWeekNumber)
+   */
+  @Post('plans/:id/quiz/winners/generate')
+  generateQuizWinners(
+    @Param('id') id: string,
+    @Body() body: {
+      winners?: unknown;
+      totalParticipants?: number;
+      speedHighlight?: string;
+      quizTopic?: string;
+      quizNumber?: number;
+    },
+  ) {
+    if (!Array.isArray(body?.winners) || body.winners.length === 0) {
+      throw new BadRequestException('winners[] is required');
+    }
+    return this.quizWinner.generate(id, {
+      winners: body.winners,
+      totalParticipants: body.totalParticipants,
+      speedHighlight: body.speedHighlight,
+      quizTopic: body.quizTopic,
+      quizNumber: body.quizNumber,
+    });
+  }
+
+  @Get('plans/:id/quiz/winners')
+  async getQuizWinners(@Param('id') id: string) {
+    const w = await this.quizWinner.latest(id);
+    if (!w) return { winners: null };
+    return w;
+  }
+
+  @Post('plans/:id/quiz/winners/regenerate-posts')
+  regenerateQuizWinnerPosts(@Param('id') id: string) {
+    return this.quizWinner.regeneratePosts(id);
+  }
+
+  @Post('plans/:id/quiz/winners/regenerate-thumbnails')
+  regenerateQuizWinnerThumbnails(@Param('id') id: string) {
+    return this.quizWinner.regenerateThumbnails(id);
   }
 
   private shapeQuizPromo(

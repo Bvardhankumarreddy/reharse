@@ -42,7 +42,51 @@ export interface Lesson {
   outline: OutlineSection[];
   targetDurationMinutes: number;
   lessonFormat: LessonFormat;
+  explanationMode?: "inline" | "with_screen_recording";
   status: string;
+}
+
+// ── Quiz winners (mega-update) ─────────────────────────────────────────
+export interface QuizWinner {
+  rank: number;
+  name: string;
+  score: number;
+  maxScore: number;
+  timeSeconds: number;
+  prizeInr: number;
+}
+export interface WinnerPosts {
+  youtube_community?: string;
+  instagram?: { caption: string; hashtags: string[]; full_text: string };
+  linkedin?:  { body: string;    hashtags: string[]; full_text: string };
+  whatsapp_channel?: string;
+  whatsapp_status?:  string;
+}
+export interface WinnerThumbnailVariation {
+  style: "podium" | "speed_highlight" | "hall_of_fame";
+  headline: string;
+  prompt: string;
+  reasoning: string;
+  estimatedCtrScore: number;
+}
+export interface QuizWinnerResp {
+  id: string;
+  planId: string;
+  brandId: string;
+  quizNumber: number;
+  quizTopic: string | null;
+  totalParticipants: number | null;
+  speedHighlight: string | null;
+  winners: QuizWinner[];
+  posts: WinnerPosts | null;
+  thumbnailPrompts: WinnerThumbnailVariation[] | null;
+  postsModel: string | null;
+  thumbnailsModel: string | null;
+  postsCostUsd: string;
+  thumbnailsCostUsd: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ── Phase E: multi-week Series ──────────────────────────────────────────

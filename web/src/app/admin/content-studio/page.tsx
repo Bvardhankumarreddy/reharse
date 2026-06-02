@@ -11,6 +11,7 @@ import {
   type SeoAsset, type ThumbnailAsset, type PromoAsset,
   type QuizPoolListResponse, type DeliveredQuizSummary,
   type QuizBundleResp, type QuizPromoResp,
+  type QuizWinnerResp,
   type PipelineRun, type PipelineStage, PIPELINE_STAGE_ORDER,
   type DlqJob,
   type AuditEntry, type AssetVersionMeta, type RollbackableAssetType,
@@ -949,10 +950,11 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2 text-[10px] text-[#6B7799]">
-          <span>~{lsn.targetDurationMinutes} min target</span>
-          <span>· {lsn.outline?.length ?? 0} sections</span>
+          <span>{lsn.outline?.length ?? 0} sections</span>
           <span>·</span>
           <FormatSelector key={lsn.lessonFormat} lesson={lsn} onToast={onToast} />
+          <span>·</span>
+          <ScriptConfigSelector key={`sc-${lsn.id}`} lesson={lsn} onToast={onToast} />
         </div>
         <ul className="space-y-1.5">
           {(lsn.outline ?? []).map((s, i) => (
@@ -3397,7 +3399,274 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
             </div>
           )}
         </div>
+
+        {/* ── Quiz Winners (post-quiz announcement) ─────────────────── */}
+        <QuizWinnersSection planId={planId} onToast={onToast} />
       </div>
+    </div>
+  );
+}
+
+// ── Quiz Winners section ────────────────────────────────────────────────────
+function QuizWinnersSection({ planId, onToast }: {
+  planId: string; onToast: (m: string) => void;
+}) {
+  const [winners, setWinners] = useState<QuizWinnerResp | null>(null);
+  const [busy, setBusy] = useState<"load" | "generate" | "posts" | "thumbs" | null>(null);
+  const [showInput, setShowInput] = useState(false);
+  const [winnersJson, setWinnersJson] = useState(
+    JSON.stringify(
+      [
+        { rank: 1, name: "", score: 9, maxScore: 9, timeSeconds: 22, prizeInr: 500 },
+        { rank: 2, name: "", score: 9, maxScore: 9, timeSeconds: 29, prizeInr: 300 },
+        { rank: 3, name: "", score: 9, maxScore: 9, timeSeconds: 35, prizeInr: 200 },
+      ],
+      null, 2,
+    ),
+  );
+  const [totalParticipants, setTotalParticipants] = useState("");
+  const [speedHighlight, setSpeedHighlight] = useState("");
+  const [tab, setTab] = useState<"yt" | "ig" | "li" | "wac" | "was">("yt");
+
+  const load = useCallback(async () => {
+    setBusy("load");
+    const token = await fetchToken();
+    if (!token) { setBusy(null); return; }
+    try {
+      const r = await api<QuizWinnerResp | { winners: null }>(
+        token, `/plans/${planId}/quiz/winners`,
+      );
+      if ("id" in r) setWinners(r);
+      else setWinners(null);
+    } catch { /* ignore */ }
+    finally { setBusy(null); }
+  }, [planId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function generate() {
+    let parsedWinners: unknown;
+    try { parsedWinners = JSON.parse(winnersJson); }
+    catch (e) { onToast(`⚠ Invalid winners JSON: ${(e as Error).message}`); return; }
+    if (!Array.isArray(parsedWinners) || parsedWinners.length === 0) {
+      onToast("⚠ winners must be a non-empty array"); return;
+    }
+    setBusy("generate");
+    onToast("Generating winner posts + thumbnails… (~20-40s)");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<QuizWinnerResp>(
+        token, `/plans/${planId}/quiz/winners/generate`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            winners: parsedWinners,
+            ...(totalParticipants.trim() ? { totalParticipants: Number(totalParticipants) } : {}),
+            ...(speedHighlight.trim() ? { speedHighlight: speedHighlight.trim() } : {}),
+          }),
+        },
+      );
+      setWinners(r);
+      setShowInput(false);
+      onToast(
+        `✓ Winners ready · ${r.winners.length} winners · ` +
+        `$${(Number(r.postsCostUsd) + Number(r.thumbnailsCostUsd)).toFixed(4)}`,
+      );
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(null); }
+  }
+
+  async function regenPosts() {
+    setBusy("posts");
+    onToast("Re-rolling winner posts…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<QuizWinnerResp>(
+        token, `/plans/${planId}/quiz/winners/regenerate-posts`,
+        { method: "POST" },
+      );
+      setWinners(r);
+      onToast("✓ Posts regenerated");
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(null); }
+  }
+
+  async function regenThumbs() {
+    setBusy("thumbs");
+    onToast("Re-rolling winner thumbnails…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<QuizWinnerResp>(
+        token, `/plans/${planId}/quiz/winners/regenerate-thumbnails`,
+        { method: "POST" },
+      );
+      setWinners(r);
+      onToast("✓ Thumbnails regenerated");
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(null); }
+  }
+
+  const tabText = (() => {
+    const p = winners?.posts;
+    if (!p) return "";
+    if (tab === "yt") return p.youtube_community ?? "";
+    if (tab === "ig") return p.instagram?.full_text ?? "";
+    if (tab === "li") return p.linkedin?.full_text ?? "";
+    if (tab === "wac") return p.whatsapp_channel ?? "";
+    return p.whatsapp_status ?? "";
+  })();
+
+  return (
+    <div className="border-t border-white/5 pt-3 space-y-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-[11px] text-[#B8C5E0] font-semibold">
+          🏆 Quiz Winners
+          <span className="ml-2 text-[10px] font-normal text-[#6B7799]">
+            after-quiz announcement · 5 platforms + 3 thumbnail prompts
+          </span>
+        </span>
+        {winners && (
+          <span className="text-[10px] text-[#6B7799]">
+            #{winners.quizNumber} · {winners.winners.length} winners ·
+            ${(Number(winners.postsCostUsd) + Number(winners.thumbnailsCostUsd)).toFixed(4)}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <PrimaryBtn
+          label={
+            busy === "generate"
+              ? "Generating…"
+              : winners
+              ? "🔁 Replace winners + regen all"
+              : "📝 Enter winners + Generate"
+          }
+          busy={busy === "generate"}
+          onClick={() => setShowInput((v) => !v)}
+        />
+        {winners && (
+          <>
+            <Btn
+              label={busy === "posts" ? "…" : "🔁 Regen posts"}
+              onClick={regenPosts}
+            />
+            <Btn
+              label={busy === "thumbs" ? "…" : "🔁 Regen thumbnails"}
+              onClick={regenThumbs}
+            />
+          </>
+        )}
+      </div>
+
+      {showInput && (
+        <div className="bg-white/[0.02] border border-white/5 rounded-lg p-2 space-y-1.5">
+          <p className="text-[10px] text-[#6B7799] uppercase tracking-wide">
+            Winners JSON (rank, name, score, maxScore, timeSeconds, prizeInr)
+          </p>
+          <textarea
+            value={winnersJson}
+            onChange={(e) => setWinnersJson(e.target.value)}
+            rows={10}
+            spellCheck={false}
+            className="w-full bg-[#0F1330] border border-white/10 rounded px-2 py-1.5 text-[11px] text-[#B8C5E0] font-mono outline-none focus:border-[#00D4FF]/40 resize-y"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
+              total participants
+              <input
+                type="number" min={0}
+                value={totalParticipants}
+                onChange={(e) => setTotalParticipants(e.target.value)}
+                className="w-16 bg-[#0F1330] border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white outline-none focus:border-[#00D4FF]/40"
+              />
+            </label>
+            <input
+              type="text"
+              value={speedHighlight}
+              onChange={(e) => setSpeedHighlight(e.target.value)}
+              placeholder='Speed highlight — e.g. "22s for 9 questions — fastest ever"'
+              className="flex-1 min-w-[200px] bg-[#0F1330] border border-white/10 rounded px-2 py-1 text-[11px] text-white outline-none focus:border-[#00D4FF]/40"
+            />
+            <PrimaryBtn
+              label={busy === "generate" ? "Generating…" : "📝 Generate"}
+              busy={busy === "generate"}
+              onClick={generate}
+            />
+          </div>
+        </div>
+      )}
+
+      {winners?.posts && (
+        <div className="bg-white/[0.02] border border-white/5 rounded-lg p-2 space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              ["yt",  "▶ YouTube"],
+              ["ig",  "📸 Instagram"],
+              ["li",  "💼 LinkedIn"],
+              ["wac", "💬 WA Channel"],
+              ["was", "📱 WA Status"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key as typeof tab)}
+                className={`px-2 py-1 text-[10px] rounded ${
+                  tab === key
+                    ? "bg-[#FFB020]/20 text-[#FFB020] border border-[#FFB020]/40"
+                    : "bg-white/5 text-[#B8C5E0] border border-white/10 hover:text-white"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <pre className="text-[11px] text-[#B8C5E0] whitespace-pre-wrap break-words max-h-72 overflow-y-auto bg-[#0F1330] rounded p-2 border border-white/5">
+            {tabText || "(no content for this platform)"}
+          </pre>
+          <Btn
+            label="📋 Copy to clipboard"
+            onClick={() => {
+              navigator.clipboard.writeText(tabText);
+              onToast(`⬇ ${tab.toUpperCase()} text copied`);
+            }}
+          />
+        </div>
+      )}
+
+      {winners?.thumbnailPrompts && winners.thumbnailPrompts.length > 0 && (
+        <div className="bg-white/[0.02] border border-white/5 rounded-lg p-2 space-y-1.5">
+          <p className="text-[10px] text-[#6B7799] uppercase tracking-wide">
+            🖼 Winner thumbnail prompts (paste into ChatGPT/DALL-E)
+          </p>
+          {winners.thumbnailPrompts.map((t, i) => (
+            <div key={i} className="border border-white/5 rounded p-2 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-[#B8C5E0]">
+                  {t.style} · {t.headline}
+                </span>
+                <span className="text-[10px] text-[#6B7799]">CTR ~{t.estimatedCtrScore}/100</span>
+              </div>
+              {t.reasoning && (
+                <p className="text-[10px] text-[#6B7799] italic">{t.reasoning}</p>
+              )}
+              <pre className="text-[11px] text-[#B8C5E0] whitespace-pre-wrap break-words bg-[#0F1330] rounded p-1.5 border border-white/5">
+                {t.prompt}
+              </pre>
+              <Btn
+                label="📋 Copy prompt"
+                onClick={() => {
+                  navigator.clipboard.writeText(t.prompt);
+                  onToast(`⬇ ${t.style} prompt copied`);
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -3583,6 +3852,74 @@ function FormatSelector({ lesson, onToast }: {
           <option key={f} value={f}>{f}</option>
         ))}
       </select>
+    </span>
+  );
+}
+
+/**
+ * Mode + duration picker for the script agent. Mode toggles whether the
+ * agent produces pure narration ('inline') or narration + screen-cue array
+ * ('with_screen_recording'). Duration drives the target minutes the prompt
+ * tells the LLM to hit.
+ */
+function ScriptConfigSelector({ lesson, onToast }: {
+  lesson: Lesson; onToast: (m: string) => void;
+}) {
+  const [mode, setMode] = useState<"inline" | "with_screen_recording">(
+    lesson.explanationMode ?? "inline",
+  );
+  const [duration, setDuration] = useState<string>(String(lesson.targetDurationMinutes ?? 10));
+  const [busy, setBusy] = useState(false);
+  const dirty =
+    mode !== (lesson.explanationMode ?? "inline") ||
+    Number(duration) !== lesson.targetDurationMinutes;
+
+  async function save() {
+    setBusy(true);
+    const token = await fetchToken();
+    if (!token) { setBusy(false); return; }
+    try {
+      const n = Math.max(1, Math.min(60, Number(duration) || lesson.targetDurationMinutes));
+      await api(token, `/lessons/${lesson.id}/script-config`, {
+        method: "PATCH",
+        body: JSON.stringify({ explanationMode: mode, targetDurationMinutes: n }),
+      });
+      onToast(`✓ Script config saved — ${n}min · ${mode}`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span>mode:</span>
+      <select
+        value={mode}
+        disabled={busy}
+        onChange={(e) => setMode(e.target.value as typeof mode)}
+        className="bg-[#0F1330] border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-[#B8C5E0] outline-none focus:border-[#00D4FF]/40"
+      >
+        <option value="inline">inline</option>
+        <option value="with_screen_recording">with screen recording</option>
+      </select>
+      <input
+        type="number" min={1} max={60}
+        value={duration}
+        disabled={busy}
+        onChange={(e) => setDuration(e.target.value)}
+        className="w-12 bg-[#0F1330] border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-[#B8C5E0] outline-none focus:border-[#00D4FF]/40"
+        title="Target duration (min)"
+      />
+      <span>min</span>
+      {dirty && (
+        <button
+          onClick={save}
+          disabled={busy}
+          className="ml-1 px-1.5 py-0.5 text-[10px] rounded border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 disabled:opacity-50"
+        >
+          {busy ? "…" : "💾"}
+        </button>
+      )}
     </span>
   );
 }

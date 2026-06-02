@@ -42,6 +42,15 @@ export class Lesson {
   @Column({ type: 'varchar', length: 30, default: 'lecture' })
   lessonFormat: LessonFormat;
 
+  /**
+   * Orthogonal to lessonFormat — how explanation is delivered.
+   *   'inline'                 — pure narration (talking head; no cues array)
+   *   'with_screen_recording'  — narration + structured screenRecordingCues
+   *                              array on the script asset's content blob
+   */
+  @Column({ type: 'varchar', length: 40, default: 'inline' })
+  explanationMode: 'inline' | 'with_screen_recording';
+
   @Column({ type: 'varchar', length: 30, default: 'planned' })
   status: string;
 

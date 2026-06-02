@@ -12,6 +12,49 @@ import { ProviderName } from '../services/provider.types';
 import { LessonFormat } from '../entities/content-series.entity';
 
 /**
+ * 'with_screen_recording' override — used when lesson.explanationMode is
+ * set to with_screen_recording. The script comes back as JSON: narration
+ * (talking-head body) + a structured screenRecordingCues array. Works on
+ * top of any lessonFormat — the format informs tone, the mode adds cues.
+ */
+const SCREEN_RECORDING_SYSTEM = `
+You write AUDIO + SCREEN-RECORDING LESSON SCRIPTS for AetherStackAI (host:
+Vardhan). The host narrates a talking-head body AND records 2-5 short
+screen clips that are inter-cut at the cue points.
+
+RULES (non-negotiable):
+- TARGET LENGTH: 8-10 minutes total spoken delivery (≈ 1100-1500 words
+  combined across narration + voice-over). Use heavy [PAUSE] markers.
+- HOOK: the very first sentence IS the hook — concrete stakes in the
+  first 8 seconds. Open IN the moment.
+- 2-5 SCREEN CUES — only when a visual genuinely beats words. Each cue
+  has a clear what_to_record (exact actions, paths, commands, URLs) and
+  a voice_over_script the host reads OVER the recording.
+- PAUSE MARKERS: [PAUSE], [PAUSE 1.5s], [PAUSE 2s] for natural cadence.
+- QUIZ TEASE: 1-2 sentences referencing the Saturday quiz scope at the end.
+- NO filler intros, NO placeholders, real tools/names/numbers.
+
+OUTPUT STRICT JSON ONLY:
+{
+  "narration_script": "<full talking-head body with [SCREEN: <slug>]
+                       placeholders where the screen cues are inter-cut,
+                       1100-1500 words combined>",
+  "screen_recording_cues": [
+    {
+      "slug":              "<matches [SCREEN: <slug>] in the narration>",
+      "section_title":     "<short title>",
+      "what_to_record":    "<exact screen actions — paths, commands, URLs,
+                            buttons to click>",
+      "voice_over_script": "<narration the host reads OVER this recording>",
+      "estimated_duration_seconds": <int>
+    }
+  ],
+  "key_takeaways": ["<takeaway 1>", "<takeaway 2>", "<takeaway 3>"]
+}
+Output the JSON object only — no prose, no markdown fences.
+`.trim();
+
+/**
  * Format-specific SYSTEM prompts. The `lecture` style is the original
  * 8-12 min audio script. Other formats reshape the output for that
  * delivery medium — same brand voice rules, different structure.
@@ -160,7 +203,12 @@ export class ScriptAgent {
     if (!brand) throw new BadRequestException('Plan has no brand');
 
     const fmt: LessonFormat = lesson.lessonFormat ?? 'lecture';
-    const SYSTEM = SYSTEM_BY_FORMAT[fmt];
+    const mode = lesson.explanationMode ?? 'inline';
+    // Screen-recording mode wins — it returns structured JSON regardless
+    // of format. Inline mode falls back to the format-specific raw-text prompt.
+    const SYSTEM = mode === 'with_screen_recording'
+      ? SCREEN_RECORDING_SYSTEM
+      : SYSTEM_BY_FORMAT[fmt];
 
     const memories = await this.memories.semanticRelevantFor(
       brand.id, 'script', `${lesson.title} ${lesson.hook ?? ''}`, 8,
@@ -180,20 +228,37 @@ export class ScriptAgent {
       `QUIZ SCOPE (use for the tease at the end): ${plan.quizScope ?? '(none)'}\n\n` +
       `LESSON ${lesson.lessonNumber}: ${lesson.title}\n` +
       `Format: ${fmt}\n` +
+      `Explanation mode: ${mode}\n` +
       `Hook seed: ${lesson.hook ?? '(none)'}\n` +
       `Target duration: ${lesson.targetDurationMinutes} minutes.\n` +
       `Outline:\n${outlineBlock || '  (no outline)'}\n\n` +
       `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
-      `Write the full ${fmt} script now per the rules above.`;
+      (mode === 'with_screen_recording'
+        ? `Write the script as JSON per the system prompt — narration body ` +
+          `with [SCREEN: <slug>] cue points + a screen_recording_cues array.`
+        : `Write the full ${fmt} script now per the rules above.`);
 
-    const result = await this.loop.run<{ script: string }>({
+    interface ScreenRecordingCue {
+      slug?: string;
+      section_title?: string;
+      what_to_record?: string;
+      voice_over_script?: string;
+      estimated_duration_seconds?: number;
+    }
+    interface ScriptDraft {
+      script: string;
+      screenRecordingCues?: ScreenRecordingCue[];
+      keyTakeaways?: string[];
+    }
+
+    const result = await this.loop.run<ScriptDraft>({
       agentType: 'script',
       planId: plan.id,
       lessonId: lesson.id,
       memoryCount: memories.length,
       graderModelOverride: brand.modelOverrides?.grader,
       context:
-        `Lesson: ${lesson.title} (${lesson.targetDurationMinutes} min, ${fmt}) · ` +
+        `Lesson: ${lesson.title} (${lesson.targetDurationMinutes} min, ${fmt}, ${mode}) · ` +
         `Brand: ${brand.name} · Voice: ${(brand.voiceStyle ?? '').slice(0, 200)}`,
       draftFn: async (critique) => {
         const user = critique
@@ -205,16 +270,43 @@ export class ScriptAgent {
           planId: plan.id,
           lessonId: lesson.id,
           modelOverride: brand.modelOverrides?.script,
-          // Shorts are tiny; everything else fits in 6k.
+          // Shorts are tiny; everything else fits in 6k. JSON mode for screen-rec.
           maxTokens: fmt === 'short' ? 800 : 6000,
           temperature: 0.75,
+          jsonOutput: mode === 'with_screen_recording',
           system: SYSTEM,
           user,
         });
-        const text = (r.text ?? '').trim();
+        const raw = (r.text ?? '').trim();
+        // Screen-recording mode returns JSON; inline mode returns plain text.
+        let parsed: ScriptDraft;
+        if (mode === 'with_screen_recording') {
+          try {
+            const j = JSON.parse(raw || '{}') as {
+              narration_script?: string;
+              full_script?: string;
+              screen_recording_cues?: ScreenRecordingCue[];
+              key_takeaways?: string[];
+            };
+            parsed = {
+              script: String(j.narration_script ?? j.full_script ?? '').trim(),
+              screenRecordingCues: Array.isArray(j.screen_recording_cues)
+                ? j.screen_recording_cues : [],
+              keyTakeaways: Array.isArray(j.key_takeaways) ? j.key_takeaways : [],
+            };
+          } catch (e) {
+            this.logger.warn(
+              `Screen-rec JSON parse failed (${(e as Error).message}); ` +
+              `falling back to raw text — cues lost`,
+            );
+            parsed = { script: raw, screenRecordingCues: [] };
+          }
+        } else {
+          parsed = { script: raw };
+        }
         return {
-          parsed: { script: text },
-          rawForGrader: text,
+          parsed,
+          rawForGrader: parsed.script,
           model: r.model,
           provider: r.provider as ProviderName,
           costUsd: r.costUsd,
@@ -223,9 +315,16 @@ export class ScriptAgent {
     });
 
     const script = result.parsed.script;
+    const screenRecordingCues = result.parsed.screenRecordingCues ?? [];
+    const keyTakeaways = result.parsed.keyTakeaways ?? [];
     const words = wordCount(script);
     const wpm = WPM_BY_FORMAT[fmt];
-    const durationSec = Math.round((words / wpm) * 60);
+    // Add the screen-cue voice-overs into the duration estimate when present.
+    const cueSeconds = screenRecordingCues.reduce(
+      (s, c) => s + Math.max(0, Math.round(c.estimated_duration_seconds ?? 0)),
+      0,
+    );
+    const durationSec = Math.round((words / wpm) * 60) + cueSeconds;
 
     const latest = await this.assetRepo.findOne({
       where: { lessonId, assetType: 'script' },
@@ -242,6 +341,9 @@ export class ScriptAgent {
           wordCount: words,
           durationEstimateSeconds: durationSec,
           lessonFormat: fmt,
+          explanationMode: mode,
+          screenRecordingCues,
+          keyTakeaways,
           model: result.model,
           provider: result.provider,
           costUsd: result.totalCostUsd,
