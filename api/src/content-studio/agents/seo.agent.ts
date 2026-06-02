@@ -56,8 +56,12 @@ interface SeoParsed {
 /**
  * Compose the final YouTube description: body → social footer → hashtags.
  * Strips any trailing hashtag block the model added (so ordering is ours), then
- * appends the standard social footer and the top tags as CamelCase hashtags
- * (YouTube renders the first 3 above the video title).
+ * appends the standard social footer and the top tags as LOWERCASE hashtags.
+ *
+ * Hashtags match the tags field's lowercase form for consistency — both
+ * surfaces of the same video show the same casing. The CamelCase variant
+ * (#AIAgents) looked nicer but didn't match the tags pane (#aiagents),
+ * which made the video appear hastily edited.
  */
 function composeDescription(body: string, tags: string[], footer: string): string {
   const cleanBody = body
@@ -66,13 +70,7 @@ function composeDescription(body: string, tags: string[], footer: string): strin
     .trimEnd();
   const hashtags = tags
     .slice(0, 5)
-    .map((t) =>
-      t
-        .split(/[\s-_]+/)
-        .filter(Boolean)
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(''),
-    )
+    .map((t) => t.toLowerCase().replace(/[\s\-_]+/g, ''))
     .filter(Boolean)
     .map((t) => `#${t}`);
   const parts = [cleanBody, footer];
