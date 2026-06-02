@@ -431,6 +431,48 @@ function PlanCard({ plan, brands, onToast, onChange }: {
   const [regenBusy, setRegenBusy] = useState(false);
   const [regenIdea, setRegenIdea] = useState("");
   const [regenKeepTheme, setRegenKeepTheme] = useState(false);
+  // Bulk seed state — paste N questions (one per line), seed N lessons positionally
+  const [seedOpen, setSeedOpen] = useState(false);
+  const [seedBusy, setSeedBusy] = useState(false);
+  const [seedText, setSeedText] = useState("");
+
+  async function bulkSeedFromQuestions() {
+    // Accept either newline-separated or numbered ("1. …\n2. …") lists.
+    const questions = seedText
+      .split(/\n+/)
+      .map((s) => s.replace(/^\s*\d+\s*[.)\-]\s*/, "").trim())
+      .filter((s) => s.length >= 8);
+    if (questions.length === 0) {
+      onToast("⚠ Paste at least one question (min 8 chars each)");
+      return;
+    }
+    if (!confirm(
+      `Seed ${questions.length} lesson(s) from your questions? This will REPLACE ` +
+      `existing lesson titles/hooks/outlines (positionally: question 1 → lesson 1, ` +
+      `question 2 → lesson 2) and wipe their script / PPT / SEO / thumbnail / promo.`,
+    )) return;
+    setSeedBusy(true);
+    onToast(`Designing ${questions.length} lesson(s) from your questions… (~${15 * questions.length}-${30 * questions.length}s)`);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setSeedBusy(false); return; }
+    try {
+      await api(token, `/plans/${plan.id}/seed-from-questions`, {
+        method: "POST",
+        body: JSON.stringify({ questions }),
+      });
+      onToast(`✓ Seeded ${questions.length} lesson(s)`);
+      setSeedText("");
+      setSeedOpen(false);
+      onChange?.();
+      // Re-fetch the plan detail so the lesson titles refresh in place.
+      try {
+        const refreshed = await api<WeeklyPlan>(token, `/plans/${plan.id}`);
+        setFull(refreshed);
+      } catch { /* ignore — main list reload via onChange covers it */ }
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setSeedBusy(false); }
+  }
 
   async function regeneratePlan() {
     const idea = regenIdea.trim();
@@ -572,8 +614,15 @@ function PlanCard({ plan, brands, onToast, onChange }: {
           <span className="text-[10px] text-[#6B7799]">pipeline blocked until approved</span>
         )}
         <button
-          onClick={() => setRegenOpen((v) => !v)}
-          className="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#FFB020]/40 text-[#FFB020] hover:bg-[#FFB020]/10 transition"
+          onClick={() => { setSeedOpen((v) => !v); setRegenOpen(false); }}
+          className="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 transition"
+          title="Replace lesson topics by pasting your interview questions"
+        >
+          {seedOpen ? "Hide seed" : "🎯 Seed from questions"}
+        </button>
+        <button
+          onClick={() => { setRegenOpen((v) => !v); setSeedOpen(false); }}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#FFB020]/40 text-[#FFB020] hover:bg-[#FFB020]/10 transition"
           title="Wipe lessons + quiz + bundle + promo + assets and re-run the Strategy Agent"
         >
           {regenOpen ? "Hide regen" : "🔁 Regenerate plan"}
@@ -587,6 +636,36 @@ function PlanCard({ plan, brands, onToast, onChange }: {
           {deleting ? "Deleting…" : "🗑 Delete plan"}
         </button>
       </div>
+      {seedOpen && (
+        <div className="px-4 py-3 border-t border-white/5 bg-[#0F1330] space-y-2">
+          <p className="text-[10px] text-[#6B7799]">
+            Paste one interview question per line. Question 1 → Lesson 1, Question 2 → Lesson 2, etc.
+            Each lesson&apos;s title, hook, outline + format are designed around answering its question.
+            Stale script / PPT / SEO / thumbnail / promo on each touched lesson get wiped.
+          </p>
+          <textarea
+            value={seedText}
+            onChange={(e) => setSeedText(e.target.value)}
+            placeholder={
+              "What's the actual difference between OAuth client_id and client_secret?\n" +
+              "How does the YouTube Data API quota work in practice?"
+            }
+            rows={6}
+            className="w-full bg-[#0A0E27] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-[#B8C5E0] outline-none focus:border-[#00F5A0]/40 resize-y font-mono"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <PrimaryBtn
+              label={seedBusy ? "Seeding…" : "🎯 Seed all lessons from these"}
+              busy={seedBusy}
+              onClick={bulkSeedFromQuestions}
+            />
+            <span className="text-[10px] text-[#6B7799]">
+              {seedText.split(/\n+/).filter((s) => s.replace(/^\s*\d+\s*[.)\-]\s*/, "").trim().length >= 8).length}{" "}
+              valid question(s) detected
+            </span>
+          </div>
+        </div>
+      )}
       {regenOpen && (
         <div className="px-4 py-3 border-t border-white/5 bg-[#0F1330] space-y-2">
           <textarea

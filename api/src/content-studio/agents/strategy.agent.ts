@@ -697,6 +697,62 @@ export class StrategyAgent {
   }
 
   /**
+   * Bulk-seed every lesson in a plan from a list of questions. The
+   * mapping is positional: questions[0] → lesson 1, questions[1] →
+   * lesson 2, etc. Extra questions past the lesson count are ignored;
+   * extra lessons past the question count keep their current topic.
+   *
+   * Calls seedLessonFromQuestion per slot sequentially so the prompt
+   * for question N can see the new sibling from question N-1 (avoids
+   * topic overlap automatically).
+   *
+   * Returns the refreshed plan with both lessons.
+   */
+  async seedAllLessonsFromQuestions(
+    planId: string,
+    questions: string[],
+  ): Promise<WeeklyContentPlan> {
+    const plan = await this.planRepo.findOne({ where: { id: planId } });
+    if (!plan) throw new NotFoundException('Plan not found');
+
+    const cleanQuestions = (questions ?? [])
+      .map((q) => (q ?? '').toString().trim())
+      .filter((q) => q.length >= 8);
+    if (cleanQuestions.length === 0) {
+      throw new BadRequestException('Provide at least one question (min 8 chars each)');
+    }
+
+    const lessons = await this.lessonRepo.find({
+      where: { planId },
+      order: { lessonNumber: 'ASC' },
+    });
+    if (lessons.length === 0) {
+      throw new BadRequestException('Plan has no lessons — generate the week plan first');
+    }
+
+    // Pair lessons with questions positionally.
+    const pairs = lessons
+      .map((l, i) => ({ lesson: l, question: cleanQuestions[i] }))
+      .filter((p) => p.question);
+
+    this.logger.log(
+      `Bulk-seeding plan ${planId}: ${pairs.length}/${lessons.length} lesson(s) from supplied questions`,
+    );
+
+    for (const { lesson, question } of pairs) {
+      await this.seedLessonFromQuestion(lesson.id, { question });
+    }
+
+    const saved = await this.planRepo.findOne({
+      where: { id: planId },
+      relations: ['lessons'],
+    });
+    if (!saved) throw new Error('Plan vanished after bulk seed');
+    saved.lessons?.sort((a, b) => a.lessonNumber - b.lessonNumber);
+    return saved;
+  }
+
+  /**
    * Delete a lesson outright — removes its assets, drops the row, and
    * re-numbers the remaining lessons in the plan to a contiguous 1..N.
    */

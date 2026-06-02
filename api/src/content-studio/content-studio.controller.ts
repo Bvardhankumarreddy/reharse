@@ -253,6 +253,26 @@ export class ContentStudioController {
     return this.strategy.seedLessonFromQuestion(id, { question: body.question });
   }
 
+  /**
+   * Bulk-seed every lesson in a plan from an array of questions. The
+   * mapping is positional — questions[0] becomes lesson 1, questions[1]
+   * becomes lesson 2, etc. Stale assets across all touched lessons get
+   * wiped (per-lesson, in the same Strategy Agent call).
+   *
+   * Body: { questions: string[] }
+   */
+  @Post('plans/:id/seed-from-questions')
+  seedPlanFromQuestions(
+    @Param('id') id: string,
+    @Body() body: { questions?: unknown },
+  ) {
+    if (!Array.isArray(body?.questions)) {
+      throw new BadRequestException('questions must be a non-empty array of strings');
+    }
+    const arr = (body.questions as unknown[]).map((q) => String(q ?? '').trim());
+    return this.strategy.seedAllLessonsFromQuestions(id, arr);
+  }
+
   /** Delete a lesson (removes its assets + renumbers the rest of the plan). */
   @Delete('lessons/:id')
   deleteLesson(@Param('id') id: string) {
