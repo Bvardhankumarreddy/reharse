@@ -3415,6 +3415,8 @@ function QuizWinnersSection({ planId, onToast }: {
   const [busy, setBusy] = useState<"load" | "generate" | "posts" | "thumbs" | "pull" | null>(null);
   const [showInput, setShowInput] = useState(false);
   const [pullLimit, setPullLimit] = useState("3");
+  // Explicit quiz week for the puller. Blank = use this plan's bundle week.
+  const [pullWeek, setPullWeek] = useState("");
   const [winnersJson, setWinnersJson] = useState(
     JSON.stringify(
       [
@@ -3447,16 +3449,19 @@ function QuizWinnersSection({ planId, onToast }: {
 
   async function pullTop() {
     const n = Math.max(1, Math.min(10, Number(pullLimit) || 3));
+    const w = pullWeek.trim() === "" ? undefined
+      : Math.max(1, Math.min(999, Number(pullWeek)));
     setBusy("pull");
     const token = await fetchToken();
     if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
     try {
+      const qs = `?limit=${n}${w != null ? `&quizWeek=${w}` : ""}`;
       const r = await api<{
         winners: QuizWinner[];
         quizWeek: number;
         totalParticipants: number;
         speedHighlight: string | null;
-      }>(token, `/plans/${planId}/quiz/winners/pull-top?limit=${n}`);
+      }>(token, `/plans/${planId}/quiz/winners/pull-top${qs}`);
       if (r.winners.length === 0) {
         onToast(`⚠ No submissions found for quiz week ${r.quizWeek}`);
         return;
@@ -3580,7 +3585,8 @@ function QuizWinnersSection({ planId, onToast }: {
           busy={busy === "generate"}
           onClick={() => setShowInput((v) => !v)}
         />
-        {/* Auto-fill from real quiz_submissions data. */}
+        {/* Auto-fill from real quiz_submissions data. Week input is blank by
+            default — uses this plan's bundle.quizWeek. Override to pull any week. */}
         <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
           top
           <input
@@ -3590,11 +3596,22 @@ function QuizWinnersSection({ planId, onToast }: {
             className="w-10 bg-[#0F1330] border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white outline-none focus:border-[#00D4FF]/40"
           />
         </label>
+        <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
+          from week
+          <input
+            type="number" min={1} max={999}
+            value={pullWeek}
+            onChange={(e) => setPullWeek(e.target.value)}
+            placeholder="auto"
+            className="w-12 bg-[#0F1330] border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white outline-none focus:border-[#00D4FF]/40"
+            title="Quiz week to pull from (blank = this plan's bundle week)"
+          />
+        </label>
         <button
           onClick={pullTop}
           disabled={busy === "pull"}
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#FFB020]/40 text-[#FFB020] hover:bg-[#FFB020]/10 disabled:opacity-50 transition"
-          title="Read top scorers from quiz_submissions for this quiz week — no LLM call"
+          title="Read top scorers from quiz_submissions for the chosen quiz week — no LLM call"
         >
           {busy === "pull" ? "Pulling…" : "🎯 Pull top from submissions"}
         </button>

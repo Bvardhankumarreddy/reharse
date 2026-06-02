@@ -608,9 +608,11 @@ export class ContentStudioController {
   async pullTopWinners(
     @Param('id') id: string,
     @Query('limit') limitQ?: string,
+    @Query('quizWeek') weekQ?: string,
   ) {
     const limit = Math.max(1, Math.min(10, Number(limitQ) || 3));
-    return this.quizWinner.pullTopFromSubmissions(id, limit);
+    const week = weekQ ? Math.max(1, Math.min(999, Number(weekQ))) : undefined;
+    return this.quizWinner.pullTopFromSubmissions(id, limit, { quizWeek: week });
   }
 
   @Post('plans/:id/quiz/winners/regenerate-posts')

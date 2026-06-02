@@ -255,7 +255,11 @@ export class QuizWinnerAgent {
   }
 
   /**
-   * Pull the top-N submitters for this plan's quizWeek from quiz_submissions.
+   * Pull the top-N submitters for a quizWeek from quiz_submissions.
+   * Default week = the plan's bundle.quizWeek (or seriesWeekNumber, or 1).
+   * Pass `opts.quizWeek` to override — useful for pulling last week's
+   * winners into THIS plan's announcement, or any other historical week.
+   *
    * Sort: totalScore DESC, totalTimeSeconds ASC, tiebreaker closeness ASC
    * (NULL tiebreakers ranked last). Default prizes: 500/300/200/100/50/0…
    *
@@ -263,7 +267,7 @@ export class QuizWinnerAgent {
    * its `winners` field, so the UI can drop it straight into the textarea.
    */
   async pullTopFromSubmissions(
-    planId: string, limit = 3,
+    planId: string, limit = 3, opts: { quizWeek?: number } = {},
   ): Promise<{
     winners: QuizWinner[];
     quizWeek: number;
@@ -277,9 +281,15 @@ export class QuizWinnerAgent {
       order: { createdAt: 'DESC' },
     });
 
-    // Quiz week: bundle.quizWeek > plan.seriesWeekNumber > 1.
-    const quizWeek = bundle?.quizWeek ?? plan.seriesWeekNumber ?? 1;
-    const tieTarget = bundle ? Number(bundle.tieBreakerAnswer) : null;
+    // Explicit > bundle > plan seriesWeekNumber > 1.
+    const quizWeek = opts.quizWeek != null
+      ? Math.max(1, Math.min(999, Math.round(opts.quizWeek)))
+      : (bundle?.quizWeek ?? plan.seriesWeekNumber ?? 1);
+    // Tiebreaker target only meaningful when pulling for THIS plan's bundle week.
+    const tieTarget =
+      bundle && bundle.quizWeek === quizWeek
+        ? Number(bundle.tieBreakerAnswer)
+        : null;
 
     // Tie-break by closeness to the bundle's stored tieBreakerAnswer
     // when present; otherwise drop that ORDER BY clause.
