@@ -649,11 +649,31 @@ export class ContentStudioController {
    */
   @Post('retention/purge')
   retentionPurge(
-    @Body() body: { weeksKept?: number },
+    @Body() body: { weeksKept?: number; archive?: boolean },
     @Req() req: Request,
   ) {
     const w = Math.max(1, Math.min(52, Math.round(Number(body?.weeksKept) || 3)));
-    return this.retention.purgeOlderThan(w, this.writerFrom(req));
+    // Default archive=true so any UI button that omits the flag still
+    // archives — explicit `archive:false` falls back to delete-only.
+    const archive = body?.archive !== false;
+    return this.retention.purgeOlderThan(w, this.writerFrom(req), { archive });
+  }
+
+  /**
+   * Presigned URL to download a specific archive JSONL from S3. Lets the
+   * audit-log UI offer one-click access to any historical purge dump.
+   * key must start with `quiz-archive/`.
+   */
+  @Get('retention/archive-url')
+  async retentionArchiveUrl(@Query('key') key: string) {
+    if (!key || !key.startsWith('quiz-archive/')) {
+      throw new BadRequestException('key must start with quiz-archive/');
+    }
+    const url = await this.retention.presignArchive(key);
+    if (!url) {
+      throw new BadRequestException('Storage Lambda not configured');
+    }
+    return { url, expiresInSeconds: 900 };
   }
 
   private shapeQuizPromo(

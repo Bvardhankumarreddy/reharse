@@ -130,16 +130,34 @@ export class IntelligenceWorker implements OnModuleInit {
 
   @Process('retention-purge')
   async retentionPurge() {
-    const r = await this.retention.purgeOlderThan(3);
+    // Cron always archives — never silently delete production data.
+    // If the storage Lambda isn't configured, the call throws and the
+    // sweep no-ops for the week (caught by the job-failure handler).
+    let r;
+    try {
+      r = await this.retention.purgeOlderThan(3, undefined, { archive: true });
+    } catch (e) {
+      this.logger.warn(
+        `retention-purge skipped: ${(e as Error).message} — ` +
+        `configure STORAGE_LAMBDA_URL or run /retention/purge manually with archive=false`,
+      );
+      await this.notify.notify(
+        `:warning: cs · retention-purge SKIPPED — ${(e as Error).message}`,
+      );
+      return { skipped: true, reason: (e as Error).message };
+    }
     const total =
       r.deleted.submissions + r.deleted.sessions +
       r.deleted.bundles + r.deleted.winners;
     if (total > 0) {
+      const stamp = r.archive.archivedAt
+        ? ` · archived ${r.archive.archivedAt.slice(0, 19)}Z`
+        : '';
       await this.notify.notify(
         `:wastebasket: cs · retention-purge · kept weeks ${r.threshold + 1}..${r.currentWeek}, ` +
-        `deleted ≤ week ${r.threshold} (${r.deleted.submissions} submissions, ` +
+        `archived+deleted ≤ week ${r.threshold} (${r.deleted.submissions} submissions, ` +
         `${r.deleted.sessions} sessions, ${r.deleted.bundles} bundles, ` +
-        `${r.deleted.winners} winner announcements)`,
+        `${r.deleted.winners} winner announcements)${stamp}`,
       );
     }
     return r;

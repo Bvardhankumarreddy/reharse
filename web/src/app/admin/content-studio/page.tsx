@@ -2160,11 +2160,21 @@ function RetentionPanel({ onToast }: { onToast: (m: string) => void }) {
       winners: number;
     };
     deleted?: PreviewResp["counts"];
+    archive?: {
+      bucketUrlBase: string | null;
+      keys: {
+        submissions: string | null; sessions: string | null;
+        bundles: string | null;     winners: string | null;
+      };
+      archivedAt: string | null;
+    };
   }
   const [weeks, setWeeks] = useState("3");
   const [preview, setPreview] = useState<PreviewResp | null>(null);
   const [busy, setBusy] = useState<"preview" | "purge" | null>(null);
   const [open, setOpen] = useState(false);
+  // Archive to S3 before delete. Default on — matches the cron behaviour.
+  const [archive, setArchive] = useState(true);
 
   async function loadPreview() {
     const w = Math.max(1, Math.min(52, Number(weeks) || 3));
@@ -2189,32 +2199,47 @@ function RetentionPanel({ onToast }: { onToast: (m: string) => void }) {
     const w = Math.max(1, Math.min(52, Number(weeks) || 3));
     if (
       !confirm(
-        `Purge ${total} row(s) older than ${w} week(s)?\n\n` +
+        `${archive ? "Archive-to-S3 then purge" : "Purge (no archive!)"} ${total} row(s) older than ${w} week(s)?\n\n` +
         `• ${preview.counts.submissions} quiz_submissions (+ answers cascade)\n` +
         `• ${preview.counts.sessions} quiz_sessions\n` +
         `• ${preview.counts.bundles} cs_quiz_bundles (+ questions/promos cascade)\n` +
         `• ${preview.counts.winners} cs_quiz_winner_announcements\n\n` +
-        `IRREVERSIBLE. Content (lessons, plans, assets, logs) stays.`,
+        (archive
+          ? "Rows are uploaded as JSONL to S3 BEFORE delete. " +
+            "If an upload fails, that table's rows stay until next sweep."
+          : "⚠ NO archive — rows go straight to /dev/null. Irreversible.") +
+        "\n\nContent (lessons, plans, assets, logs) stays.",
       )
     ) return;
     setBusy("purge");
-    onToast("Purging older quiz data…");
+    onToast(archive ? "Archiving to S3 then purging…" : "Purging (no archive)…");
     const token = await fetchToken();
     if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
     try {
       const r = await api<PreviewResp>(
         token, "/retention/purge",
-        { method: "POST", body: JSON.stringify({ weeksKept: w }) },
+        { method: "POST", body: JSON.stringify({ weeksKept: w, archive }) },
       );
       setPreview(r);
       const d = r.deleted ?? r.counts;
       const sum = d.submissions + d.sessions + d.bundles + d.winners;
       onToast(
-        `✓ Purged ${sum} row(s) ≤ week ${r.threshold} ` +
+        `✓ ${archive ? "Archived+purged" : "Purged"} ${sum} row(s) ≤ week ${r.threshold} ` +
         `(${d.submissions} subs · ${d.sessions} sess · ${d.bundles} bundles · ${d.winners} winners)`,
       );
     } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
     finally { setBusy(null); }
+  }
+
+  async function downloadArchive(key: string) {
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); return; }
+    try {
+      const r = await api<{ url: string }>(
+        token, `/retention/archive-url?key=${encodeURIComponent(key)}`,
+      );
+      window.open(r.url, "_blank", "noopener,noreferrer");
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
   }
 
   return (
@@ -2254,6 +2279,15 @@ function RetentionPanel({ onToast }: { onToast: (m: string) => void }) {
                 className="w-12 bg-[#0F1330] border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white outline-none focus:border-[#00D4FF]/40"
               />
             </label>
+            <label className="text-[11px] text-[#B8C5E0] flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={archive}
+                onChange={(e) => setArchive(e.target.checked)}
+                className="accent-[#00D4FF]"
+              />
+              📤 Archive to S3 first
+            </label>
             <button
               onClick={loadPreview}
               disabled={busy === "preview"}
@@ -2264,10 +2298,20 @@ function RetentionPanel({ onToast }: { onToast: (m: string) => void }) {
             <button
               onClick={runPurge}
               disabled={busy === "purge" || !preview || preview.threshold === 0}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-400/30 text-red-300 hover:bg-red-400/10 disabled:opacity-40 transition"
-              title="Permanent — wipes everything ≤ current-week minus weeks-kept"
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border disabled:opacity-40 transition ${
+                archive
+                  ? "border-[#FFB020]/40 text-[#FFB020] hover:bg-[#FFB020]/10"
+                  : "border-red-400/30 text-red-300 hover:bg-red-400/10"
+              }`}
+              title={archive
+                ? "Upload JSONL to S3 then delete — recoverable from archive"
+                : "Permanent delete — no archive, no recovery"
+              }
             >
-              {busy === "purge" ? "Purging…" : "🗑 Purge now"}
+              {busy === "purge"
+                ? (archive ? "Archiving+purging…" : "Purging…")
+                : (archive ? "📤 Archive + Purge" : "🗑 Purge (no archive)")
+              }
             </button>
           </div>
 
@@ -2296,6 +2340,45 @@ function RetentionPanel({ onToast }: { onToast: (m: string) => void }) {
                   </p>
                 </>
               )}
+            </div>
+          )}
+
+          {/* S3 archive keys — only shown after a successful archive purge. */}
+          {preview?.archive?.archivedAt && (
+            <div className="bg-[#0F1330] border border-[#00F5A0]/20 rounded p-2 text-[11px] space-y-1">
+              <p className="text-[#00F5A0] font-semibold">
+                📤 Archived to S3 · {preview.archive.archivedAt.slice(0, 19).replace("T", " ")}Z
+              </p>
+              <ul className="space-y-1 text-[10px]">
+                {(["submissions", "sessions", "bundles", "winners"] as const).map((tbl) => {
+                  const key = preview.archive!.keys[tbl];
+                  if (!key) return null;
+                  return (
+                    <li key={tbl} className="flex items-center gap-2">
+                      <span className="text-[#6B7799] w-24 shrink-0">{tbl}:</span>
+                      <code className="flex-1 text-[#B8C5E0] truncate">{key}</code>
+                      <button
+                        onClick={() => downloadArchive(key)}
+                        className="text-[#00D4FF] hover:underline shrink-0"
+                      >
+                        📥 download
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(key);
+                          onToast("⬇ S3 key copied");
+                        }}
+                        className="text-[#6B7799] hover:text-white shrink-0"
+                      >
+                        📋
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-[9px] text-[#6B7799] pt-1 border-t border-white/5 mt-1">
+                Presigned URLs are 15-minute single-use. Click 📥 to fetch a fresh one.
+              </p>
             </div>
           )}
         </div>
