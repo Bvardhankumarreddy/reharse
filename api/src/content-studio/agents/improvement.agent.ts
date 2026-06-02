@@ -23,6 +23,25 @@ outperform generic how-tos"), never generic advice.
 Return STRICT JSON ONLY: {"patterns":[{"pattern":"…","why":"…"}]}  (max 3)
 `.trim();
 
+const SEO_MINE_SYSTEM = `
+You analyze the TITLE + TAGS that shipped on a channel's BEST-PERFORMING
+lessons (≥1.5x mean views) and extract reusable SEO patterns the next
+SEO agent run should repeat.
+
+Two output sections:
+- title_patterns: up to 3 specific reusable title-structure rules.
+  Be concrete (e.g. "titles that name a tool + a measurable outcome").
+- tag_patterns: up to 3 specific reusable tagging rules.
+  Be concrete (e.g. "always include the brand-name tag + 2-3 long-tail
+  problem-phrasing tags"). Never generic advice.
+
+Return STRICT JSON ONLY:
+{
+  "title_patterns": [{"pattern":"…","why":"…"}],
+  "tag_patterns":   [{"pattern":"…","why":"…"}]
+}
+`.trim();
+
 /**
  * Phase D — Improvement Agent. Closes the feedback loop: for every brand,
  * find lessons that materially beat that brand's rolling-30d average and
@@ -60,6 +79,7 @@ export class ImprovementAgent {
       try {
         promoted += await this.runForBrand(b.id);
         promoted += await this.mineChannelWinnersForBrand(b.id);
+        promoted += await this.mineSeoPatternsForBrand(b.id);
       } catch (e) {
         this.logger.error(`Improvement for "${b.name}" failed: ${(e as Error).message}`);
       }
@@ -191,6 +211,121 @@ export class ImprovementAgent {
       );
       void this.memorySvc.embedOnSave(created.id, created.content);
       promoted++;
+    }
+    return promoted;
+  }
+
+  /**
+   * Mine title + tag patterns from the brand's OWN winning lessons.
+   * Pulls the SEO asset that actually shipped on each winner, extracts
+   * reusable rules via the LLM, and inserts memories scoped to 'seo' so
+   * the next SeoAgent call retrieves them via semanticRelevantFor.
+   *
+   * Winners = lessons with views ≥ 1.5x rolling mean (same lift used for
+   * hook mining). Needs ≥3 measured lessons before it activates.
+   */
+  async mineSeoPatternsForBrand(brandId: string): Promise<number> {
+    const brand = await this.brandRepo.findOne({ where: { id: brandId } });
+    if (!brand) return 0;
+
+    // Same winner detection as runForBrand — but we also need the SEO asset.
+    const rows: Array<{ lessonId: string; views: string; title: string }> =
+      await this.metricsRepo.query(`
+        WITH latest AS (
+          SELECT DISTINCT ON ("lessonId") "lessonId", views
+            FROM cs_lesson_metrics
+           ORDER BY "lessonId", "fetchedAt" DESC
+        )
+        SELECT l.id AS "lessonId", lm.views AS views, l.title AS title
+          FROM latest lm
+          JOIN cs_lessons l ON l.id = lm."lessonId"
+          JOIN cs_weekly_content_plans p ON p.id = l."planId"
+         WHERE p."brandId" = $1
+      `, [brandId]);
+    if (rows.length < 3) {
+      this.logger.log(
+        `SEO mining skipped for "${brand.name}" — only ${rows.length} measured lessons (need ≥3)`,
+      );
+      return 0;
+    }
+    const totals = rows.map((r) => Number(r.views));
+    const mean = totals.reduce((a, b) => a + b, 0) / totals.length;
+    if (mean <= 0) return 0;
+    const winners = rows.filter((r) => Number(r.views) >= mean * ImprovementAgent.LIFT);
+    if (winners.length === 0) return 0;
+
+    // Pull the actual title/tags that shipped on each winner.
+    const seoBlocks: string[] = [];
+    for (const w of winners.slice(0, 10)) {
+      const seo = await this.assetRepo.findOne({
+        where: { lessonId: w.lessonId, assetType: 'seo' },
+        order: { version: 'DESC' },
+      });
+      const c = (seo?.content ?? {}) as { chosenTitle?: string; tags?: string[] };
+      const t = c.chosenTitle ?? w.title;
+      const tg = Array.isArray(c.tags) ? c.tags.slice(0, 12).join(', ') : '(none)';
+      const k = Math.round(Number(w.views) / 1000);
+      seoBlocks.push(`[${k}k views] TITLE: ${t}\n  TAGS: ${tg}`);
+    }
+
+    let parsed: {
+      title_patterns?: Array<{ pattern?: string; why?: string }>;
+      tag_patterns?:   Array<{ pattern?: string; why?: string }>;
+    } = {};
+    try {
+      const r = await this.router.run({
+        task: 'seo',
+        agentType: 'seo',
+        modelOverride: brand.modelOverrides?.seo,
+        jsonOutput: true,
+        maxTokens: 1200,
+        temperature: 0.4,
+        system: SEO_MINE_SYSTEM,
+        user: `BRAND: ${brand.name}\n\nWINNING LESSONS (≥1.5x mean views):\n${seoBlocks.join('\n\n')}\n\nExtract the reusable title + tag patterns. JSON only.`,
+      });
+      parsed = JSON.parse(r.text || '{}');
+    } catch (e) {
+      this.logger.warn(`SEO mining LLM failed for "${brand.name}": ${(e as Error).message}`);
+      return 0;
+    }
+
+    let promoted = 0;
+    const insert = async (
+      pattern: string, why: string | undefined, kind: 'title' | 'tag',
+    ): Promise<void> => {
+      const content = `Winning ${kind} pattern: ${pattern}${why ? ` — ${why}` : ''}`.slice(0, 400);
+      const memoryType = kind === 'title' ? 'title_pattern' : 'tag_pattern';
+      const already = await this.memRepo.findOne({
+        where: { brandId, content, memoryType },
+      });
+      if (already) return;
+      const created = await this.memRepo.save(
+        this.memRepo.create({
+          brandId,
+          memoryType,
+          content,
+          weight: 2,
+          appliesTo: ['seo'],
+          isActive: true,
+        }),
+      );
+      void this.memorySvc.embedOnSave(created.id, created.content);
+      promoted++;
+    };
+
+    for (const p of (parsed.title_patterns ?? []).slice(0, 3)) {
+      const pat = String(p?.pattern ?? '').trim();
+      if (pat) await insert(pat, p?.why?.trim(), 'title');
+    }
+    for (const p of (parsed.tag_patterns ?? []).slice(0, 3)) {
+      const pat = String(p?.pattern ?? '').trim();
+      if (pat) await insert(pat, p?.why?.trim(), 'tag');
+    }
+
+    if (promoted > 0) {
+      this.logger.log(
+        `SEO mining "${brand.name}" — promoted ${promoted} title+tag pattern(s) from ${winners.length} winners`,
+      );
     }
     return promoted;
   }

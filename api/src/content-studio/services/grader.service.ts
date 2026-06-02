@@ -76,7 +76,12 @@ export class GraderService {
   shouldGrade(agentType: AgentType): boolean {
     switch (this.mode) {
       case 'always':       return true;
-      case 'smart':        return ['script', 'ppt', 'quiz'].includes(agentType);
+      // 'smart' now covers every content asset (rubrics defined above for
+      // seo/thumbnail/promo too). Strategy stays excluded — it's a planning
+      // step, not a deliverable; grading the plan moves the needle less than
+      // grading lessons + their assets.
+      case 'smart':
+        return ['script', 'ppt', 'quiz', 'seo', 'thumbnail', 'promo'].includes(agentType);
       case 'premium-only': return agentType === 'script';
       case 'manual':       return false;
     }

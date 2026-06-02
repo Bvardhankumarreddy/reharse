@@ -2,7 +2,9 @@ import {
   Entity, PrimaryGeneratedColumn, Column, Index, CreateDateColumn,
 } from 'typeorm';
 
-export type MemoryType = 'voice' | 'style' | 'hook' | 'structure' | 'do' | 'dont';
+export type MemoryType =
+  | 'voice' | 'style' | 'hook' | 'structure' | 'do' | 'dont'
+  | 'title_pattern' | 'tag_pattern';   // SEO miner output (Improvement Agent)
 
 /** Reusable brand voice/style/pattern fed into agent prompts. */
 @Entity('cs_brand_memories')
