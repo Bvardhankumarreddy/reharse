@@ -31,7 +31,11 @@ export class AqbMetricsFetcherService {
     return !!this.apiKey;
   }
 
-  /** Pull stats for every published short with a youtubeVideoId. */
+  /**
+   * Pull stats for every published short — both the English video AND
+   * (when present) the Telugu video. Saves separate metric rows per
+   * language so the postmortem agent can read each side independently.
+   */
   async fetchAll(batchSize = 50): Promise<{ scanned: number; saved: number }> {
     if (!this.isConfigured()) {
       this.logger.warn('CS_YT_API_KEY not set — AQB metrics fetcher dormant');
@@ -40,15 +44,31 @@ export class AqbMetricsFetcherService {
     const shorts = await this.scripts
       .createQueryBuilder('s')
       .where(`s.status = :st`, { st: 'published' })
-      .andWhere(`s."youtubeVideoId" IS NOT NULL`)
+      .andWhere(`(s."youtubeVideoId" IS NOT NULL OR s."teluguYoutubeVideoId" IS NOT NULL)`)
       .orderBy('s."createdAt"', 'DESC')
       .limit(500)
       .getMany();
 
     let saved = 0;
-    for (let i = 0; i < shorts.length; i += batchSize) {
-      const batch = shorts.slice(i, i + batchSize);
-      const ids = batch.map((s) => s.youtubeVideoId!).filter(Boolean);
+    saved += await this.fetchForLanguage(shorts, 'en', batchSize);
+    saved += await this.fetchForLanguage(shorts, 'te', batchSize);
+    this.logger.log(`AQB metrics sweep: ${shorts.length} shorts (EN+TE), ${saved} snapshots`);
+    return { scanned: shorts.length, saved };
+  }
+
+  /** Per-language pass. Calls videos.list with the right id per short. */
+  private async fetchForLanguage(
+    shorts: ShortScript[], language: 'en' | 'te', batchSize: number,
+  ): Promise<number> {
+    const idOf = (s: ShortScript): string | null =>
+      language === 'te' ? s.teluguYoutubeVideoId : s.youtubeVideoId;
+    const eligible = shorts.filter((s) => !!idOf(s));
+    if (eligible.length === 0) return 0;
+
+    let saved = 0;
+    for (let i = 0; i < eligible.length; i += batchSize) {
+      const batch = eligible.slice(i, i + batchSize);
+      const ids = batch.map((s) => idOf(s)!).filter(Boolean);
       if (ids.length === 0) continue;
       try {
         const { data } = await axios.get(
@@ -70,12 +90,14 @@ export class AqbMetricsFetcherService {
           });
         }
         for (const s of batch) {
-          const stat = byId.get(s.youtubeVideoId!);
+          const vid = idOf(s)!;
+          const stat = byId.get(vid);
           if (!stat) continue;
           await this.metrics.save(
             this.metrics.create({
               scriptId: s.id,
-              youtubeVideoId: s.youtubeVideoId!,
+              youtubeVideoId: vid,
+              language,
               views: stat.v,
               likes: stat.l,
               comments: stat.c,
@@ -84,19 +106,30 @@ export class AqbMetricsFetcherService {
           saved++;
         }
       } catch (e) {
-        this.logger.warn(`AQB metrics batch failed: ${(e as Error).message}`);
+        this.logger.warn(
+          `AQB metrics batch (${language}) failed: ${(e as Error).message}`,
+        );
       }
     }
-    this.logger.log(`AQB metrics sweep: ${shorts.length} shorts, ${saved} snapshots`);
-    return { scanned: shorts.length, saved };
+    return saved;
   }
 
-  /** Latest snapshot per published short for the rolling-mean calculation. */
+  /**
+   * Latest snapshot per published short, summing views across BOTH
+   * languages (EN + TE) so a short's "total reach" is what the rolling
+   * mean compares — winners are concepts that performed well, not
+   * single-language outliers.
+   */
   async latestPerShort(): Promise<Array<{ scriptId: string; views: number }>> {
     const rows: Array<{ scriptId: string; views: string }> = await this.metrics.query(`
-      SELECT DISTINCT ON ("scriptId") "scriptId", views
-        FROM aqb_short_metrics
-       ORDER BY "scriptId", "fetchedAt" DESC
+      WITH latest_per_lang AS (
+        SELECT DISTINCT ON ("scriptId", language) "scriptId", language, views
+          FROM aqb_short_metrics
+         ORDER BY "scriptId", language, "fetchedAt" DESC
+      )
+      SELECT "scriptId", SUM(views)::text AS views
+        FROM latest_per_lang
+       GROUP BY "scriptId"
     `);
     return rows.map((r) => ({ scriptId: r.scriptId, views: Number(r.views) }));
   }

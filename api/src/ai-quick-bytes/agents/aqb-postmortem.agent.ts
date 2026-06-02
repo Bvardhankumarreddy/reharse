@@ -82,22 +82,35 @@ export class AqbPostmortemAgent {
     const script = await this.scripts.findOne({ where: { id: scriptId } });
     if (!script) throw new NotFoundException('Script not found');
 
-    const latest = await this.metrics
-      .createQueryBuilder('m')
-      .where('m."scriptId" = :id', { id: scriptId })
-      .orderBy('m."fetchedAt"', 'DESC')
-      .limit(1)
-      .getOne();
-    const views = Number(latest?.views ?? 0);
-
-    // Rolling mean across the last ~60 days of published shorts.
-    const meanRow: Array<{ mean: string }> = await this.metrics.query(`
-      WITH latest AS (
-        SELECT DISTINCT ON ("scriptId") "scriptId", views, "fetchedAt"
-          FROM aqb_short_metrics ORDER BY "scriptId", "fetchedAt" DESC
+    // Latest per language (one EN row + one TE row at most), summed for
+    // this script's total reach.
+    const totalRow: Array<{ views: string }> = await this.metrics.query(`
+      WITH latest_per_lang AS (
+        SELECT DISTINCT ON (language) language, views, "fetchedAt"
+          FROM aqb_short_metrics
+         WHERE "scriptId" = $1
+         ORDER BY language, "fetchedAt" DESC
       )
-      SELECT COALESCE(AVG(views), 0)::text AS mean
-        FROM latest
+      SELECT COALESCE(SUM(views), 0)::text AS views
+        FROM latest_per_lang
+    `, [scriptId]);
+    const views = Number(totalRow[0]?.views ?? 0);
+
+    // Rolling mean across the last ~60 days of published shorts, with
+    // the same per-language SUM aggregation so the mean is apples-to-apples.
+    const meanRow: Array<{ mean: string }> = await this.metrics.query(`
+      WITH latest_per_lang AS (
+        SELECT DISTINCT ON ("scriptId", language) "scriptId", language, views, "fetchedAt"
+          FROM aqb_short_metrics
+         ORDER BY "scriptId", language, "fetchedAt" DESC
+      ),
+      totals AS (
+        SELECT "scriptId", SUM(views) AS total_views, MAX("fetchedAt") AS "fetchedAt"
+          FROM latest_per_lang
+         GROUP BY "scriptId"
+      )
+      SELECT COALESCE(AVG(total_views), 0)::text AS mean
+        FROM totals
        WHERE "fetchedAt" > NOW() - INTERVAL '60 days'
     `);
     const mean = Number(meanRow[0]?.mean ?? 0);

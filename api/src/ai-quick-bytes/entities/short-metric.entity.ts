@@ -25,6 +25,16 @@ export class AqbShortMetric {
   @Column({ type: 'varchar', length: 64 })
   youtubeVideoId: string;
 
+  /**
+   * Which language video this snapshot belongs to. 'en' for the primary
+   * English upload (script.youtubeVideoId), 'te' for the Telugu upload
+   * (script.teluguYoutubeVideoId). Defaults 'en' so legacy rows stay
+   * correct under the new schema.
+   */
+  @Index()
+  @Column({ type: 'varchar', length: 8, default: 'en' })
+  language: 'en' | 'te';
+
   @Column({ type: 'bigint', default: 0 })
   views: number;
 
