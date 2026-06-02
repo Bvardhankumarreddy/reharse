@@ -11,7 +11,7 @@ import {
   type SeoAsset, type ThumbnailAsset, type PromoAsset,
   type QuizPoolListResponse, type DeliveredQuizSummary,
   type QuizBundleResp, type QuizPromoResp,
-  type QuizWinnerResp,
+  type QuizWinnerResp, type QuizWinner,
   type PipelineRun, type PipelineStage, PIPELINE_STAGE_ORDER,
   type DlqJob,
   type AuditEntry, type AssetVersionMeta, type RollbackableAssetType,
@@ -3412,8 +3412,9 @@ function QuizWinnersSection({ planId, onToast }: {
   planId: string; onToast: (m: string) => void;
 }) {
   const [winners, setWinners] = useState<QuizWinnerResp | null>(null);
-  const [busy, setBusy] = useState<"load" | "generate" | "posts" | "thumbs" | null>(null);
+  const [busy, setBusy] = useState<"load" | "generate" | "posts" | "thumbs" | "pull" | null>(null);
   const [showInput, setShowInput] = useState(false);
+  const [pullLimit, setPullLimit] = useState("3");
   const [winnersJson, setWinnersJson] = useState(
     JSON.stringify(
       [
@@ -3443,6 +3444,36 @@ function QuizWinnersSection({ planId, onToast }: {
   }, [planId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  async function pullTop() {
+    const n = Math.max(1, Math.min(10, Number(pullLimit) || 3));
+    setBusy("pull");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<{
+        winners: QuizWinner[];
+        quizWeek: number;
+        totalParticipants: number;
+        speedHighlight: string | null;
+      }>(token, `/plans/${planId}/quiz/winners/pull-top?limit=${n}`);
+      if (r.winners.length === 0) {
+        onToast(`⚠ No submissions found for quiz week ${r.quizWeek}`);
+        return;
+      }
+      // Drop the live data straight into the form.
+      setWinnersJson(JSON.stringify(r.winners, null, 2));
+      setTotalParticipants(String(r.totalParticipants));
+      setSpeedHighlight(r.speedHighlight ?? "");
+      setShowInput(true);
+      onToast(
+        `✓ Pulled top ${r.winners.length} from week ${r.quizWeek} ` +
+        `(${r.totalParticipants} total participant${r.totalParticipants === 1 ? "" : "s"})`,
+      );
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusy(null); }
+  }
 
   async function generate() {
     let parsedWinners: unknown;
@@ -3549,6 +3580,24 @@ function QuizWinnersSection({ planId, onToast }: {
           busy={busy === "generate"}
           onClick={() => setShowInput((v) => !v)}
         />
+        {/* Auto-fill from real quiz_submissions data. */}
+        <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
+          top
+          <input
+            type="number" min={1} max={10}
+            value={pullLimit}
+            onChange={(e) => setPullLimit(e.target.value)}
+            className="w-10 bg-[#0F1330] border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white outline-none focus:border-[#00D4FF]/40"
+          />
+        </label>
+        <button
+          onClick={pullTop}
+          disabled={busy === "pull"}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#FFB020]/40 text-[#FFB020] hover:bg-[#FFB020]/10 disabled:opacity-50 transition"
+          title="Read top scorers from quiz_submissions for this quiz week — no LLM call"
+        >
+          {busy === "pull" ? "Pulling…" : "🎯 Pull top from submissions"}
+        </button>
         {winners && (
           <>
             <Btn

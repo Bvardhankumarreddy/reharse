@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { Brand } from '../entities/brand.entity';
 import { WeeklyContentPlan } from '../entities/weekly-content-plan.entity';
 import { QuizBundle } from '../entities/quiz-bundle.entity';
+import { QuizSubmission } from '../../quiz/quiz.entities';
 import {
   QuizWinnerAnnouncement, QuizWinner, WinnerPosts,
   WinnerThumbnailVariation,
@@ -162,6 +163,8 @@ export class QuizWinnerAgent {
     private readonly bundleRepo: Repository<QuizBundle>,
     @InjectRepository(QuizWinnerAnnouncement)
     private readonly winnerRepo: Repository<QuizWinnerAnnouncement>,
+    @InjectRepository(QuizSubmission)
+    private readonly submissionRepo: Repository<QuizSubmission>,
     private readonly router: ModelRouterService,
   ) {}
 
@@ -249,6 +252,81 @@ export class QuizWinnerAgent {
       where: { planId },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /**
+   * Pull the top-N submitters for this plan's quizWeek from quiz_submissions.
+   * Sort: totalScore DESC, totalTimeSeconds ASC, tiebreaker closeness ASC
+   * (NULL tiebreakers ranked last). Default prizes: 500/300/200/100/50/0…
+   *
+   * Returns an array in the same shape the /generate endpoint expects in
+   * its `winners` field, so the UI can drop it straight into the textarea.
+   */
+  async pullTopFromSubmissions(
+    planId: string, limit = 3,
+  ): Promise<{
+    winners: QuizWinner[];
+    quizWeek: number;
+    totalParticipants: number;
+    speedHighlight: string | null;
+  }> {
+    const plan = await this.planRepo.findOne({ where: { id: planId } });
+    if (!plan) throw new NotFoundException('Plan not found');
+    const bundle = await this.bundleRepo.findOne({
+      where: { planId },
+      order: { createdAt: 'DESC' },
+    });
+
+    // Quiz week: bundle.quizWeek > plan.seriesWeekNumber > 1.
+    const quizWeek = bundle?.quizWeek ?? plan.seriesWeekNumber ?? 1;
+    const tieTarget = bundle ? Number(bundle.tieBreakerAnswer) : null;
+
+    // Tie-break by closeness to the bundle's stored tieBreakerAnswer
+    // when present; otherwise drop that ORDER BY clause.
+    const qb = this.submissionRepo
+      .createQueryBuilder('s')
+      .where('s."quizWeek" = :w', { w: quizWeek })
+      .orderBy('s."totalScore"', 'DESC')
+      .addOrderBy('s."totalTimeSeconds"', 'ASC');
+    if (tieTarget !== null && Number.isFinite(tieTarget)) {
+      qb.addOrderBy(
+        `CASE WHEN s."tiebreakerAnswer" IS NULL THEN 1 ELSE 0 END`,
+        'ASC',
+      ).addOrderBy(
+        `ABS(COALESCE(s."tiebreakerAnswer", 0) - :tt)`,
+        'ASC',
+      ).setParameter('tt', Math.round(tieTarget));
+    }
+
+    const all = await qb.limit(200).getMany();
+    const totalParticipants = await this.submissionRepo.count({
+      where: { quizWeek },
+    });
+
+    // maxScore — best score in this week's submissions (consistent ceiling
+    // even if nobody got every question right). Falls back to top.totalScore.
+    const maxScore = all.length ? all[0].totalScore : 0;
+
+    const tier = [500, 300, 200, 100, 50]; // safe default cash tiers
+    const winners: QuizWinner[] = all
+      .slice(0, Math.max(1, Math.min(10, Math.round(limit || 3))))
+      .map((s, i) => ({
+        rank: i + 1,
+        name: s.fullName?.trim() || s.email || `Winner ${i + 1}`,
+        score: s.totalScore,
+        maxScore,
+        timeSeconds: s.totalTimeSeconds,
+        prizeInr: tier[i] ?? 0,
+      }));
+
+    // Speed highlight only fires when top-1 has a perfect score AND was
+    // fast (under 60s) — otherwise the LLM omits the line per its prompt.
+    const top = winners[0];
+    const speedHighlight = top && top.score === top.maxScore && top.timeSeconds > 0 && top.timeSeconds < 60
+      ? `${top.timeSeconds} seconds for ${top.score} questions — perfect score`
+      : null;
+
+    return { winners, quizWeek, totalParticipants, speedHighlight };
   }
 
   /** Regenerate only the posts (keep winners + thumbnails). */

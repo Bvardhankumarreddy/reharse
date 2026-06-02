@@ -599,6 +599,20 @@ export class ContentStudioController {
     return w;
   }
 
+  /**
+   * Auto-populate the top-N winners from `quiz_submissions` for the plan's
+   * quiz week. No LLM call — just a sorted DB read. UI uses this to pre-fill
+   * the winners textarea so curators don't have to type names by hand.
+   */
+  @Get('plans/:id/quiz/winners/pull-top')
+  async pullTopWinners(
+    @Param('id') id: string,
+    @Query('limit') limitQ?: string,
+  ) {
+    const limit = Math.max(1, Math.min(10, Number(limitQ) || 3));
+    return this.quizWinner.pullTopFromSubmissions(id, limit);
+  }
+
   @Post('plans/:id/quiz/winners/regenerate-posts')
   regenerateQuizWinnerPosts(@Param('id') id: string) {
     return this.quizWinner.regeneratePosts(id);

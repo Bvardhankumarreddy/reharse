@@ -28,6 +28,7 @@ import { QuizBundle } from './entities/quiz-bundle.entity';
 import { QuizBundleQuestion } from './entities/quiz-bundle-question.entity';
 import { QuizPromoPackage } from './entities/quiz-promo-package.entity';
 import { QuizWinnerAnnouncement } from './entities/quiz-winner-announcement.entity';
+import { QuizSubmission } from '../quiz/quiz.entities';
 import { NewsItem } from '../ai-quick-bytes/entities/news-item.entity';
 
 import { OpenAIAdapter } from './services/openai.adapter';
@@ -101,6 +102,7 @@ import { ContentStudioController } from './content-studio.controller';
       QuizBundle, QuizBundleQuestion,
       QuizPromoPackage,
       QuizWinnerAnnouncement,
+      QuizSubmission,
       NewsItem,
     ]),
     BullModule.registerQueue(
