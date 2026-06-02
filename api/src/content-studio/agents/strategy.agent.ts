@@ -74,6 +74,43 @@ Respond with a SINGLE JSON object only:
 Exactly 2 lessons.
 `.trim();
 
+const SEED_LESSON_SYSTEM = `
+You design ONE lesson around a SPECIFIC question the curator wants
+answered. Treat the question as the LESSON'S CORE — every section of
+the outline should drive toward answering it convincingly.
+
+The question is usually an interview-style or learner-confusion
+question (e.g. "What's the difference between OAuth client_id and
+client_secret?" or "How does CORS actually work?"). Your job:
+
+- TITLE: punchy and clickable. The viewer should see it and think
+  "yes, I want this answered". Reference the question's core noun,
+  not the literal phrasing. Up to 100 chars; 60-90 is the sweet spot.
+- HOOK: first ~8 seconds. Concrete stakes — a real failure mode, a
+  number, a "most devs get this wrong". Open IN the moment, never
+  "in this video we'll cover…".
+- OUTLINE: 4-6 sections, each with 2-4 teaching points. Structure
+  the answer:
+    1. The question, in plain terms (anchor)
+    2. The naive / wrong answer most people give (and why it fails)
+    3-4. The correct mental model with a real example
+    5. Common gotchas + how to avoid them
+    6. (Optional) When the answer changes — edge cases
+- lesson_format: 'lecture' | 'live_coding' | 'walkthrough' | 'interview' | 'short'
+  Pick the format that best ANSWERS this question. Tool/API setup
+  questions → live_coding. Conceptual "why does X work that way" →
+  lecture. UI/dashboard tour questions → walkthrough. Use the existing
+  format only if the question genuinely fits it.
+- target_duration_minutes: integer fit for the format (lecture ~10,
+  live_coding ~15, walkthrough ~8, interview ~12, short ~1).
+
+Honour brand voice memories verbatim. Stay concrete — real names,
+tools, numbers. No "imagine a system".
+
+Output a SINGLE JSON object only (NOT an array, NO "lessons" wrapper):
+{"title":"…","hook":"…","lesson_format":"lecture","target_duration_minutes":10,"outline":[{"heading":"…","points":["…","…"]}]}
+`.trim();
+
 const REGEN_LESSON_SYSTEM = `
 You re-plan ONE lesson slot with a COMPLETELY NEW TOPIC. Pick a genuinely
 different subject from the current lesson — NOT a reword, NOT a slight
@@ -552,6 +589,110 @@ export class StrategyAgent {
 
     const updated = await this.lessonRepo.findOne({ where: { id: lesson.id } });
     if (!updated) throw new Error('Lesson vanished after regenerate');
+    return updated;
+  }
+
+  /**
+   * Seed a lesson slot from a SPECIFIC interview question. Unlike
+   * regenerateLesson (which asks the LLM to pick a fresh topic),
+   * this uses the question itself as the lesson's core problem and
+   * expands it into title + hook + outline + format.
+   *
+   * After seeding the lesson rows, wipes the lesson's stale assets
+   * (script/ppt/seo/thumbnail/promo) — same as regenerateLesson —
+   * so the next pipeline run picks up the new lesson.
+   */
+  async seedLessonFromQuestion(
+    lessonId: string,
+    opts: { question: string },
+  ): Promise<Lesson> {
+    const question = (opts.question ?? '').trim();
+    if (question.length < 8) {
+      throw new BadRequestException('question must be at least 8 characters');
+    }
+    const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    const plan = await this.planRepo.findOne({ where: { id: lesson.planId } });
+    if (!plan) throw new BadRequestException('Lesson has no plan');
+    const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
+    if (!brand) throw new BadRequestException('Plan has no brand');
+
+    const siblings = (
+      await this.lessonRepo.find({
+        where: { planId: plan.id },
+        order: { lessonNumber: 'ASC' },
+      })
+    ).filter((l) => l.id !== lessonId);
+    const siblingBlock = siblings.length
+      ? siblings
+        .map((s) => `LESSON ${s.lessonNumber}: ${s.title} — ${s.hook ?? ''}`)
+        .join('\n')
+      : '(none)';
+
+    const memories = await this.memories.relevantFor(brand.id, 'strategy');
+    const memoryBlock = this.memories.format(memories);
+
+    const result = await this.router.run({
+      task: 'strategy',
+      agentType: 'strategy',
+      planId: plan.id,
+      lessonId: lesson.id,
+      modelOverride: brand.modelOverrides?.strategy,
+      jsonOutput: true,
+      maxTokens: 2000,
+      temperature: 0.7,
+      system: SEED_LESSON_SYSTEM,
+      user:
+        `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
+        `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
+        `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n\n` +
+        `THE OTHER LESSON(S) THIS WEEK (don't overlap):\n${siblingBlock}\n\n` +
+        `LESSON SLOT TO FILL — number ${lesson.lessonNumber}.\n\n` +
+        `═══ THE QUESTION TO DESIGN AROUND ═══\n${question.slice(0, 1000)}\n═══\n\n` +
+        `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
+        `Design the lesson that answers this question. Return the single ` +
+        `replacement lesson as JSON only.`,
+    });
+
+    let parsed: {
+      title?: string; hook?: string; lesson_format?: string;
+      target_duration_minutes?: number; outline?: OutlineSection[];
+    };
+    try {
+      parsed = JSON.parse(result.text || '{}');
+    } catch {
+      throw new Error('Lesson seeding returned unparseable JSON');
+    }
+    if (!parsed.title?.trim()) throw new Error('Seeding produced no title');
+
+    const requested = (parsed.lesson_format ?? '').toString();
+    const fmt: LessonFormat = isLessonFormat(requested)
+      ? requested
+      : lesson.lessonFormat;
+
+    await this.lessonRepo.update(lesson.id, {
+      title: parsed.title.slice(0, 500),
+      hook: parsed.hook ?? null,
+      outline: Array.isArray(parsed.outline) ? parsed.outline : [],
+      targetDurationMinutes:
+        parsed.target_duration_minutes ?? this.defaultDurationFor(fmt),
+      lessonFormat: fmt,
+      status: 'planned',
+    });
+
+    // Wipe stale assets — script / ppt / seo / thumbnail / promo all need
+    // to be regenerated against the new lesson topic.
+    const wiped = await this.assetRepo.delete({ lessonId: lesson.id });
+    await this.planRepo.update(plan.id, {
+      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.costUsd,
+    });
+    this.logger.log(
+      `Seeded lesson ${lesson.lessonNumber} from question — "${parsed.title}" (${fmt}) ` +
+      `— wiped ${wiped.affected ?? 0} stale asset(s) ($${result.costUsd.toFixed(4)})`,
+    );
+
+    const updated = await this.lessonRepo.findOne({ where: { id: lesson.id } });
+    if (!updated) throw new Error('Lesson vanished after seed');
     return updated;
   }
 

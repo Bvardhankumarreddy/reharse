@@ -683,6 +683,10 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
   const [regenBusy, setRegenBusy] = useState(false);
   const [regenOpen, setRegenOpen] = useState(false);
   const [regenNote, setRegenNote] = useState("");
+  // Seed-from-question state — separate from regen because the LLM mode is different
+  const [seedOpen, setSeedOpen] = useState(false);
+  const [seedQuestion, setSeedQuestion] = useState("");
+  const [seedBusy, setSeedBusy] = useState(false);
 
   async function regenerateLesson() {
     setRegenBusy(true);
@@ -705,6 +709,31 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setRegenBusy(false); }
+  }
+
+  async function seedFromQuestion() {
+    const q = seedQuestion.trim();
+    if (q.length < 8) { onToast("⚠ Paste a real question (≥ 8 chars)"); return; }
+    setSeedBusy(true);
+    onToast("Designing a lesson around your question… (~15-30s)");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setSeedBusy(false); return; }
+    try {
+      const updated = await api<Lesson>(token, `/lessons/${lesson.id}/seed-from-question`, {
+        method: "POST",
+        body: JSON.stringify({ question: q }),
+      });
+      setLsn(updated);
+      // Stale assets were wiped server-side — clear local refs to match.
+      setScript(null); setPpt(null); setSeo(null); setThumb(null); setPromo(null);
+      setAudio(null);
+      setOpen(false); setOpenSlides(false); setOpenSeo(false);
+      setOpenThumb(false); setOpenPromo(false);
+      setSeedOpen(false); setSeedQuestion("");
+      onToast(`✓ Lesson seeded: ${updated.title}`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setSeedBusy(false); }
   }
 
   async function deleteLesson() {
@@ -904,7 +933,15 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
         </span>
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => setRegenOpen((v) => !v)}
+            onClick={() => { setSeedOpen((v) => !v); setRegenOpen(false); }}
+            disabled={seedBusy || regenBusy}
+            className="text-[10px] px-2 py-0.5 rounded-lg border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 disabled:opacity-50 transition"
+            title="Build this lesson around a specific interview question"
+          >
+            {seedBusy ? "Working…" : "🎯 Seed from Q"}
+          </button>
+          <button
+            onClick={() => { setRegenOpen((v) => !v); setSeedOpen(false); }}
             disabled={regenBusy}
             className="text-[10px] px-2 py-0.5 rounded-lg border border-amber-400/30 text-amber-300 hover:bg-amber-400/10 disabled:opacity-50 transition"
             title="Replace this lesson with a completely new topic"
@@ -924,6 +961,27 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
           </span>
         </div>
       </div>
+      {seedOpen && (
+        <div className="px-3 py-2 bg-[#00F5A0]/5 border-b border-[#00F5A0]/10 space-y-2">
+          <p className="text-[10px] text-[#6B7799]">
+            Paste an interview question. The Strategy Agent will design this lesson
+            around answering it — title, hook, outline, format. Stale script /
+            PPT / SEO / thumbnail / promo get wiped so the next pipeline run
+            picks up the new topic.
+          </p>
+          <textarea
+            value={seedQuestion}
+            onChange={(e) => setSeedQuestion(e.target.value)}
+            placeholder={`e.g. "What's the actual difference between OAuth client_id and client_secret — and which one is safe to commit?"`}
+            rows={3}
+            className="w-full bg-[#0F1330] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-white outline-none focus:border-[#00F5A0]/40 resize-y"
+          />
+          <div className="flex justify-end gap-2">
+            <Btn label="Cancel" onClick={() => { setSeedOpen(false); setSeedQuestion(""); }} />
+            <PrimaryBtn label="🎯 Seed lesson from this Q" busy={seedBusy} onClick={seedFromQuestion} />
+          </div>
+        </div>
+      )}
       {regenOpen && (
         <div className="px-3 py-2 bg-amber-400/5 border-b border-amber-400/10 space-y-2">
           <p className="text-[10px] text-[#6B7799]">

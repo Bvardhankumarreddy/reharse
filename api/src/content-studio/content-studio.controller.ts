@@ -237,6 +237,22 @@ export class ContentStudioController {
     return this.strategy.regenerateLesson(id, { guidance: body?.guidance });
   }
 
+  /**
+   * Replace a lesson with one designed around a specific interview-style
+   * question. Wipes the lesson's stale assets so the next pipeline run
+   * picks up the new topic. Body: { question: string }.
+   */
+  @Post('lessons/:id/seed-from-question')
+  seedLessonFromQuestion(
+    @Param('id') id: string,
+    @Body() body: { question?: string },
+  ) {
+    if (!body?.question?.trim()) {
+      throw new BadRequestException('question is required');
+    }
+    return this.strategy.seedLessonFromQuestion(id, { question: body.question });
+  }
+
   /** Delete a lesson (removes its assets + renumbers the rest of the plan). */
   @Delete('lessons/:id')
   deleteLesson(@Param('id') id: string) {
