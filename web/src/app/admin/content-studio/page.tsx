@@ -2137,7 +2137,170 @@ function IntelligencePanel({ brands, onToast }: {
           )}
         </div>
       )}
+
+      <RetentionPanel onToast={onToast} />
     </section>
+  );
+}
+
+/**
+ * Weekly retention sweep controls. Preview is a dry-count (no writes) so
+ * curators can sanity-check the cron before it fires Monday 03:30 UTC.
+ * Purge runs the same logic on-demand.
+ */
+function RetentionPanel({ onToast }: { onToast: (m: string) => void }) {
+  interface PreviewResp {
+    currentWeek: number;
+    threshold: number;
+    weeksKept: number;
+    counts: {
+      submissions: number;
+      sessions: number;
+      bundles: number;
+      winners: number;
+    };
+    deleted?: PreviewResp["counts"];
+  }
+  const [weeks, setWeeks] = useState("3");
+  const [preview, setPreview] = useState<PreviewResp | null>(null);
+  const [busy, setBusy] = useState<"preview" | "purge" | null>(null);
+  const [open, setOpen] = useState(false);
+
+  async function loadPreview() {
+    const w = Math.max(1, Math.min(52, Number(weeks) || 3));
+    setBusy("preview");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<PreviewResp>(token, `/retention/preview?weeks=${w}`);
+      setPreview(r);
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(null); }
+  }
+
+  async function runPurge() {
+    if (!preview || preview.threshold === 0) {
+      onToast("⚠ Run Preview first — nothing to purge unless rows are eligible");
+      return;
+    }
+    const total =
+      preview.counts.submissions + preview.counts.sessions +
+      preview.counts.bundles + preview.counts.winners;
+    const w = Math.max(1, Math.min(52, Number(weeks) || 3));
+    if (
+      !confirm(
+        `Purge ${total} row(s) older than ${w} week(s)?\n\n` +
+        `• ${preview.counts.submissions} quiz_submissions (+ answers cascade)\n` +
+        `• ${preview.counts.sessions} quiz_sessions\n` +
+        `• ${preview.counts.bundles} cs_quiz_bundles (+ questions/promos cascade)\n` +
+        `• ${preview.counts.winners} cs_quiz_winner_announcements\n\n` +
+        `IRREVERSIBLE. Content (lessons, plans, assets, logs) stays.`,
+      )
+    ) return;
+    setBusy("purge");
+    onToast("Purging older quiz data…");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusy(null); return; }
+    try {
+      const r = await api<PreviewResp>(
+        token, "/retention/purge",
+        { method: "POST", body: JSON.stringify({ weeksKept: w }) },
+      );
+      setPreview(r);
+      const d = r.deleted ?? r.counts;
+      const sum = d.submissions + d.sessions + d.bundles + d.winners;
+      onToast(
+        `✓ Purged ${sum} row(s) ≤ week ${r.threshold} ` +
+        `(${d.submissions} subs · ${d.sessions} sess · ${d.bundles} bundles · ${d.winners} winners)`,
+      );
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(null); }
+  }
+
+  return (
+    <div className="border border-white/5 rounded-xl overflow-hidden bg-white/[0.015]">
+      <button
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          if (next && !preview) void loadPreview();
+        }}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-white/[0.02] transition"
+      >
+        <span className="text-[11px] font-semibold text-[#B8C5E0]">
+          🧹 Retention sweep
+          <span className="ml-2 text-[10px] font-normal text-[#6B7799]">
+            cron · Mon 03:30 UTC · keeps last 3 weeks of quiz data
+          </span>
+        </span>
+        {preview && (
+          <span className="text-[10px] text-[#6B7799]">
+            current week: {preview.currentWeek}
+            {preview.threshold > 0 ? ` · cuts ≤ ${preview.threshold}` : " · nothing aged out yet"}
+          </span>
+        )}
+        <span className="text-[10px] text-[#6B7799]">{open ? "▾" : "▸"}</span>
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 space-y-2 border-t border-white/5">
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
+              weeks kept
+              <input
+                type="number" min={1} max={52}
+                value={weeks}
+                onChange={(e) => setWeeks(e.target.value)}
+                className="w-12 bg-[#0F1330] border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white outline-none focus:border-[#00D4FF]/40"
+              />
+            </label>
+            <button
+              onClick={loadPreview}
+              disabled={busy === "preview"}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-50"
+            >
+              {busy === "preview" ? "Previewing…" : "🔍 Preview (dry-run)"}
+            </button>
+            <button
+              onClick={runPurge}
+              disabled={busy === "purge" || !preview || preview.threshold === 0}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-400/30 text-red-300 hover:bg-red-400/10 disabled:opacity-40 transition"
+              title="Permanent — wipes everything ≤ current-week minus weeks-kept"
+            >
+              {busy === "purge" ? "Purging…" : "🗑 Purge now"}
+            </button>
+          </div>
+
+          {preview && (
+            <div className="bg-[#0F1330] border border-white/5 rounded p-2 text-[11px] space-y-1">
+              {preview.threshold === 0 ? (
+                <p className="text-[#6B7799]">
+                  Only {preview.currentWeek} week{preview.currentWeek === 1 ? "" : "s"} of data exists —
+                  nothing ages out until more weeks accrue.
+                </p>
+              ) : (
+                <>
+                  <p className="text-[#B8C5E0]">
+                    Keep weeks <span className="text-[#00F5A0] font-semibold">{preview.threshold + 1}..{preview.currentWeek}</span>
+                    {" · "}delete ≤ week <span className="text-red-300 font-semibold">{preview.threshold}</span>
+                  </p>
+                  <ul className="text-[10px] text-[#6B7799] space-y-0.5 pl-2">
+                    <li>· <span className="text-[#B8C5E0]">{preview.counts.submissions}</span> quiz_submissions <span className="opacity-60">(+ answers cascade)</span></li>
+                    <li>· <span className="text-[#B8C5E0]">{preview.counts.sessions}</span> quiz_sessions</li>
+                    <li>· <span className="text-[#B8C5E0]">{preview.counts.bundles}</span> cs_quiz_bundles <span className="opacity-60">(+ questions / promos cascade)</span></li>
+                    <li>· <span className="text-[#B8C5E0]">{preview.counts.winners}</span> cs_quiz_winner_announcements</li>
+                  </ul>
+                  <p className="text-[9px] text-[#6B7799] pt-1 border-t border-white/5 mt-1">
+                    Content untouched: cs_lessons · cs_weekly_content_plans · cs_content_assets ·
+                    audit / agent / pipeline logs · AQB tables.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
