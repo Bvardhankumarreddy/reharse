@@ -34,6 +34,8 @@ export default function TrustSafetyOverviewPage() {
   const [data, setData] = useState<OverviewResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [blockingKey, setBlockingKey] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/token")
@@ -62,6 +64,60 @@ export default function TrustSafetyOverviewPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  /**
+   * POST to /admin/trust-safety/block. blockType is 'ip' | 'email' | 'device'.
+   * Prompts the curator for a reason (optional) + days until expiry (blank = permanent).
+   * Refreshes the overview after success so the row updates and the blocklist
+   * check kicks in for future attempts.
+   *
+   * `key` is used purely to disable the button that fired (e.g. `ip:49.x.x.x`).
+   */
+  async function block(blockType: "ip" | "email" | "device", blockValue: string, key: string) {
+    if (!token) return;
+    const labelMap = { ip: "IP", email: "email", device: "device" } as const;
+    const reason = window.prompt(
+      `Block ${labelMap[blockType]} ${blockValue}?\n\n` +
+      `Reason (optional, shown in the audit log):`,
+    );
+    if (reason === null) return; // user cancelled
+    const daysStr = window.prompt(
+      `Days until expiry? Leave blank for permanent.`,
+      "",
+    );
+    if (daysStr === null) return;
+    const days = daysStr.trim() === "" ? null : Math.max(1, Math.min(3650, Number(daysStr) || 0));
+    const expiresAt = days === null
+      ? undefined
+      : new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+    setBlockingKey(key);
+    try {
+      const res = await fetch(`/api/v1/admin/trust-safety/block`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blockType, blockValue,
+          reason: reason.trim() || null,
+          permanent: days === null,
+          ...(expiresAt ? { expiresAt } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { message?: string }).message ?? `HTTP ${res.status}`);
+      }
+      setToast(
+        `🚫 Blocked ${labelMap[blockType]} ${blockValue}` +
+        (days === null ? " (permanent)" : ` for ${days} days`),
+      );
+      void load();
+    } catch (e) {
+      setToast(`⚠ ${e instanceof Error ? e.message : "Block failed"}`);
+    } finally {
+      setBlockingKey(null);
+      setTimeout(() => setToast(null), 5000);
+    }
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <header className="space-y-1">
@@ -89,6 +145,9 @@ export default function TrustSafetyOverviewPage() {
           {loading ? "Loading…" : "🔄 Refresh"}
         </button>
         {error && <span className="text-xs text-red-300">⚠ {error}</span>}
+        {toast && (
+          <span className="text-xs text-[#00F5A0] ml-auto" aria-live="polite">{toast}</span>
+        )}
       </div>
 
       {/* Top stats */}
@@ -119,7 +178,9 @@ export default function TrustSafetyOverviewPage() {
             </p>
           ) : (
             <ul className="space-y-3">
-              {data.suspiciousIps.map((s) => (
+              {data.suspiciousIps.map((s) => {
+                const ipKey = `ip:${s.ip}`;
+                return (
                 <li key={s.ip} className="border border-white/5 rounded-xl overflow-hidden">
                   <div className="bg-white/[0.03] px-3 py-2 flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
@@ -132,29 +193,49 @@ export default function TrustSafetyOverviewPage() {
                           VPN
                         </span>
                       )}
+                      <span className="text-[10px] text-[#6B7799]">
+                        {s.city ?? "?"}{s.country ? ` · ${s.country}` : ""}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-[#6B7799]">
-                      {s.city ?? "?"}{s.country ? ` · ${s.country}` : ""}
-                    </span>
+                    <button
+                      onClick={() => void block("ip", s.ip, ipKey)}
+                      disabled={blockingKey === ipKey}
+                      className="px-2 py-1 text-[10px] font-semibold rounded border border-red-400/30 text-red-300 hover:bg-red-400/10 disabled:opacity-50 transition"
+                      title="Add this IP to the blocklist — future quiz attempts from it will be rejected"
+                    >
+                      {blockingKey === ipKey ? "Blocking…" : "🚫 Block IP"}
+                    </button>
                   </div>
                   <ul className="px-3 py-2 space-y-0.5">
-                    {s.users.map((u, i) => (
-                      <li key={`${u.email}-${i}`} className="flex items-center gap-2 text-[11px] text-[#B8C5E0]">
-                        <span className="text-[#6B7799] w-12 shrink-0 font-mono text-[10px]">
-                          {u.timeSeconds != null ? `${u.timeSeconds}s` : "—"}
-                        </span>
-                        <span className="text-[#FFB020] w-10 shrink-0 text-[10px]">
-                          {u.score ?? "—"}
-                        </span>
-                        <span className="flex-1 truncate">{u.name ?? "—"} · {u.email}</span>
-                        <span className="text-[10px] text-[#6B7799] shrink-0">
-                          {new Date(u.submittedAt).toLocaleString()}
-                        </span>
-                      </li>
-                    ))}
+                    {s.users.map((u, i) => {
+                      const emailKey = `email:${u.email}`;
+                      return (
+                        <li key={`${u.email}-${i}`} className="flex items-center gap-2 text-[11px] text-[#B8C5E0]">
+                          <span className="text-[#6B7799] w-12 shrink-0 font-mono text-[10px]">
+                            {u.timeSeconds != null ? `${u.timeSeconds}s` : "—"}
+                          </span>
+                          <span className="text-[#FFB020] w-10 shrink-0 text-[10px]">
+                            {u.score ?? "—"}
+                          </span>
+                          <span className="flex-1 truncate">{u.name ?? "—"} · {u.email}</span>
+                          <span className="text-[10px] text-[#6B7799] shrink-0">
+                            {new Date(u.submittedAt).toLocaleString()}
+                          </span>
+                          <button
+                            onClick={() => void block("email", u.email, emailKey)}
+                            disabled={blockingKey === emailKey}
+                            className="text-[10px] text-red-300/80 hover:text-red-300 disabled:opacity-50 shrink-0"
+                            title="Add this email to the blocklist"
+                          >
+                            {blockingKey === emailKey ? "…" : "🚫"}
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </section>
