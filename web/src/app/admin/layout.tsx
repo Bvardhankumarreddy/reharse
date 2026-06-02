@@ -18,6 +18,7 @@ const NAV = [
   { href: "/admin/quiz/questions", label: "Quiz Questions", icon: "psychology" },
   { href: "/admin/quiz/config", label: "Quiz Schedule", icon: "schedule" },
   { href: "/admin/quiz/import", label: "Quiz Import", icon: "upload_file" },
+  { href: "/admin/trust-safety", label: "Trust & Safety", icon: "shield" },
   { href: "/admin/post-generator", label: "Post Generator", icon: "campaign" },
   { href: "/admin/social-agent", label: "Social Agent", icon: "smart_toy" },
   { href: "/admin/ai-quick-bytes", label: "AI Quick Bytes", icon: "bolt" },
