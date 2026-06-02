@@ -47,20 +47,25 @@ export class PublishingService {
       publishedAt: new Date(),
     }));
 
+    // Pull the 11-char YouTube video id out of any watch / shorts / youtu.be
+    // URL so the metrics fetcher has something to call videos.list with.
+    const videoId = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/)?.[1] ?? null;
+
     if (platform === 'youtube' && language === 'te') {
-      // Extract video id from the YouTube URL (watch/shorts/youtu.be).
-      const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
       await this.scriptRepo.update(scriptId, {
         teluguYoutubeUrl: url,
-        teluguYoutubeVideoId: m ? m[1] : null,
+        teluguYoutubeVideoId: videoId,
       });
       this.logger.log(`Marked ${scriptId} (telugu) published on youtube: ${url}`);
     } else if (platform === 'youtube') {
       await this.scriptRepo.update(scriptId, {
         status: 'published',
         youtubeUrl: url,
+        // ← was missing; without it the metrics fetcher (and therefore the
+        //   postmortem + improvement loop) had zero rows to work with.
+        youtubeVideoId: videoId,
       });
-      this.logger.log(`Marked ${scriptId} published on ${platform}: ${url}`);
+      this.logger.log(`Marked ${scriptId} published on ${platform}: ${url} · videoId=${videoId ?? 'unparseable'}`);
     } else {
       this.logger.log(`Marked ${scriptId} published on ${platform}: ${url}`);
     }
