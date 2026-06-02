@@ -156,6 +156,24 @@ export class DistributionPackageService {
       generated_at: new Date().toISOString(),
     };
 
+    // Force YouTube hashtags + tags to lowercase so the description's
+    // "#AIShorts" doesn't look mismatched against the tags pane's
+    // "ai shorts". The LLM follows the lowercase prompt loosely; this is
+    // a deterministic guard. Description body text (non-hashtag) is left
+    // untouched. Telugu characters are unaffected by .toLowerCase().
+    if (distributionPackage.youtube) {
+      if (distributionPackage.youtube.description) {
+        distributionPackage.youtube.description = lowercaseHashtags(
+          distributionPackage.youtube.description,
+        );
+      }
+      if (Array.isArray(distributionPackage.youtube.tags)) {
+        distributionPackage.youtube.tags = distributionPackage.youtube.tags
+          .map((t) => String(t).toLowerCase().trim())
+          .filter(Boolean);
+      }
+    }
+
     this.logger.log(
       `Distribution package (${language}) for script ${script.id} (cost $${cost.toFixed(4)})`,
     );
@@ -230,4 +248,14 @@ exactly as specified in the system prompt.`;
     const [inRate, outRate] = rates[model] ?? rates['claude-sonnet-4-6'];
     return (inTok / 1_000_000) * inRate + (outTok / 1_000_000) * outRate;
   }
+}
+
+/**
+ * Lowercase every #Word hashtag in a string. Body text outside hashtags
+ * (and any Telugu glyphs) stay untouched — the regex only matches ASCII
+ * letters/digits/underscore after a #, which is what YouTube hashtag
+ * syntax actually accepts.
+ */
+function lowercaseHashtags(s: string): string {
+  return s.replace(/#([A-Za-z0-9_]+)/g, (_m, word) => '#' + word.toLowerCase());
 }
