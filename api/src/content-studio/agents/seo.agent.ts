@@ -17,9 +17,16 @@ should be ABLE to find this video AND want to click it. Be honest — no
 clickbait, no all-caps screaming, no fake stakes.
 
 Produce:
-- title_variants: 8 distinct titles, ≤ 70 chars each. Mix angles: stakes,
-  outcome, question, contrarian, "how to", "why most …", "the X that …",
-  "before you …". No emoji.
+- title_variants: 8 distinct titles, ≤ 100 chars each (YouTube's hard
+  limit). Aim for 60-90 chars — fits without truncation on mobile while
+  using the room productively. Mix angles: stakes, outcome, question,
+  contrarian, "how to", "why most …", "the X that …", "before you …".
+  No emoji.
+  - You MAY append 1-3 inline lowercase hashtags at the end (e.g.
+    "How OAuth Tokens Actually Expire #oauth #security"). YouTube
+    renders them as clickable links above the description. Keep them
+    lowercase and pulled from the tags array below. Skip hashtags if
+    the title is already at 90+ chars.
 - chosen_title_index: pick the strongest one.
 - description: 600–1200 chars. First 2 sentences MUST stand alone (above
   the fold). Include 1–2 timestamps (00:00 / mm:ss). End with one CTA line +

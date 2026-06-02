@@ -23,7 +23,10 @@ URL PLACEHOLDERS — use these EXACT tokens, never real URLs:
 {{REHEARSE_URL}} {{SOURCE_URL}} {{SOURCE_NAME}}
 
 PLATFORM RULES:
-- YouTube: title ≤60 chars ending "#Shorts"; description = hook + what it
+- YouTube: title ≤100 chars (YouTube's hard limit) ending "#Shorts"
+  — you MAY add 1-2 more lowercase hashtags before "#Shorts"
+  (e.g. "AI just learned to lie #ai #chatgpt #Shorts"). Hashtags
+  render as clickable links above the video. Description = hook + what it
   covers + "Read more: {{SOURCE_NAME}} -> {{SOURCE_URL}}" + follow links
   (YouTube/Instagram/LinkedIn/WhatsApp) + 5-8 hashtags; tags = 10-15 SEO
   strings (no #).
@@ -75,7 +78,10 @@ URL PLACEHOLDERS — use these EXACT tokens, never real URLs:
 {{REHEARSE_URL}} {{SOURCE_URL}} {{SOURCE_NAME}}
 
 PLATFORM RULES (same structure as English, Telugu-style copy):
-- YouTube: title ≤60 chars ending "#Shorts" (title may be code-mixed
+- YouTube: title ≤100 chars (YouTube's hard limit) ending "#Shorts"
+  — you MAY add 1-2 more lowercase hashtags before "#Shorts"
+  (e.g. "AI ఇప్పుడు అబద్ధం చెప్తోంది #ai #chatgpt #Shorts").
+  (title may be code-mixed
   Telugu+English); description with hook + "Read more: {{SOURCE_NAME}} ->
   {{SOURCE_URL}}" + follow links + 5-8 hashtags. Hashtags MAY be in
   English (#AI #Telugu #AIShorts etc.) — better discoverability.
