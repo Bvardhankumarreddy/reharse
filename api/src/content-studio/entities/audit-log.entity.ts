@@ -2,7 +2,9 @@ import {
   Entity, PrimaryGeneratedColumn, Column, Index, CreateDateColumn,
 } from 'typeorm';
 
-export type AuditEntityType = 'brand' | 'asset' | 'plan' | 'memory';
+export type AuditEntityType =
+  | 'brand' | 'asset' | 'plan' | 'memory'
+  | 'retention';   // weekly retention-sweep purges (no entityId)
 export type AuditAction = 'created' | 'updated' | 'deleted' | 'rolled_back';
 
 /** One row per admin-driven mutation worth showing in the timeline. */

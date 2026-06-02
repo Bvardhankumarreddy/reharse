@@ -4,6 +4,7 @@ import { LessThanOrEqual, Repository } from 'typeorm';
 import { QuizSubmission, QuizSession } from '../../quiz/quiz.entities';
 import { QuizBundle } from '../entities/quiz-bundle.entity';
 import { QuizWinnerAnnouncement } from '../entities/quiz-winner-announcement.entity';
+import { AuditService, AuditWriter } from './audit.service';
 
 export interface RetentionPreview {
   /** Highest week number observed across submissions and bundles. */
@@ -60,6 +61,7 @@ export class QuizRetentionService {
     private readonly bundleRepo: Repository<QuizBundle>,
     @InjectRepository(QuizWinnerAnnouncement)
     private readonly winnerRepo: Repository<QuizWinnerAnnouncement>,
+    private readonly audit: AuditService,
   ) {}
 
   /** Highest week number live in the system. 0 if nothing has been generated yet. */
@@ -104,8 +106,14 @@ export class QuizRetentionService {
    * Delete everything where the week marker is ≤ currentMax - weeksKept.
    * Returns the same preview shape plus an `affected`-count per table.
    * No-ops when nothing's old enough.
+   *
+   * Writes to cs_audit_logs on every non-empty purge so we can trace
+   * who/when deleted what — pass `writer` (from req for manual triggers)
+   * or leave undefined for cron runs (logged as the cron identity).
    */
-  async purgeOlderThan(weeksKept = 3): Promise<RetentionResult> {
+  async purgeOlderThan(
+    weeksKept = 3, writer?: AuditWriter,
+  ): Promise<RetentionResult> {
     const pv = await this.preview(weeksKept);
     if (pv.threshold === 0) {
       this.logger.log(
@@ -141,6 +149,34 @@ export class QuizRetentionService {
       `${deleted.bundles} bundles (+questions/promos cascade), ` +
       `${deleted.winners} winner announcements`,
     );
+
+    // Audit log — only when something actually got deleted. Skips the
+    // no-op preview path so the audit table doesn't fill with zeros.
+    const total =
+      deleted.submissions + deleted.sessions + deleted.bundles + deleted.winners;
+    if (total > 0) {
+      try {
+        await this.audit.log({
+          entityType: 'retention',
+          entityId: null,
+          action: 'deleted',
+          before: { counts: pv.counts, threshold: t, currentWeek: pv.currentWeek, weeksKept },
+          after: { deleted },
+          summary:
+            `Retention purge — kept weeks ${t + 1}..${pv.currentWeek}, ` +
+            `wiped ≤ week ${t}: ${deleted.submissions} subs, ` +
+            `${deleted.sessions} sess, ${deleted.bundles} bundles, ` +
+            `${deleted.winners} winners (${total} rows total)`,
+          writer: writer ?? { userEmail: 'cron@retention-sweep' },
+        });
+      } catch (e) {
+        // Audit failure must NOT undo the delete — log and continue.
+        this.logger.error(
+          `Retention purge succeeded but audit log failed: ${(e as Error).message}`,
+        );
+      }
+    }
+
     return { ...pv, deleted };
   }
 }

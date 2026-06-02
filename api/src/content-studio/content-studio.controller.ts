@@ -643,11 +643,17 @@ export class ContentStudioController {
   /**
    * Manually trigger a retention purge. Use to sanity-check the cron
    * before the first Monday fire, or to catch up after a missed run.
+   *
+   * Records the curator's identity into cs_audit_log so the timeline
+   * shows who pulled the trigger (cron runs are stamped 'cron@retention-sweep').
    */
   @Post('retention/purge')
-  retentionPurge(@Body() body: { weeksKept?: number }) {
+  retentionPurge(
+    @Body() body: { weeksKept?: number },
+    @Req() req: Request,
+  ) {
     const w = Math.max(1, Math.min(52, Math.round(Number(body?.weeksKept) || 3)));
-    return this.retention.purgeOlderThan(w);
+    return this.retention.purgeOlderThan(w, this.writerFrom(req));
   }
 
   private shapeQuizPromo(
