@@ -28,7 +28,7 @@ import { QuizBundle } from './entities/quiz-bundle.entity';
 import { QuizBundleQuestion } from './entities/quiz-bundle-question.entity';
 import { QuizPromoPackage } from './entities/quiz-promo-package.entity';
 import { QuizWinnerAnnouncement } from './entities/quiz-winner-announcement.entity';
-import { QuizSubmission } from '../quiz/quiz.entities';
+import { QuizSubmission, QuizSession } from '../quiz/quiz.entities';
 import { NewsItem } from '../ai-quick-bytes/entities/news-item.entity';
 
 import { OpenAIAdapter } from './services/openai.adapter';
@@ -49,6 +49,7 @@ import { QuizBundleAgent } from './agents/quiz-bundle.agent';
 import { QuizBundleCsvService } from './services/quiz-bundle-csv.service';
 import { QuizPromoAgent } from './agents/quiz-promo.agent';
 import { QuizWinnerAgent } from './agents/quiz-winner.agent';
+import { QuizRetentionService } from './services/quiz-retention.service';
 import { PostmortemAgent } from './agents/postmortem.agent';
 import { ImprovementAgent } from './agents/improvement.agent';
 import { ThumbnailImageAgent } from './agents/thumbnail-image.agent';
@@ -103,6 +104,7 @@ import { ContentStudioController } from './content-studio.controller';
       QuizPromoPackage,
       QuizWinnerAnnouncement,
       QuizSubmission,
+      QuizSession,
       NewsItem,
     ]),
     BullModule.registerQueue(
@@ -133,6 +135,7 @@ import { ContentStudioController } from './content-studio.controller';
     QuizBundleCsvService,
     QuizPromoAgent,
     QuizWinnerAgent,
+    QuizRetentionService,
     PostmortemAgent,
     ImprovementAgent,
     ThumbnailImageAgent,

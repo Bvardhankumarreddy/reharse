@@ -26,6 +26,7 @@ import { QuizBundleAgent } from './agents/quiz-bundle.agent';
 import { QuizBundleCsvService } from './services/quiz-bundle-csv.service';
 import { QuizPromoAgent } from './agents/quiz-promo.agent';
 import { QuizWinnerAgent } from './agents/quiz-winner.agent';
+import { QuizRetentionService } from './services/quiz-retention.service';
 import { PostmortemAgent } from './agents/postmortem.agent';
 import { ImprovementAgent } from './agents/improvement.agent';
 import { ThumbnailImageAgent } from './agents/thumbnail-image.agent';
@@ -100,6 +101,7 @@ export class ContentStudioController {
     private readonly quizBundleCsv: QuizBundleCsvService,
     private readonly quizPromo: QuizPromoAgent,
     private readonly quizWinner: QuizWinnerAgent,
+    private readonly retention: QuizRetentionService,
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly intelQueue: Queue,
   ) {}
 
@@ -623,6 +625,29 @@ export class ContentStudioController {
   @Post('plans/:id/quiz/winners/regenerate-thumbnails')
   regenerateQuizWinnerThumbnails(@Param('id') id: string) {
     return this.quizWinner.regenerateThumbnails(id);
+  }
+
+  // ── Retention ──────────────────────────────────────────────────────────
+
+  /**
+   * Dry-count of what the retention cron would delete next Monday.
+   * No writes — safe to call from the admin UI / curl. Defaults: keep
+   * last 3 weeks. Pass ?weeks=N to preview a different retention window.
+   */
+  @Get('retention/preview')
+  retentionPreview(@Query('weeks') weeksQ?: string) {
+    const w = Math.max(1, Math.min(52, Number(weeksQ) || 3));
+    return this.retention.preview(w);
+  }
+
+  /**
+   * Manually trigger a retention purge. Use to sanity-check the cron
+   * before the first Monday fire, or to catch up after a missed run.
+   */
+  @Post('retention/purge')
+  retentionPurge(@Body() body: { weeksKept?: number }) {
+    const w = Math.max(1, Math.min(52, Math.round(Number(body?.weeksKept) || 3)));
+    return this.retention.purgeOlderThan(w);
   }
 
   private shapeQuizPromo(

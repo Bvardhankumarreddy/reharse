@@ -7,6 +7,7 @@ import { MetricsFetcherService } from '../services/metrics-fetcher.service';
 import { PostmortemAgent } from '../agents/postmortem.agent';
 import { ImprovementAgent } from '../agents/improvement.agent';
 import { NotificationService } from '../services/notification.service';
+import { QuizRetentionService } from '../services/quiz-retention.service';
 
 export const CS_INTELLIGENCE_QUEUE = 'content-studio-intelligence';
 
@@ -35,6 +36,7 @@ export class IntelligenceWorker implements OnModuleInit {
     private readonly improvement: ImprovementAgent,
     private readonly channelVideos: ChannelVideoFetcherService,
     private readonly notify: NotificationService,
+    private readonly retention: QuizRetentionService,
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -63,6 +65,11 @@ export class IntelligenceWorker implements OnModuleInit {
       this.queue.add('channel-sweep', {}, {
         repeat: { cron: '30 2 * * *' },  // 02:30 UTC daily — own back catalog
         jobId: 'cs-channel-cron',
+        removeOnComplete: 10, removeOnFail: 5,
+      }),
+      this.queue.add('retention-purge', {}, {
+        repeat: { cron: '30 3 * * 1' },  // Mondays 03:30 UTC — keep last 3 weeks
+        jobId: 'cs-retention-cron',
         removeOnComplete: 10, removeOnFail: 5,
       }),
     ];
@@ -116,6 +123,23 @@ export class IntelligenceWorker implements OnModuleInit {
     if (r.generated > 0) {
       await this.notify.notify(
         `:robot_face: cs · postmortem-sweep · ${r.generated}/${r.scanned} postmortems written`,
+      );
+    }
+    return r;
+  }
+
+  @Process('retention-purge')
+  async retentionPurge() {
+    const r = await this.retention.purgeOlderThan(3);
+    const total =
+      r.deleted.submissions + r.deleted.sessions +
+      r.deleted.bundles + r.deleted.winners;
+    if (total > 0) {
+      await this.notify.notify(
+        `:wastebasket: cs · retention-purge · kept weeks ${r.threshold + 1}..${r.currentWeek}, ` +
+        `deleted ≤ week ${r.threshold} (${r.deleted.submissions} submissions, ` +
+        `${r.deleted.sessions} sessions, ${r.deleted.bundles} bundles, ` +
+        `${r.deleted.winners} winner announcements)`,
       );
     }
     return r;
