@@ -26,6 +26,7 @@ import { AiQuickBytesModule } from './ai-quick-bytes/ai-quick-bytes.module';
 import { AiSquadModule } from './ai-squad/ai-squad.module';
 import { CareersModule } from './careers/careers.module';
 import { ContentStudioModule } from './content-studio/content-studio.module';
+import { TrustSafetyModule } from './trust-safety/trust-safety.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { ContentStudioModule } from './content-studio/content-studio.module';
     ReferralModule,
     TeamModule,
     QuizModule,
+    TrustSafetyModule,
     SocialAgentModule,
     AiQuickBytesModule,
     AiSquadModule,

@@ -10,6 +10,7 @@ import {
   QuizConfig,
 } from './quiz.entities';
 import { AdminModule } from '../admin/admin.module';
+import { TrustSafetyModule } from '../trust-safety/trust-safety.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AdminModule } from '../admin/admin.module';
       QuizConfig,
     ]),
     AdminModule, // for AdminGuard
+    TrustSafetyModule, // FingerprintService + UniqueQuestionService
   ],
   controllers: [QuizPublicController, QuizAdminController],
   providers: [QuizService],

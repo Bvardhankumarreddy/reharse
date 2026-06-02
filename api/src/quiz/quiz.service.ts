@@ -17,6 +17,10 @@ import {
   QuizConfig,
 } from './quiz.entities';
 import Redis from 'ioredis';
+import { FingerprintService } from '../trust-safety/services/fingerprint.service';
+import { UniqueQuestionService } from '../trust-safety/services/unique-question.service';
+import { GeolocationService } from '../trust-safety/services/geolocation.service';
+import { TsAuditService } from '../trust-safety/services/ts-audit.service';
 
 const DEFAULT_QUESTIONS_PER_QUIZ = 5;
 const RATE_LIMIT_WINDOW_SEC = 3600;
@@ -45,6 +49,10 @@ export class QuizService {
     @InjectRepository(QuizSession) private readonly sessions: Repository<QuizSession>,
     @InjectRepository(QuizConfig) private readonly configs: Repository<QuizConfig>,
     private readonly config: ConfigService,
+    private readonly fingerprint: FingerprintService,
+    private readonly uniqueQuestions: UniqueQuestionService,
+    private readonly geo: GeolocationService,
+    private readonly tsAudit: TsAuditService,
   ) {
     const url = this.config.get<string>('REDIS_URL');
     if (url) {
@@ -146,6 +154,11 @@ export class QuizService {
     upiId: string;
     youtubeHandle?: string;
     ipAddress?: string;
+    // Trust & Safety signals — optional, supplied by the frontend
+    userAgent?: string;
+    deviceFingerprint?: string;
+    browserId?: string;
+    screenResolution?: string;
   }): Promise<{
     sessionId: string;
     quizWeek: number;
@@ -197,8 +210,42 @@ export class QuizService {
     // Rate limit by IP (max 3 attempts/hour)
     if (ipAddress) await this.checkRateLimit(ipAddress);
 
-    // Pick questions per config — mandatory first, then random fillers
-    const picked = await this.pickQuestionsForWeek(quizWeek, info.questionsPerQuiz);
+    // ── Trust & Safety: blocklist check ────────────────────────────────
+    if (ipAddress) {
+      const hit = await this.fingerprint.checkBlocklist(
+        normalizedEmail, ipAddress, opts.deviceFingerprint,
+      );
+      if (hit) {
+        await this.tsAudit.log({
+          action: 'quiz.blocked', actor: normalizedEmail,
+          targetType: hit.blockType, ipAddress,
+          details: { quizWeek, reason: hit.reason },
+        });
+        throw new ForbiddenException('Access denied');
+      }
+    }
+
+    // ── Trust & Safety: optional unique-question filter ────────────────
+    let picked: QuizQuestion[];
+    let tsStrategy: 'random' | 'unique_overlap' | 'pool_exhausted' = 'random';
+    let tsOverlapCount = 0;
+    let tsNearbyCount = 0;
+    const filterFlag = this.config.get<boolean>('trustSafety.filterQuestions') === true;
+    if (filterFlag && ipAddress) {
+      const geo = await this.geo.lookup(ipAddress);
+      const nearby = await this.fingerprint.findNearby(quizWeek, ipAddress, geo);
+      tsNearbyCount = nearby.length;
+      if (nearby.length > 0) {
+        picked = await this.pickQuestionsWithUniqueness(
+          quizWeek, info.questionsPerQuiz, nearby,
+          (s, o) => { tsStrategy = s; tsOverlapCount = o; },
+        );
+      } else {
+        picked = await this.pickQuestionsForWeek(quizWeek, info.questionsPerQuiz);
+      }
+    } else {
+      picked = await this.pickQuestionsForWeek(quizWeek, info.questionsPerQuiz);
+    }
     if (picked.length < info.questionsPerQuiz) {
       throw new BadRequestException('Not enough active questions in the bank');
     }
@@ -222,6 +269,32 @@ export class QuizService {
     });
     await this.sessions.save(session);
 
+    // ── Trust & Safety: capture-at-start (non-blocking, errors are swallowed) ─
+    if (ipAddress) {
+      void this.fingerprint.captureAtStart({
+        quizWeek,
+        email: normalizedEmail,
+        name: fullName.trim(),
+        ipAddress,
+        userAgent: opts.userAgent,
+        deviceFingerprint: opts.deviceFingerprint,
+        browserId: opts.browserId,
+        screenResolution: opts.screenResolution,
+        sessionId: session.id,
+      });
+      void this.tsAudit.log({
+        action: 'quiz.start', actor: normalizedEmail,
+        targetType: 'session', targetId: session.id, ipAddress,
+        details: {
+          quizWeek,
+          strategy: tsStrategy,
+          overlapCount: tsOverlapCount,
+          nearbyCount: tsNearbyCount,
+          filterEnabled: filterFlag,
+        },
+      });
+    }
+
     return {
       sessionId: session.id,
       quizWeek,
@@ -232,6 +305,55 @@ export class QuizService {
       durationMinutes: info.durationMinutes,
       tiebreakerQuestion: info.tiebreakerQuestion ?? '',
     };
+  }
+
+  /**
+   * Variant of pickQuestionsForWeek that respects nearby submitter
+   * fingerprints — biases the selection toward fresh questions so a
+   * cluster of users from the same IP/area get ≥80% non-overlapping sets.
+   * Falls back to standard random when the pool can't satisfy the
+   * uniqueness budget (logged by the UniqueQuestionService).
+   */
+  private async pickQuestionsWithUniqueness(
+    quizWeek: number,
+    totalCount: number,
+    nearby: Awaited<ReturnType<FingerprintService['findNearby']>>,
+    onStrategy?: (strategy: 'random' | 'unique_overlap' | 'pool_exhausted', overlapCount: number) => void,
+  ): Promise<QuizQuestion[]> {
+    // Load the full active pool for this week (mandatory + optional).
+    const all = await this.questions
+      .createQueryBuilder('q')
+      .where('q.quizWeek = :w AND q.isActive = true', { w: quizWeek })
+      .getMany();
+
+    // Honour the same easy/medium/hard split the existing picker uses.
+    const config = await this.configs.findOne({ where: { quizWeek } });
+    const easyPct = (config?.easyPercent ?? 40) / 100;
+    const mediumPct = (config?.mediumPercent ?? 40) / 100;
+
+    const mandatory = all.filter((q) => q.isMandatory);
+    const remaining = Math.max(0, totalCount - mandatory.length);
+    const easyCount = Math.max(0, Math.round(remaining * easyPct));
+    const mediumCount = Math.max(0, Math.round(remaining * mediumPct));
+    const hardCount = Math.max(0, remaining - easyCount - mediumCount);
+
+    const candidates = all.map((q) => ({
+      id: q.id,
+      difficulty: q.difficulty as 'easy' | 'medium' | 'hard',
+      isMandatory: q.isMandatory,
+    }));
+    const result = this.uniqueQuestions.selectBalanced(
+      candidates,
+      { easy: easyCount, medium: mediumCount, hard: hardCount },
+      nearby,
+    );
+    onStrategy?.(result.strategy, result.overlapCount);
+
+    // Hydrate back to QuizQuestion rows in the picker order.
+    const byId = new Map(all.map((q) => [q.id, q]));
+    return result.selected
+      .map((id) => byId.get(id))
+      .filter((q): q is QuizQuestion => !!q);
   }
 
   // ── Public: Submit Answer ─────────────────────────────────────────────
@@ -373,6 +495,12 @@ export class QuizService {
     sessionId: string;
     tiebreakerAnswer?: number;
     userAgent?: string;
+    // Trust & Safety signals — sent from the frontend on submit
+    deviceFingerprint?: string;
+    browserId?: string;
+    screenResolution?: string;
+    tabSwitchCount?: number;
+    copyPasteDetected?: boolean;
   }): Promise<{
     submissionId: string;
     totalScore: number;
@@ -435,6 +563,40 @@ export class QuizService {
     session.completed = true;
     session.submissionId = saved.id;
     await this.sessions.save(session);
+
+    // ── Trust & Safety: capture final fingerprint (non-blocking) ───────
+    if (session.ipAddress) {
+      void this.fingerprint.captureAtSubmit({
+        submissionId: saved.id,
+        sessionId: session.id,
+        quizWeek: session.quizWeek,
+        email: session.email,
+        name: session.fullName,
+        ipAddress: session.ipAddress,
+        userAgent,
+        deviceFingerprint: opts.deviceFingerprint,
+        browserId: opts.browserId,
+        screenResolution: opts.screenResolution,
+        totalTimeSeconds,
+        score: totalScore,
+        questionIds: session.questionIds,
+        answerTimesSeconds: session.answers.map((a) => a.timeTakenSeconds),
+        tabSwitchCount: opts.tabSwitchCount,
+        copyPasteDetected: opts.copyPasteDetected,
+      });
+      void this.tsAudit.log({
+        action: 'quiz.submit', actor: session.email,
+        targetType: 'submission', targetId: saved.id,
+        ipAddress: session.ipAddress,
+        details: {
+          quizWeek: session.quizWeek,
+          totalScore,
+          totalTimeSeconds,
+          tabSwitchCount: opts.tabSwitchCount ?? 0,
+          copyPasteDetected: opts.copyPasteDetected ?? false,
+        },
+      });
+    }
 
     return this.getSubmissionStats(saved.id);
   }
