@@ -375,9 +375,14 @@ export class QuizBundleAgent {
     const tbUnit = asStringOrNull(tb.unit, 60);
 
     // ── Call 2 — QUESTIONS (just the list) ───────────────────────────────
-    // ~350 tokens/Q covers any shape including the optional fields. Cap at
-    // 32k since Claude/Gemini support larger outputs than gpt-4o (16k).
-    const questionsMaxTokens = Math.min(32000, Math.max(4000, count * 350 + 1500));
+    // ~350 tokens/Q covers any shape including the optional fields. Capped
+    // at 16k — that's gpt-4o's hard completion-token ceiling, and the
+    // router will fall back to gpt-4o whenever Claude is unavailable (e.g.
+    // out of credits). Claude could handle 64k but using its headroom
+    // here makes the gpt-4o fallback path 400-out. For count > ~40 the
+    // LLM may return fewer questions than requested; regenerate or split
+    // the count rather than blow up.
+    const questionsMaxTokens = Math.min(16000, Math.max(4000, count * 350 + 1500));
 
     const qs = await this.router.run({
       task: 'quiz',
