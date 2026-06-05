@@ -97,7 +97,10 @@ object only — no prose, no markdown fences.
 const TOUGHNESS_MIN = 1;
 const TOUGHNESS_MAX = 5;
 const BUNDLE_MIN = 5;
-const BUNDLE_MAX = 100;
+// 500 covers any realistic quiz-module bank; beyond that the prompt-level
+// dedup hint (capped at the first 60 prior questions) starts losing
+// signal, so users should split into multiple bundles instead.
+const BUNDLE_MAX = 500;
 const BUNDLE_DEFAULT = 40;
 
 /** Same toughness distribution table the existing quiz pool uses. */
@@ -458,6 +461,34 @@ export class QuizBundleAgent {
     if (rawQs.length === 0) {
       throw new Error('LLM returned no bundle questions across any batch');
     }
+
+    // Post-merge fuzzy dedup — the prompt-level "DO NOT DUPLICATE" hint
+    // only sees the first 60 prior questions across batches, so near-
+    // duplicates can still slip through at high counts. Normalise each
+    // questionText (lowercase + strip punctuation/whitespace + first 80
+    // chars) and keep first occurrence. Cheap, deterministic.
+    const dedupBefore = rawQs.length;
+    const seenKeys = new Set<string>();
+    const dedupedQs: LlmQuestion[] = [];
+    for (const q of rawQs) {
+      const key = String(q.questionText ?? '')
+        .toLowerCase()
+        .replace(/[^a-z0-9 ]+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80);
+      if (!key || seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      dedupedQs.push(q);
+    }
+    if (dedupedQs.length < dedupBefore) {
+      this.logger.log(
+        `Quiz bundle plan=${planId}: dedupe dropped ${dedupBefore - dedupedQs.length} ` +
+        `near-duplicate(s) — ${dedupedQs.length} unique kept`,
+      );
+    }
+    rawQs.length = 0;
+    rawQs.push(...dedupedQs);
 
     // Combine costs for the plan ledger + logger.
     const gen = {

@@ -3072,7 +3072,7 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
   }
 
   async function generateBundle() {
-    const n = Math.max(5, Math.min(100, Number(count) || 40));
+    const n = Math.max(5, Math.min(500, Number(count) || 40));
     const t = toughness.trim() === "" ? undefined : Math.max(1, Math.min(5, Number(toughness)));
     const w =
       bundleWeek.trim() === ""
@@ -3293,10 +3293,11 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
           <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
             # questions
             <input
-              type="number" min={5} max={100}
+              type="number" min={5} max={500}
               value={count}
               onChange={(e) => setCount(e.target.value)}
               className="w-16 bg-[#0F1330] border border-white/10 rounded px-2 py-1 text-[12px] text-white outline-none focus:border-[#00D4FF]/40"
+              title="Pool generator caps at 100; Bundle generator goes up to 500 (auto-batched)"
             />
           </label>
           <label className="text-[10px] text-[#6B7799] flex items-center gap-1">
@@ -3465,7 +3466,7 @@ function QuizPanel({ planId, onToast }: { planId: string; onToast: (m: string) =
                   ? "Generating…"
                   : bundle
                   ? "🔁 Regenerate Bundle"
-                  : `📝 Generate Bundle (${Math.max(5, Math.min(100, Number(count) || 40))})`
+                  : `📝 Generate Bundle (${Math.max(5, Math.min(500, Number(count) || 40))})`
               }
               busy={bundleBusy}
               onClick={generateBundle}
