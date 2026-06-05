@@ -374,58 +374,95 @@ export class QuizBundleAgent {
     const tbTolerance = asNumber(tb.tolerance) ?? 0;
     const tbUnit = asStringOrNull(tb.unit, 60);
 
-    // ── Call 2 — QUESTIONS (just the list) ───────────────────────────────
-    // ~350 tokens/Q covers any shape including the optional fields. Capped
-    // at 16k — that's gpt-4o's hard completion-token ceiling, and the
-    // router will fall back to gpt-4o whenever Claude is unavailable (e.g.
-    // out of credits). Claude could handle 64k but using its headroom
-    // here makes the gpt-4o fallback path 400-out. For count > ~40 the
-    // LLM may return fewer questions than requested; regenerate or split
-    // the count rather than blow up.
-    const questionsMaxTokens = Math.min(16000, Math.max(4000, count * 350 + 1500));
+    // ── Call 2 — QUESTIONS (auto-batched when count is large) ───────────
+    // gpt-4o's hard completion-token ceiling is 16k, and the router may
+    // fall back to gpt-4o whenever Claude is unavailable. ~350 tokens/Q
+    // means a single call fits ~40 questions safely.
+    //
+    // For count > BATCH_MAX we split into batches and feed each batch the
+    // already-generated question texts as "AVOID THESE" so the cohorts
+    // don't overlap. Net effect: a 100-Q request returns ~100 Qs across
+    // 3 calls, with no provider-budget surprises.
+    const BATCH_MAX = 35;
+    const batchCounts: number[] = [];
+    let remaining = count;
+    while (remaining > 0) {
+      const take = Math.min(BATCH_MAX, remaining);
+      batchCounts.push(take);
+      remaining -= take;
+    }
 
-    const qs = await this.router.run({
-      task: 'quiz',
-      agentType: 'quiz',
-      planId,
-      modelOverride: brand.modelOverrides?.quiz,
-      jsonOutput: true,
-      maxTokens: questionsMaxTokens,
-      temperature: 0.7,
-      system: QUESTIONS_SYSTEM,
-      user:
-        sharedContext +
-        `TOUGHNESS LEVEL: ${toughness}/5 — ` +
-        `${toughness >= 4 ? 'expert-grade, multi-step reasoning and edge cases' : toughness >= 2 ? 'apply-and-distinguish, beyond recall' : 'foundational understanding'}.\n` +
-        `TOTAL QUESTIONS: EXACTLY ${count}. ` +
-        `Difficulty split: ${dist.easy} easy / ${dist.medium} medium / ${dist.hard} hard. ` +
-        typeBudget +
-        (typeRestriction ? `\n${typeRestriction}\n` : '') +
-        `Output the JSON object only.`,
-    });
+    const rawQs: LlmQuestion[] = [];
+    let totalQsCost = 0;
+    const qsModels: string[] = [];
+    for (let i = 0; i < batchCounts.length; i++) {
+      const batchN = batchCounts[i];
+      const batchTokens = Math.min(16000, Math.max(4000, batchN * 350 + 1500));
+      // Pull the difficulty split FOR THIS BATCH so the global mix holds.
+      const batchDist = splitByToughness(batchN, toughness);
+      const seenTitles = rawQs
+        .slice(0, 60)   // cap context so we don't blow tokens on a wall of text
+        .map((q) => `- ${String(q.questionText ?? '').slice(0, 120)}`)
+        .join('\n');
+      const avoidBlock = seenTitles
+        ? `\nALREADY GENERATED IN THIS BUNDLE — DO NOT DUPLICATE OR PARAPHRASE:\n${seenTitles}\n`
+        : '';
 
-    let parsedQs: LlmQuestions;
-    try {
-      parsedQs = JSON.parse(qs.text || '{}') as LlmQuestions;
-    } catch (e) {
-      this.logger.error(
-        `Bundle question JSON parse failed (model=${qs.model}, ` +
-        `len=${qs.text?.length ?? 0}): ${(e as Error).message}`,
-      );
-      throw new Error(
-        `LLM returned unparseable JSON for ${count} questions ` +
-        `(likely token-budget truncation; try a smaller count).`,
+      const qs = await this.router.run({
+        task: 'quiz',
+        agentType: 'quiz',
+        planId,
+        modelOverride: brand.modelOverrides?.quiz,
+        jsonOutput: true,
+        maxTokens: batchTokens,
+        temperature: 0.7,
+        system: QUESTIONS_SYSTEM,
+        user:
+          sharedContext +
+          `TOUGHNESS LEVEL: ${toughness}/5 — ` +
+          `${toughness >= 4 ? 'expert-grade, multi-step reasoning and edge cases' : toughness >= 2 ? 'apply-and-distinguish, beyond recall' : 'foundational understanding'}.\n` +
+          (batchCounts.length > 1
+            ? `THIS IS BATCH ${i + 1} OF ${batchCounts.length} — generate EXACTLY ${batchN} questions ` +
+              `(${batchDist.easy} easy / ${batchDist.medium} medium / ${batchDist.hard} hard).\n` +
+              `The full bundle target is ${count} questions; other batches cover the rest.\n`
+            : `TOTAL QUESTIONS: EXACTLY ${count}. ` +
+              `Difficulty split: ${dist.easy} easy / ${dist.medium} medium / ${dist.hard} hard. `) +
+          typeBudget +
+          (typeRestriction ? `\n${typeRestriction}\n` : '') +
+          avoidBlock +
+          `Output the JSON object only.`,
+      });
+
+      let parsedBatch: LlmQuestions;
+      try {
+        parsedBatch = JSON.parse(qs.text || '{}') as LlmQuestions;
+      } catch (e) {
+        this.logger.error(
+          `Bundle question JSON parse failed (batch ${i + 1}/${batchCounts.length}, ` +
+          `model=${qs.model}, len=${qs.text?.length ?? 0}): ${(e as Error).message}`,
+        );
+        // Soft-fail this batch and continue — better to return a partial
+        // bundle than throw away the batches that did succeed.
+        continue;
+      }
+      const batchRows = Array.isArray(parsedBatch.questions) ? parsedBatch.questions : [];
+      rawQs.push(...batchRows);
+      totalQsCost += qs.costUsd;
+      qsModels.push(qs.model);
+      this.logger.log(
+        `Quiz bundle plan=${planId} batch ${i + 1}/${batchCounts.length}: ` +
+        `${batchRows.length}/${batchN} Qs (running total ${rawQs.length}/${count})`,
       );
     }
-    const rawQs = Array.isArray(parsedQs.questions) ? parsedQs.questions : [];
+
     if (rawQs.length === 0) {
-      throw new Error('LLM returned no bundle questions');
+      throw new Error('LLM returned no bundle questions across any batch');
     }
 
     // Combine costs for the plan ledger + logger.
     const gen = {
-      model: `${meta.model}+${qs.model}`,
-      costUsd: meta.costUsd + qs.costUsd,
+      model: `${meta.model}+${Array.from(new Set(qsModels)).join(',')}`,
+      costUsd: meta.costUsd + totalQsCost,
     };
 
     // Replace any prior bundle for this plan.
