@@ -169,7 +169,8 @@ export class QuizService {
     durationMinutes: number;
     tiebreakerQuestion: string;
   }> {
-    const { fullName, email, upiId, youtubeHandle, ipAddress } = opts;
+    const { fullName, email, upiId, ipAddress } = opts;
+    let { youtubeHandle } = opts;
 
     // Validate inputs
     if (!fullName?.trim()) throw new BadRequestException('Full name is required');
@@ -177,6 +178,24 @@ export class QuizService {
       throw new BadRequestException('Valid email is required');
     }
     if (!upiId?.trim()) throw new BadRequestException('UPI ID or Amazon email is required');
+    if (!youtubeHandle?.trim()) {
+      throw new BadRequestException(
+        'YouTube handle is required — we verify subscription before payout',
+      );
+    }
+    // Normalize: strip URL prefixes, ensure leading @, drop trailing slashes.
+    // Accepts @handle / youtube.com/@handle / https://youtube.com/@handle.
+    youtubeHandle = youtubeHandle
+      .trim()
+      .replace(/^https?:\/\//i, '')
+      .replace(/^(www\.)?youtube\.com\//i, '')
+      .replace(/\/+$/, '')
+      .trim();
+    if (!youtubeHandle.startsWith('@')) youtubeHandle = `@${youtubeHandle}`;
+    // After normalization a bare "@" is still empty — reject.
+    if (youtubeHandle.length < 3) {
+      throw new BadRequestException('YouTube handle must be at least 2 characters after @');
+    }
 
     // Determine current week + check time window
     const info = await this.getCurrentQuizInfo();
@@ -257,7 +276,7 @@ export class QuizService {
       fullName: fullName.trim(),
       email: normalizedEmail,
       upiId: upiId.trim(),
-      youtubeHandle: youtubeHandle?.trim() || null,
+      youtubeHandle,
       quizWeek,
       questionIds: picked.map((q) => q.id),
       currentIndex: 0,

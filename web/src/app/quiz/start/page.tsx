@@ -106,14 +106,16 @@ export default function QuizStartPage() {
 
         <div>
           <label className="text-[11px] font-bold uppercase tracking-wide text-[#B8C5E0] block mb-1.5">
-            YouTube Handle <span className="text-[#4A5470] normal-case font-normal">(optional)</span>
+            YouTube Handle
           </label>
           <input
             value={form.youtubeHandle}
             onChange={(e) => setForm({ ...form, youtubeHandle: e.target.value })}
+            required
             placeholder="@yourhandle"
             className="w-full bg-[#0A0E27] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-[#4A5470] focus:outline-none focus:border-[#00D4FF] transition"
           />
+          <p className="text-[10px] text-[#4A5470] mt-1">Required — we verify you&apos;re subscribed before paying out</p>
         </div>
 
         {error && (
