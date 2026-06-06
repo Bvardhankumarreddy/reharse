@@ -47,6 +47,7 @@ import { PromoAgent } from './agents/promo.agent';
 import { QuizAgent } from './agents/quiz.agent';
 import { QuizBundleAgent } from './agents/quiz-bundle.agent';
 import { QuizBundleCsvService } from './services/quiz-bundle-csv.service';
+import { CsTranslationService } from './services/translation.service';
 import { QuizPromoAgent } from './agents/quiz-promo.agent';
 import { QuizWinnerAgent } from './agents/quiz-winner.agent';
 import { QuizRetentionService } from './services/quiz-retention.service';
@@ -133,6 +134,7 @@ import { ContentStudioController } from './content-studio.controller';
     QuizAgent,
     QuizBundleAgent,
     QuizBundleCsvService,
+    CsTranslationService,
     QuizPromoAgent,
     QuizWinnerAgent,
     QuizRetentionService,

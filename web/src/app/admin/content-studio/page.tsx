@@ -1003,6 +1003,12 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
     c?.durationEstimateSeconds != null
       ? (c.durationEstimateSeconds / 60).toFixed(1)
       : null;
+  const [copiedTe, setCopiedTe] = useState(false);
+  const [showTe, setShowTe] = useState(true);
+  // Heuristic Telugu duration estimate at 120 wpm (slower than English's 140).
+  const teMins = c?.teluguWordCount
+    ? (c.teluguWordCount / 120).toFixed(1)
+    : null;
 
   return (
     <div className="border border-white/10 rounded-xl overflow-hidden">
@@ -1197,6 +1203,45 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
             <pre className="bg-[#0A0E27] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-[#B8C5E0] whitespace-pre-wrap font-mono max-h-[28rem] overflow-y-auto">
               {c?.fullScript || "—"}
             </pre>
+          </div>
+        )}
+
+        {/* ── Telugu translation (auto-generated alongside English) ────────── */}
+        {script && c?.teluguFullScript && (
+          <div className="space-y-1">
+            <button
+              onClick={() => setShowTe((v) => !v)}
+              className="w-full flex items-center justify-between gap-2 text-left"
+            >
+              <span className="text-[10px] text-[#FFB020] uppercase tracking-wide font-semibold">
+                🇮🇳 Telugu script · {c.teluguWordCount ?? "?"} words
+                {teMins && <> · ~{teMins} min</>}
+              </span>
+              <span className="text-[10px] text-[#6B7799]">{showTe ? "▾" : "▸"}</span>
+            </button>
+            {showTe && (
+              <>
+                <div className="flex items-center justify-end">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard
+                        .writeText(c.teluguFullScript ?? "")
+                        .then(() => { setCopiedTe(true); setTimeout(() => setCopiedTe(false), 1500); });
+                    }}
+                    className="text-[10px] font-semibold text-[#FFB020] hover:underline"
+                  >
+                    {copiedTe ? "✓ Copied" : "Copy Telugu"}
+                  </button>
+                </div>
+                <pre className="bg-[#0A0E27] border border-[#FFB020]/20 rounded-lg px-3 py-2 text-[12px] text-[#B8C5E0] whitespace-pre-wrap font-mono max-h-[28rem] overflow-y-auto">
+                  {c.teluguFullScript}
+                </pre>
+                <p className="text-[10px] text-[#6B7799]">
+                  Paste into HeyGen with your Telugu voice clone for the dubbed video.
+                  Pause markers + tech terms preserved from the English script.
+                </p>
+              </>
+            )}
           </div>
         )}
 

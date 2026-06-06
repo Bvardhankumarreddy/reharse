@@ -165,6 +165,12 @@ export interface ScriptAsset extends AssetQuality {
     model?: string;
     provider?: string;
     costUsd?: number;
+    // Telugu translation (CsTranslationService)
+    teluguFullScript?: string;
+    teluguWordCount?: number;
+    teluguTranslationModel?: string;
+    teluguTranslationCostUsd?: number;
+    teluguTranslatedAt?: string;
   } | null;
   status: string;
   createdAt: string;

@@ -10,6 +10,7 @@ import { ImprovementLoopService } from '../services/improvement-loop.service';
 import { BrandMemoryService } from '../services/brand-memory.service';
 import { ProviderName } from '../services/provider.types';
 import { LessonFormat } from '../entities/content-series.entity';
+import { CsTranslationService } from '../services/translation.service';
 
 /**
  * 'with_screen_recording' override — used when lesson.explanationMode is
@@ -62,10 +63,14 @@ Output the JSON object only — no prose, no markdown fences.
 const SYSTEM_BY_FORMAT: Record<LessonFormat, string> = {
   lecture: `
 You write AUDIO SCRIPTS for educational YouTube lessons. The script is READ
-ALOUD by a host — write for the ear, not the page.
+ALOUD by a host (and then dubbed into Telugu by a second pass that
+preserves your word count). Write for the ear, not the page.
 
 RULES (non-negotiable):
-- TARGET LENGTH: 8–12 minutes spoken (≈ 1100–1700 words at ~140 wpm).
+- TARGET LENGTH: 8–10 minutes spoken (≈ 1100–1500 words at ~140 wpm).
+  STAY IN THIS BAND — under 1100 words yields a sub-8min video; over
+  1500 stretches past 10min. The host's HeyGen renderer reads at a
+  steady 140 wpm, so word count IS duration.
 - HOOK: the very first sentence IS the hook — concrete stakes (a number, a
   failure, a "most people get this wrong") in the first 8 seconds. Open IN
   the moment. Never "In this video we'll cover…".
@@ -192,6 +197,7 @@ export class ScriptAgent {
     private readonly router: ModelRouterService,
     private readonly loop: ImprovementLoopService,
     private readonly memories: BrandMemoryService,
+    private readonly translation: CsTranslationService,
   ) {}
 
   async generateScript(lessonId: string): Promise<ContentAsset> {
@@ -365,6 +371,62 @@ export class ScriptAgent {
       `${result.revisions} revision(s), score ${result.qualityScore ?? 'n/a'} ` +
       `($${result.totalCostUsd.toFixed(4)})`,
     );
+
+    // ── Duration guardrail (lecture format, 8-10 min target) ─────────────
+    // 1100-1500 words at 140 wpm = ~7.9-10.7 min. Outside this band the
+    // HeyGen render will miss the 8-10 min sweet spot — log loud so
+    // curators see it and can regenerate if they care.
+    if (fmt === 'lecture' && (words < 1100 || words > 1500)) {
+      const estMin = (words / WPM_BY_FORMAT.lecture).toFixed(1);
+      this.logger.warn(
+        `[duration] script for "${lesson.title}" is ${words} words ` +
+        `(~${estMin} min) — outside the 8-10 min target band ` +
+        `(1100-1500 words). Regenerate to retry.`,
+      );
+    }
+
+    // ── Telugu translation pass (non-fatal — English ships if it fails) ─
+    if (this.translation.isEnabled() && script) {
+      try {
+        const te = await this.translation.translateLessonToTelugu({
+          fullScript: script,
+          lessonTitle: lesson.title,
+          brandName: brand.name,
+          planId: plan.id,
+          lessonId: lesson.id,
+          modelOverride: brand.modelOverrides?.script_translation,
+        });
+        // Merge Telugu into the script asset's content blob in place.
+        const existing = (asset.content ?? {}) as Record<string, unknown>;
+        await this.assetRepo.update(asset.id, {
+          content: {
+            ...existing,
+            teluguFullScript: te.teluguFullScript,
+            teluguWordCount: te.teluguWordCount,
+            teluguTranslationModel: te.model,
+            teluguTranslationCostUsd: te.costUsd,
+            teluguTranslatedAt: new Date().toISOString(),
+          },
+        });
+        await this.planRepo.update(plan.id, {
+          totalCostUsd: Number(plan.totalCostUsd ?? 0) + te.costUsd,
+        });
+        this.logger.log(
+          `Telugu translation v${asset.version} for "${lesson.title}" — ` +
+          `${te.teluguWordCount} words ($${te.costUsd.toFixed(4)})`,
+        );
+        // Refresh the in-memory asset so the returned value carries the
+        // freshly-merged Telugu fields.
+        const refreshed = await this.assetRepo.findOne({ where: { id: asset.id } });
+        if (refreshed) return refreshed;
+      } catch (e) {
+        this.logger.warn(
+          `Telugu translation failed for "${lesson.title}": ${(e as Error).message} ` +
+          `— English script saved without translation`,
+        );
+      }
+    }
+
     return asset;
   }
 
