@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Param, Body, UseGuards,
+  Controller, Get, Post, Patch, Param, Body, Query, UseGuards,
   NotFoundException, BadRequestException, Req, Logger,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -34,9 +34,17 @@ export class ApprovalController {
    * curator always sees the oldest unpublished day next (matches the
    * "publish in sequence" cadence). Falls back to compositeScore DESC
    * for scripts with no dayNumber (legacy or manual-gen).
+   *
+   * Default limit raised to 200 so a multi-week backlog isn't silently
+   * truncated. Pass ?limit=N to override (max 500). The queue is a
+   * curator-only surface and rows are tiny (no LOBs in the joined
+   * select), so a 200-row default is still cheap.
    */
   @Get('queue')
-  async queue() {
+  async queue(@Query('limit') limitQ?: string) {
+    const limit = Math.max(
+      1, Math.min(500, Number(limitQ) || 200),
+    );
     // .limit() (not .take()) — joins here are OneToOne/ManyToOne with no row
     // fan-out, and it avoids TypeORM's take()+join+orderBy crash.
     return this.scriptRepo
@@ -47,7 +55,7 @@ export class ApprovalController {
       .where('script.status = :status', { status: 'draft' })
       .orderBy('script.dayNumber', 'ASC', 'NULLS LAST')
       .addOrderBy('score.compositeScore', 'DESC')
-      .limit(20)
+      .limit(limit)
       .getMany();
   }
 
