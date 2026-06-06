@@ -30,6 +30,18 @@ URL PLACEHOLDERS — use these EXACT tokens, never real URLs:
 {{YOUTUBE_URL}} {{INSTAGRAM_URL}} {{LINKEDIN_URL}} {{WHATSAPP_CHANNEL}}
 {{REHEARSE_URL}} {{SOURCE_URL}} {{SOURCE_NAME}}
 
+HASHTAG / TAG CASING (non-negotiable):
+- EVERY hashtag is lowercase, EVERY platform, EVERY field.
+  #ai not #AI · #aishorts not #AIShorts · #chatgpt not #ChatGPT
+- Applies to: youtube.title, youtube.description, youtube.tags,
+  instagram.caption / hashtags / full_text,
+  linkedin.body / hashtags / full_text,
+  whatsapp_channel.full_text, whatsapp_status.full_text.
+- YouTube tags array (no # prefix) is also lowercase: "ai shorts"
+  not "AI Shorts".
+- The ONE exception: "#Shorts" at the END of a YouTube title — keep
+  the capital S, YouTube's algorithm prefers that exact casing.
+
 PLATFORM RULES:
 - YouTube: title ≤100 chars (YouTube's hard limit) ending "#Shorts"
   — you MAY add 1-2 more lowercase hashtags before "#Shorts"
@@ -39,12 +51,13 @@ PLATFORM RULES:
   (YouTube/Instagram/LinkedIn/WhatsApp) + 5-8 hashtags; tags = 10-15 SEO
   strings (no #).
 - Instagram: bold hook, 2-3 punchy lines, CTA/question, "Source:
-  {{SOURCE_NAME}}", subscribe line with {{YOUTUBE_URL}}; 12-15 hashtags;
+  {{SOURCE_NAME}}", subscribe line with {{YOUTUBE_URL}}; 12-15 hashtags
+  (lowercase per the casing rule above);
   full_text = caption + blank line + hashtags joined by spaces.
 - LinkedIn: 100-200 words, professional, max 2-3 emojis, insight + why it
   matters + question + "Follow Vardhan for daily AI insights" + "Source:
   {{SOURCE_NAME}} - {{SOURCE_URL}}" + "Subscribe: {{YOUTUBE_URL}}";
-  4-6 professional hashtags; full_text = body + blank line + hashtags.
+  4-6 professional hashtags (lowercase); full_text = body + blank line + hashtags.
 - WhatsApp channel: 60-100 words, WhatsApp formatting (*bold*), emoji
   opener, source line, "Watch: {{YOUTUBE_URL}}", signature "— Vardhan".
 - WhatsApp status: ≤50 words, 1 emoji, 1-line hook, "Watch -> {{YOUTUBE_URL}}".
@@ -85,6 +98,13 @@ URL PLACEHOLDERS — use these EXACT tokens, never real URLs:
 {{YOUTUBE_URL}} {{INSTAGRAM_URL}} {{LINKEDIN_URL}} {{WHATSAPP_CHANNEL}}
 {{REHEARSE_URL}} {{SOURCE_URL}} {{SOURCE_NAME}}
 
+HASHTAG / TAG CASING (non-negotiable, same rule as the English prompt):
+- EVERY English-script hashtag is lowercase, EVERY platform, EVERY field.
+  #ai not #AI · #teluguai not #TeluguAI · #aishorts not #AIShorts
+- The ONE exception: "#Shorts" at the END of a YouTube title — keep
+  the capital S, YouTube's algorithm prefers that exact casing.
+- Telugu-script hashtags (e.g. #తెలుగు) carry no casing — leave them.
+
 PLATFORM RULES (same structure as English, Telugu-style copy):
 - YouTube: title ≤100 chars (YouTube's hard limit) ending "#Shorts"
   — you MAY add 1-2 more lowercase hashtags before "#Shorts"
@@ -95,7 +115,7 @@ PLATFORM RULES (same structure as English, Telugu-style copy):
   English (#AI #Telugu #AIShorts etc.) — better discoverability.
 - Instagram: punchy Telugu hook, 2-3 lines code-mixed, CTA, "Source:
   {{SOURCE_NAME}}", subscribe with {{YOUTUBE_URL}}; 12-15 hashtags.
-  Include Telugu-audience hashtags (#TeluguAI #TeluguTech #Hyderabad).
+  Include Telugu-audience hashtags (#teluguai #telugutech #hyderabad).
 - LinkedIn: 100-200 words, professional code-mixed Telugu, max 2-3
   emojis; insight + ఎందుకు important + question + "Follow Vardhan for
   daily AI insights in Telugu" + source + subscribe; 4-6 hashtags.
@@ -239,21 +259,54 @@ export class DistributionPackageService {
       generated_at: new Date().toISOString(),
     };
 
-    // Force YouTube hashtags + tags to lowercase so the description's
-    // "#AIShorts" doesn't look mismatched against the tags pane's
-    // "ai shorts". Only touch YouTube when it was in this run's scope —
-    // otherwise we'd rewrite a previously-good description.
+    // Force every hashtag to lowercase across EVERY platform we just
+    // (re)generated. The LLM follows "lowercase hashtags" loosely on
+    // EN (it tends to PascalCase #AIShorts / #ChatGPT) and reasonably
+    // well on TE; this deterministic pass makes the casing consistent
+    // for both languages so admin & viewer never see a mismatched
+    // "#AI" next to a "#aishorts" in the same post.
+    //
+    // Body text outside hashtags is left untouched (lowercaseHashtags
+    // only matches /#[A-Za-z0-9_]+/). Hashtag/tag arrays are case-
+    // normalized whole-string since they have no body context.
+    //
+    // Only platforms in this run's scope are touched — partial regens
+    // can't rewrite a previously-good post on a platform that wasn't
+    // selected.
+    const lowercaseArray = (arr: unknown): string[] =>
+      Array.isArray(arr)
+        ? (arr as unknown[])
+            .map((t) => String(t ?? '').toLowerCase().trim())
+            .filter(Boolean)
+        : [];
+
     if (platforms.includes('youtube') && distributionPackage.youtube) {
-      if (distributionPackage.youtube.description) {
-        distributionPackage.youtube.description = lowercaseHashtags(
-          distributionPackage.youtube.description,
-        );
-      }
-      if (Array.isArray(distributionPackage.youtube.tags)) {
-        distributionPackage.youtube.tags = distributionPackage.youtube.tags
-          .map((t) => String(t).toLowerCase().trim())
-          .filter(Boolean);
-      }
+      const yt = distributionPackage.youtube;
+      if (yt.title) yt.title = lowercaseHashtags(yt.title);
+      if (yt.description) yt.description = lowercaseHashtags(yt.description);
+      yt.tags = lowercaseArray(yt.tags);
+    }
+    if (platforms.includes('instagram') && distributionPackage.instagram) {
+      const ig = distributionPackage.instagram;
+      if (ig.caption) ig.caption = lowercaseHashtags(ig.caption);
+      if (ig.full_text) ig.full_text = lowercaseHashtags(ig.full_text);
+      ig.hashtags = lowercaseArray(ig.hashtags);
+    }
+    if (platforms.includes('linkedin') && distributionPackage.linkedin) {
+      const li = distributionPackage.linkedin;
+      if (li.body) li.body = lowercaseHashtags(li.body);
+      if (li.full_text) li.full_text = lowercaseHashtags(li.full_text);
+      li.hashtags = lowercaseArray(li.hashtags);
+    }
+    if (platforms.includes('whatsapp_channel') && distributionPackage.whatsapp_channel?.full_text) {
+      distributionPackage.whatsapp_channel.full_text = lowercaseHashtags(
+        distributionPackage.whatsapp_channel.full_text,
+      );
+    }
+    if (platforms.includes('whatsapp_status') && distributionPackage.whatsapp_status?.full_text) {
+      distributionPackage.whatsapp_status.full_text = lowercaseHashtags(
+        distributionPackage.whatsapp_status.full_text,
+      );
     }
 
     this.logger.log(
