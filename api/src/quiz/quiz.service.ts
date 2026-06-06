@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 import {
   QuizQuestion,
   QuizQuestionType,
@@ -146,6 +147,113 @@ export class QuizService {
     };
   }
 
+  // ── Public: YouTube handle utilities ─────────────────────────────────
+
+  /**
+   * Normalize whatever the user types into a canonical "@handle" form so
+   * the DB stores one shape and admin lookup is consistent. Accepts:
+   *   "@handle"                           → "@handle"
+   *   "handle"                            → "@handle"
+   *   "youtube.com/@handle"               → "@handle"
+   *   "https://www.youtube.com/@handle/"  → "@handle"
+   */
+  private normalizeYoutubeHandle(raw: string): string {
+    const cleaned = raw
+      .trim()
+      .replace(/^https?:\/\//i, '')
+      .replace(/^(www\.)?youtube\.com\//i, '')
+      .replace(/\/+$/, '')
+      .trim();
+    return cleaned.startsWith('@') ? cleaned : `@${cleaned}`;
+  }
+
+  /**
+   * Resolve a YouTube handle to its channel via YouTube Data API v3
+   * (channels.list?forHandle). Public — called from the quiz start
+   * form so the entrant sees a green check + channel preview before
+   * starting. Quota cost is 1 unit per call (we have 10k/day free).
+   *
+   * Returns:
+   *   { valid: true, channelId, channelTitle, thumbnailUrl, subscriberCount, canonicalHandle }
+   * or { valid: false, reason: 'not_found' | 'api_disabled' | 'api_error', canonicalHandle, message }
+   */
+  async verifyYoutubeHandle(raw: string): Promise<{
+    valid: boolean;
+    canonicalHandle: string;
+    channelId?: string;
+    channelTitle?: string;
+    thumbnailUrl?: string;
+    subscriberCount?: number;
+    customUrl?: string;
+    reason?: 'not_found' | 'api_disabled' | 'api_error' | 'invalid_input';
+    message?: string;
+  }> {
+    if (!raw?.trim()) {
+      return { valid: false, canonicalHandle: '', reason: 'invalid_input', message: 'Handle is empty' };
+    }
+    const canonical = this.normalizeYoutubeHandle(raw);
+    if (canonical.length < 3) {
+      return { valid: false, canonicalHandle: canonical, reason: 'invalid_input', message: 'Handle too short' };
+    }
+    const apiKey = this.config.get<string>('CS_YT_API_KEY');
+    if (!apiKey) {
+      // Dormant in dev / CI — don't 500 the form, let entrant proceed
+      // and let the post-quiz audit catch bad handles.
+      return {
+        valid: false, canonicalHandle: canonical, reason: 'api_disabled',
+        message: 'YouTube verification unavailable right now — your handle was saved as-is',
+      };
+    }
+    // channels.list?forHandle accepts the handle WITHOUT the leading @.
+    const forHandle = canonical.replace(/^@/, '');
+    try {
+      const { data } = await axios.get(
+        'https://www.googleapis.com/youtube/v3/channels',
+        {
+          params: { part: 'snippet,statistics', forHandle, key: apiKey },
+          timeout: 8_000,
+        },
+      );
+      type ChannelItem = {
+        id?: string;
+        snippet?: {
+          title?: string;
+          customUrl?: string;
+          thumbnails?: { default?: { url?: string }; medium?: { url?: string } };
+        };
+        statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean };
+      };
+      const items = (data?.items ?? []) as ChannelItem[];
+      if (items.length === 0) {
+        return {
+          valid: false, canonicalHandle: canonical, reason: 'not_found',
+          message: `No YouTube channel found for ${canonical}`,
+        };
+      }
+      const ch = items[0];
+      const thumb = ch.snippet?.thumbnails?.medium?.url ?? ch.snippet?.thumbnails?.default?.url;
+      return {
+        valid: true,
+        canonicalHandle: canonical,
+        channelId: ch.id,
+        channelTitle: ch.snippet?.title,
+        customUrl: ch.snippet?.customUrl,
+        thumbnailUrl: thumb,
+        subscriberCount: ch.statistics?.hiddenSubscriberCount
+          ? undefined
+          : Number(ch.statistics?.subscriberCount ?? 0),
+      };
+    } catch (e) {
+      // 4xx (bad handle char), 5xx (Google flaking), network — all map
+      // to api_error so the form can show "try again" without leaking
+      // upstream details.
+      return {
+        valid: false, canonicalHandle: canonical, reason: 'api_error',
+        message: `YouTube lookup failed: ${(e as Error).message}`,
+      };
+    }
+  }
+
   // ── Public: Start Quiz ────────────────────────────────────────────────
 
   async startQuiz(opts: {
@@ -183,16 +291,7 @@ export class QuizService {
         'YouTube handle is required — we verify subscription before payout',
       );
     }
-    // Normalize: strip URL prefixes, ensure leading @, drop trailing slashes.
-    // Accepts @handle / youtube.com/@handle / https://youtube.com/@handle.
-    youtubeHandle = youtubeHandle
-      .trim()
-      .replace(/^https?:\/\//i, '')
-      .replace(/^(www\.)?youtube\.com\//i, '')
-      .replace(/\/+$/, '')
-      .trim();
-    if (!youtubeHandle.startsWith('@')) youtubeHandle = `@${youtubeHandle}`;
-    // After normalization a bare "@" is still empty — reject.
+    youtubeHandle = this.normalizeYoutubeHandle(youtubeHandle);
     if (youtubeHandle.length < 3) {
       throw new BadRequestException('YouTube handle must be at least 2 characters after @');
     }

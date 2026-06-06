@@ -21,6 +21,18 @@ export class QuizPublicController {
     return this.quizService.getCurrentQuizInfo();
   }
 
+  /**
+   * GET /api/v1/quiz/verify-youtube-handle?handle=@xxx
+   * Lightweight YouTube Data API v3 lookup so the start form can show
+   * a green check + channel preview before the entrant submits. Public
+   * (no auth) — the entrant hasn't created a session yet. Quota cost
+   * is 1 unit per call against CS_YT_API_KEY.
+   */
+  @Get('verify-youtube-handle')
+  verifyYoutubeHandle(@Query('handle') handle?: string) {
+    return this.quizService.verifyYoutubeHandle(handle ?? '');
+  }
+
   /** POST /api/v1/quiz/start — begin a new quiz session */
   @Post('start')
   start(
