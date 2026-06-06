@@ -13,7 +13,12 @@ export const AQB_INTELLIGENCE_QUEUE = 'aqb-intelligence';
  * Runs the AQB learning loop:
  *  - aqb-metrics-sweep    : hourly @ :20 — pull YouTube stats for published shorts.
  *  - aqb-postmortem-sweep : daily 04:30 UTC — generate postmortems for shorts ≥3d old.
- *  - aqb-improvement-sweep: weekly Mon 06:00 UTC — promote winners to AqbMemory.
+ *  - aqb-improvement-sweep: daily 06:00 UTC — promote winners to AqbMemory.
+ *
+ * Improvement runs daily (was weekly) so a NEW winner discovered today
+ * influences tomorrow's script-gen cron at 05:30 UTC the next day, instead
+ * of waiting up to 7 days. promoteUnique() dedupes by content hash, so
+ * idle days are no-ops — no noise accumulates.
  *
  * Quiet by design: only Slack-notify when a run actually changes something
  * (matches Content Studio's pattern). Slack uses CS_SLACK_WEBHOOK_URL when set.
@@ -35,6 +40,39 @@ export class AqbIntelligenceWorker implements OnModuleInit {
   }
 
   async onModuleInit() {
+    // Bull-MQ keys repeatables by (name, jobId, cron). When we change a
+    // cron expression for a job that's already registered, Bull treats
+    // it as a brand-new repeatable AND leaves the old one armed — so
+    // both fire until the worker is wiped. Defensive cleanup: drop any
+    // stale repeatable whose cron doesn't match the current canonical
+    // value below, then re-register from scratch.
+    const canonical: Array<{ name: string; cron: string; jobId: string }> = [
+      { name: 'aqb-metrics-sweep',     cron: '20 * * * *', jobId: 'aqb-metrics-cron' },
+      { name: 'aqb-postmortem-sweep',  cron: '30 4 * * *', jobId: 'aqb-postmortem-cron' },
+      { name: 'aqb-improvement-sweep', cron: '0 6 * * *',  jobId: 'aqb-improvement-cron' },
+    ];
+    try {
+      const existing = await this.queue.getRepeatableJobs();
+      let dropped = 0;
+      for (const job of existing) {
+        const match = canonical.find((c) => c.name === job.name);
+        // Drop if it's one of ours but the cron has drifted (e.g. we
+        // just flipped improvement from Mondays to daily), so the next
+        // queue.add() reinstalls a clean repeatable.
+        if (match && job.cron !== match.cron) {
+          await this.queue.removeRepeatableByKey(job.key);
+          dropped++;
+          this.logger.log(
+            `Dropped stale repeatable "${job.name}" (cron "${job.cron}") — ` +
+            `re-installing with current cron "${match.cron}"`,
+          );
+        }
+      }
+      if (dropped > 0) this.logger.log(`Cleaned up ${dropped} stale AQB cron(s)`);
+    } catch (e) {
+      this.logger.warn(`Stale-cron cleanup failed (non-fatal): ${(e as Error).message}`);
+    }
+
     const adds = [
       this.queue.add('aqb-metrics-sweep', {}, {
         repeat: { cron: '20 * * * *' },   // hourly @ :20
@@ -47,14 +85,16 @@ export class AqbIntelligenceWorker implements OnModuleInit {
         removeOnComplete: 10, removeOnFail: 5,
       }),
       this.queue.add('aqb-improvement-sweep', {}, {
-        repeat: { cron: '0 6 * * 1' },    // Mondays 06:00 UTC
+        repeat: { cron: '0 6 * * *' },    // daily 06:00 UTC (was Mondays)
         jobId: 'aqb-improvement-cron',
         removeOnComplete: 10, removeOnFail: 5,
       }),
     ];
     try {
       await Promise.all(adds);
-      this.logger.log('AQB intelligence crons registered (metrics hourly, postmortem daily, improvement weekly)');
+      this.logger.log(
+        'AQB intelligence crons registered (metrics hourly, postmortem daily, improvement daily)',
+      );
     } catch (e) {
       this.logger.warn(`Could not register AQB intelligence crons: ${(e as Error).message}`);
     }
