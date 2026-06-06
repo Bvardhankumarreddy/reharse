@@ -29,7 +29,12 @@ export class ApprovalController {
     private readonly config: ConfigService,
   ) {}
 
-  /** Draft scripts awaiting approval, highest news score first. */
+  /**
+   * Draft scripts awaiting approval, ordered by dayNumber ASC so the
+   * curator always sees the oldest unpublished day next (matches the
+   * "publish in sequence" cadence). Falls back to compositeScore DESC
+   * for scripts with no dayNumber (legacy or manual-gen).
+   */
   @Get('queue')
   async queue() {
     // .limit() (not .take()) — joins here are OneToOne/ManyToOne with no row
@@ -40,7 +45,8 @@ export class ApprovalController {
       .leftJoinAndSelect('item.source', 'source')
       .leftJoinAndSelect('item.score', 'score')
       .where('script.status = :status', { status: 'draft' })
-      .orderBy('score.compositeScore', 'DESC')
+      .orderBy('script.dayNumber', 'ASC', 'NULLS LAST')
+      .addOrderBy('score.compositeScore', 'DESC')
       .limit(20)
       .getMany();
   }
