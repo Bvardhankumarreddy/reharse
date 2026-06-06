@@ -8,6 +8,14 @@ import {
   DistributionPackage,
   DistributionLlmResponse,
   SourceReference,
+  DistributionPlatform,
+  ALL_DISTRIBUTION_PLATFORMS,
+  DISTRIBUTION_PLATFORM_LABELS,
+  YouTubeShortMeta,
+  InstagramPost,
+  LinkedInPost,
+  WhatsAppChannelPost,
+  WhatsAppStatus,
 } from '../dto/distribution-package.dto';
 import { SOCIAL_URLS } from '../config/social-urls.config';
 
@@ -125,22 +133,53 @@ export class DistributionPackageService {
     script: ShortScript,
     newsItem: NewsItem,
     language: DistributionLanguage = 'en',
-  ): Promise<{ package: DistributionPackage; cost_usd: number }> {
+    opts: {
+      /**
+       * Which platforms to (re)generate. Defaults to ALL — preserves
+       * the original full-package behavior for callers that don't care.
+       * Pass a subset to ONLY refresh those platforms; the rest are
+       * carried forward from `existing` (if provided) or left empty.
+       */
+      platforms?: DistributionPlatform[];
+      /**
+       * Current persisted package, used to preserve unselected
+       * platforms during selective regeneration. If absent, unselected
+       * platforms come back as empty stubs (caller's choice).
+       */
+      existing?: Partial<DistributionPackage> | null;
+    } = {},
+  ): Promise<{
+    package: DistributionPackage;
+    cost_usd: number;
+    platformsGenerated: DistributionPlatform[];
+  }> {
     if (language === 'te' && !script.teluguFullScript) {
       throw new Error('Cannot generate Telugu distribution: script has no Telugu translation');
+    }
+    // Dedup + validate the requested set. Empty array or undefined → all.
+    const requested = (opts.platforms?.length ? opts.platforms : ALL_DISTRIBUTION_PLATFORMS)
+      .filter((p) => ALL_DISTRIBUTION_PLATFORMS.includes(p));
+    const platforms = Array.from(new Set(requested)) as DistributionPlatform[];
+    if (platforms.length === 0) {
+      throw new Error(
+        'At least one platform must be selected (youtube/instagram/linkedin/whatsapp_channel/whatsapp_status)',
+      );
     }
 
     // Learning-loop block (empty until AqbMemory has distribution patterns).
     const memoryBlock = this.memory.format(await this.memory.relevantFor('distribution', 6));
-    const userPrompt = memoryBlock
-      ? `${this.buildUserPrompt(script, newsItem, language)}\n\n${memoryBlock}`
-      : this.buildUserPrompt(script, newsItem, language);
+    const baseUserPrompt = this.buildUserPrompt(script, newsItem, language);
+    const scopeBlock = this.buildScopeBlock(platforms);
+    const userPrompt = [baseUserPrompt, scopeBlock, memoryBlock]
+      .filter(Boolean).join('\n\n');
 
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
       system: language === 'te' ? DISTRIBUTION_SYSTEM_PROMPT_TE : DISTRIBUTION_SYSTEM_PROMPT,
       user: userPrompt,
       temperature: 0.7,
-      maxTokens: 3000,
+      // Output tokens scale roughly linearly with platform count — give
+      // every platform ~600 tokens of headroom; 5 = 3000 (original cap).
+      maxTokens: Math.max(800, platforms.length * 600),
     });
 
     const parsed = JSON.parse(raw || '{}') as DistributionLlmResponse;
@@ -152,22 +191,59 @@ export class DistributionPackageService {
       source_name: newsItem.source?.name ?? 'Unknown',
     };
 
+    // Pick value per platform: freshly-LLM-generated when in `platforms`,
+    // otherwise carry forward from `existing` (or an empty stub).
+    const pick = <T>(
+      key: DistributionPlatform,
+      llmValue: T | undefined,
+      existingValue: T | undefined,
+      empty: T,
+    ): T => {
+      if (platforms.includes(key)) {
+        // LLM returned the key → use it. LLM forgot the key → fall back to
+        // existing so we don't accidentally wipe a perfectly good post.
+        if (llmValue !== undefined && llmValue !== null) {
+          return this.inject(llmValue, sourceReference);
+        }
+        this.logger.warn(
+          `Distribution: LLM omitted requested platform "${key}" — keeping existing value`,
+        );
+        return existingValue ?? empty;
+      }
+      return existingValue ?? empty;
+    };
+
+    const existing = (opts.existing ?? {}) as Partial<DistributionPackage>;
     const distributionPackage: DistributionPackage = {
-      youtube: this.inject(parsed.youtube, sourceReference),
-      instagram: this.inject(parsed.instagram, sourceReference),
-      linkedin: this.inject(parsed.linkedin, sourceReference),
-      whatsapp_channel: this.inject(parsed.whatsapp_channel, sourceReference),
-      whatsapp_status: this.inject(parsed.whatsapp_status, sourceReference),
+      youtube: pick<YouTubeShortMeta>(
+        'youtube', parsed.youtube, existing.youtube,
+        { title: '', description: '', tags: [] },
+      ),
+      instagram: pick<InstagramPost>(
+        'instagram', parsed.instagram, existing.instagram,
+        { caption: '', hashtags: [], full_text: '' },
+      ),
+      linkedin: pick<LinkedInPost>(
+        'linkedin', parsed.linkedin, existing.linkedin,
+        { body: '', hashtags: [], full_text: '' },
+      ),
+      whatsapp_channel: pick<WhatsAppChannelPost>(
+        'whatsapp_channel', parsed.whatsapp_channel, existing.whatsapp_channel,
+        { full_text: '' },
+      ),
+      whatsapp_status: pick<WhatsAppStatus>(
+        'whatsapp_status', parsed.whatsapp_status, existing.whatsapp_status,
+        { full_text: '' },
+      ),
       source_reference: sourceReference,
       generated_at: new Date().toISOString(),
     };
 
     // Force YouTube hashtags + tags to lowercase so the description's
     // "#AIShorts" doesn't look mismatched against the tags pane's
-    // "ai shorts". The LLM follows the lowercase prompt loosely; this is
-    // a deterministic guard. Description body text (non-hashtag) is left
-    // untouched. Telugu characters are unaffected by .toLowerCase().
-    if (distributionPackage.youtube) {
+    // "ai shorts". Only touch YouTube when it was in this run's scope —
+    // otherwise we'd rewrite a previously-good description.
+    if (platforms.includes('youtube') && distributionPackage.youtube) {
       if (distributionPackage.youtube.description) {
         distributionPackage.youtube.description = lowercaseHashtags(
           distributionPackage.youtube.description,
@@ -181,9 +257,45 @@ export class DistributionPackageService {
     }
 
     this.logger.log(
-      `Distribution package (${language}) for script ${script.id} (cost $${cost.toFixed(4)})`,
+      `Distribution package (${language}) for script ${script.id} · ` +
+      `platforms=[${platforms.join(',')}] · cost=$${cost.toFixed(4)}`,
     );
-    return { package: distributionPackage, cost_usd: cost };
+    return { package: distributionPackage, cost_usd: cost, platformsGenerated: platforms };
+  }
+
+  /**
+   * The scope block tells the LLM which platform keys to put in its
+   * JSON response — and which to OMIT. The system prompt still teaches
+   * the LLM all five platform rules (so it keeps the writer's voice
+   * consistent), but the JSON shape is narrowed at runtime.
+   */
+  private buildScopeBlock(platforms: DistributionPlatform[]): string {
+    if (platforms.length === ALL_DISTRIBUTION_PLATFORMS.length) return '';
+    const wanted = platforms.map((p) => `"${p}"`).join(', ');
+    const skipped = ALL_DISTRIBUTION_PLATFORMS
+      .filter((p) => !platforms.includes(p))
+      .map((p) => DISTRIBUTION_PLATFORM_LABELS[p])
+      .join(', ');
+    const shape = platforms.map((p) => {
+      switch (p) {
+        case 'youtube':         return '  "youtube": { "title": "...", "description": "...", "tags": ["..."] }';
+        case 'instagram':       return '  "instagram": { "caption": "...", "hashtags": ["#..."], "full_text": "..." }';
+        case 'linkedin':        return '  "linkedin": { "body": "...", "hashtags": ["#..."], "full_text": "..." }';
+        case 'whatsapp_channel':return '  "whatsapp_channel": { "full_text": "..." }';
+        case 'whatsapp_status': return '  "whatsapp_status": { "full_text": "..." }';
+      }
+    }).join(',\n');
+    return [
+      '═════════════════════════════════',
+      'SCOPE OVERRIDE',
+      '═════════════════════════════════',
+      `Generate ONLY these platforms: ${wanted}.`,
+      `OMIT entirely: ${skipped}.`,
+      'Your JSON output must contain EXACTLY these top-level keys:',
+      '{',
+      shape,
+      '}',
+    ].join('\n');
   }
 
   /** Replace {{TOKENS}} with hardcoded URLs / source values. */

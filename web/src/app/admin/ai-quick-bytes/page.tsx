@@ -401,6 +401,15 @@ function ApprovalTab({ onToast }: { onToast: (m: string) => void }) {
   );
 }
 
+const DISTRIBUTION_PLATFORMS = [
+  { key: "youtube",          label: "YouTube",          short: "YT" },
+  { key: "instagram",        label: "Instagram",        short: "IG" },
+  { key: "linkedin",         label: "LinkedIn",         short: "LI" },
+  { key: "whatsapp_channel", label: "WhatsApp Channel", short: "WA" },
+  { key: "whatsapp_status",  label: "WhatsApp Status",  short: "WS" },
+] as const;
+type DistPlatform = (typeof DISTRIBUTION_PLATFORMS)[number]["key"];
+
 function ScriptCard({ script, onAct }: {
   script: ShortScript;
   onAct: (id: string, label: string, fn: (token: string) => Promise<unknown>) => Promise<void>;
@@ -416,6 +425,26 @@ function ScriptCard({ script, onAct }: {
   const [showTelugu, setShowTelugu] = useState(false);
   const [telugu, setTelugu] = useState<TeluguResp | null>(null);
   const [teluguBusy, setTeluguBusy] = useState(false);
+  // Default to all platforms selected — preserves the old "🔄 Regenerate all" behavior.
+  const [enPlatforms, setEnPlatforms] = useState<DistPlatform[]>(
+    DISTRIBUTION_PLATFORMS.map((p) => p.key),
+  );
+  const [tePlatforms, setTePlatforms] = useState<DistPlatform[]>(
+    DISTRIBUTION_PLATFORMS.map((p) => p.key),
+  );
+  const allEnSelected = enPlatforms.length === DISTRIBUTION_PLATFORMS.length;
+  const allTeSelected = tePlatforms.length === DISTRIBUTION_PLATFORMS.length;
+
+  function toggleEnPlatform(key: DistPlatform) {
+    setEnPlatforms((cur) =>
+      cur.includes(key) ? cur.filter((p) => p !== key) : [...cur, key],
+    );
+  }
+  function toggleTePlatform(key: DistPlatform) {
+    setTePlatforms((cur) =>
+      cur.includes(key) ? cur.filter((p) => p !== key) : [...cur, key],
+    );
+  }
 
   async function loadDist() {
     setDistBusy(true);
@@ -440,13 +469,25 @@ function ScriptCard({ script, onAct }: {
   }
 
   async function regenerateDist() {
+    if (enPlatforms.length === 0) {
+      alert("Pick at least one platform to regenerate.");
+      return;
+    }
     setDistBusy(true);
     const token = await fetchToken();
     if (!token) { setDistBusy(false); return; }
     try {
-      // Regenerate both the thumbnail prompt and the distribution package.
-      await api(token, `/approval/${script.id}/thumbnail/regenerate`, { method: "POST" });
-      await api(token, `/approval/${script.id}/distribution/regenerate`, { method: "POST" });
+      // Thumbnail regenerates only when the platform set is "all" — partial
+      // platform refreshes shouldn't churn a fine thumbnail. Curators who
+      // want a new thumbnail can hit "Regenerate all" or use a dedicated
+      // thumbnail-only path.
+      if (allEnSelected) {
+        await api(token, `/approval/${script.id}/thumbnail/regenerate`, { method: "POST" });
+      }
+      await api(token, `/approval/${script.id}/distribution/regenerate`, {
+        method: "POST",
+        body: JSON.stringify({ platforms: enPlatforms }),
+      });
       await loadDist();
     } finally {
       setDistBusy(false);
@@ -480,11 +521,18 @@ function ScriptCard({ script, onAct }: {
   }
 
   async function regenerateTeluguDistribution() {
+    if (tePlatforms.length === 0) {
+      alert("Pick at least one platform to regenerate.");
+      return;
+    }
     setTeluguBusy(true);
     const token = await fetchToken();
     if (!token) { setTeluguBusy(false); return; }
     try {
-      await api(token, `/approval/${script.id}/telugu/distribution/regenerate`, { method: "POST" });
+      await api(token, `/approval/${script.id}/telugu/distribution/regenerate`, {
+        method: "POST",
+        body: JSON.stringify({ platforms: tePlatforms }),
+      });
       await loadTelugu();
     } finally { setTeluguBusy(false); }
   }
@@ -625,17 +673,44 @@ function ScriptCard({ script, onAct }: {
             <p className="text-[#6B7799] text-sm">Loading distribution package…</p>
           ) : (
             <>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-[#B8C5E0] text-xs font-semibold uppercase tracking-wide">
                   Day {dist?.dayNumber ?? thumb?.dayNumber ?? "—"} · copy & post
                 </span>
                 <button
                   onClick={regenerateDist}
-                  disabled={distBusy}
-                  className="px-3 py-1 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-50"
+                  disabled={distBusy || enPlatforms.length === 0}
+                  className="px-3 py-1 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-50 whitespace-nowrap"
                 >
-                  {distBusy ? "Regenerating…" : "🔄 Regenerate all"}
+                  {distBusy
+                    ? "Regenerating…"
+                    : allEnSelected
+                      ? "🔄 Regenerate all"
+                      : `🔄 Regenerate (${enPlatforms.length})`}
                 </button>
+              </div>
+
+              {/* Platform picker — tap a pill to skip that platform on regen. */}
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {DISTRIBUTION_PLATFORMS.map((p) => {
+                  const on = enPlatforms.includes(p.key);
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => toggleEnPlatform(p.key)}
+                      title={on ? `Will regenerate ${p.label}` : `Will keep current ${p.label}`}
+                      className={
+                        "px-2.5 py-0.5 text-[10px] font-semibold rounded-full border transition " +
+                        (on
+                          ? "bg-[#00D4FF]/10 border-[#00D4FF]/40 text-[#00D4FF]"
+                          : "bg-white/0 border-white/10 text-[#4A5470]")
+                      }
+                    >
+                      {on ? "✓ " : ""}{p.label}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Thumbnail prompts — 3 clean MrBeast-style variations */}
@@ -716,10 +791,14 @@ function ScriptCard({ script, onAct }: {
                   </button>
                   <button
                     onClick={regenerateTeluguDistribution}
-                    disabled={teluguBusy || !telugu.teluguFullScript}
-                    className="px-3 py-1 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-50"
+                    disabled={teluguBusy || !telugu.teluguFullScript || tePlatforms.length === 0}
+                    className="px-3 py-1 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-50 whitespace-nowrap"
                   >
-                    {teluguBusy ? "…" : "🔁 Regen Telugu posts"}
+                    {teluguBusy
+                      ? "…"
+                      : allTeSelected
+                        ? "🔁 Regen Telugu posts"
+                        : `🔁 Regen Telugu (${tePlatforms.length})`}
                   </button>
                   {script.status !== "rejected" && (
                     <button
@@ -730,6 +809,29 @@ function ScriptCard({ script, onAct }: {
                     </button>
                   )}
                 </div>
+              </div>
+
+              {/* Telugu platform picker — mirrors the EN section above. */}
+              <div className="flex flex-wrap gap-1.5">
+                {DISTRIBUTION_PLATFORMS.map((p) => {
+                  const on = tePlatforms.includes(p.key);
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => toggleTePlatform(p.key)}
+                      title={on ? `Will regenerate ${p.label}` : `Will keep current ${p.label}`}
+                      className={
+                        "px-2.5 py-0.5 text-[10px] font-semibold rounded-full border transition " +
+                        (on
+                          ? "bg-[#FFB020]/10 border-[#FFB020]/40 text-[#FFB020]"
+                          : "bg-white/0 border-white/10 text-[#4A5470]")
+                      }
+                    >
+                      {on ? "✓ " : ""}{p.label}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Transcript */}

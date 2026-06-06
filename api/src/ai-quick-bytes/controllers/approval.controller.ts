@@ -11,6 +11,10 @@ import { ShortScript } from '../entities/short-script.entity';
 import { HeyGenService } from '../services/heygen.service';
 import { PublishingService } from '../services/publishing.service';
 import { DistributionPackageService } from '../services/distribution-package.service';
+import {
+  DistributionPlatform,
+  DistributionPackage,
+} from '../dto/distribution-package.dto';
 import { ThumbnailPromptService } from '../services/thumbnail-prompt.service';
 import { TranslationService } from '../services/translation.service';
 import { PublishPlatform } from '../entities/publishing-log.entity';
@@ -252,7 +256,10 @@ export class ApprovalController {
   }
 
   @Post(':id/distribution/regenerate')
-  async regenerateDistribution(@Param('id') id: string) {
+  async regenerateDistribution(
+    @Param('id') id: string,
+    @Body() body: { platforms?: string[] } = {},
+  ) {
     const script = await this.scriptRepo.findOne({
       where: { id },
       relations: ['newsItem', 'newsItem.source'],
@@ -260,15 +267,16 @@ export class ApprovalController {
     if (!script) throw new NotFoundException('Script not found');
     if (!script.newsItem) throw new BadRequestException('Script has no linked news item');
 
-    const { package: pkg, cost_usd } = await this.distribution.generatePackage(
-      script,
-      script.newsItem,
-    );
+    const { package: pkg, cost_usd, platformsGenerated } =
+      await this.distribution.generatePackage(script, script.newsItem, 'en', {
+        platforms: (body.platforms ?? []) as DistributionPlatform[],
+        existing: (script.distributionPackage ?? null) as Partial<DistributionPackage> | null,
+      });
     script.distributionPackage = pkg as unknown as Record<string, unknown>;
     script.distributionCostUsd = Number(script.distributionCostUsd ?? 0) + cost_usd;
     script.distributionGeneratedAt = new Date();
     await this.scriptRepo.save(script);
-    return { success: true, package: pkg, costAdded: cost_usd };
+    return { success: true, package: pkg, costAdded: cost_usd, platformsGenerated };
   }
 
   // ── Telugu translation track ────────────────────────────────────────
@@ -295,7 +303,10 @@ export class ApprovalController {
   }
 
   @Post(':id/telugu/distribution/regenerate')
-  async regenerateTeluguDistribution(@Param('id') id: string) {
+  async regenerateTeluguDistribution(
+    @Param('id') id: string,
+    @Body() body: { platforms?: string[] } = {},
+  ) {
     const script = await this.scriptRepo.findOne({
       where: { id },
       relations: ['newsItem', 'newsItem.source'],
@@ -309,15 +320,17 @@ export class ApprovalController {
         'No Telugu translation on script — run /telugu/regenerate-translation first',
       );
     }
-    const { package: pkg, cost_usd } = await this.distribution.generatePackage(
-      script, script.newsItem, 'te',
-    );
+    const { package: pkg, cost_usd, platformsGenerated } =
+      await this.distribution.generatePackage(script, script.newsItem, 'te', {
+        platforms: (body.platforms ?? []) as DistributionPlatform[],
+        existing: (script.teluguDistributionPackage ?? null) as Partial<DistributionPackage> | null,
+      });
     script.teluguDistributionPackage = pkg as unknown as Record<string, unknown>;
     script.distributionCostUsd =
       Number(script.distributionCostUsd ?? 0) + cost_usd;
     script.distributionGeneratedAt = new Date();
     await this.scriptRepo.save(script);
-    return { success: true, package: pkg, costAdded: cost_usd };
+    return { success: true, package: pkg, costAdded: cost_usd, platformsGenerated };
   }
 
   /**

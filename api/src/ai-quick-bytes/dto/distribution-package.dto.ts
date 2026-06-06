@@ -40,14 +40,33 @@ export interface DistributionPackage {
   generated_at: string;
 }
 
-/** Raw shape returned by the LLM (before URL injection + source ref). */
+/** Raw shape returned by the LLM (before URL injection + source ref).
+ *  Selective regeneration may omit some keys, so all are optional here. */
 export interface DistributionLlmResponse {
-  youtube: YouTubeShortMeta;
-  instagram: InstagramPost;
-  linkedin: LinkedInPost;
-  whatsapp_channel: WhatsAppChannelPost;
-  whatsapp_status: WhatsAppStatus;
+  youtube?: YouTubeShortMeta;
+  instagram?: InstagramPost;
+  linkedin?: LinkedInPost;
+  whatsapp_channel?: WhatsAppChannelPost;
+  whatsapp_status?: WhatsAppStatus;
 }
+
+/** Platforms the distribution generator can target. */
+export type DistributionPlatform =
+  | 'youtube' | 'instagram' | 'linkedin'
+  | 'whatsapp_channel' | 'whatsapp_status';
+
+export const ALL_DISTRIBUTION_PLATFORMS: DistributionPlatform[] = [
+  'youtube', 'instagram', 'linkedin', 'whatsapp_channel', 'whatsapp_status',
+];
+
+/** Human-readable labels (used in prompts + UI tooltips). */
+export const DISTRIBUTION_PLATFORM_LABELS: Record<DistributionPlatform, string> = {
+  youtube: 'YouTube',
+  instagram: 'Instagram',
+  linkedin: 'LinkedIn',
+  whatsapp_channel: 'WhatsApp Channel',
+  whatsapp_status: 'WhatsApp Status',
+};
 
 export type ThumbnailStyle =
   | 'shocked_reaction' | 'bold_text' | 'visual_metaphor'
