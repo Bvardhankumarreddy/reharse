@@ -111,6 +111,63 @@ Output a SINGLE JSON object only (NOT an array, NO "lessons" wrapper):
 {"title":"…","hook":"…","lesson_format":"lecture","target_duration_minutes":10,"outline":[{"heading":"…","points":["…","…"]}]}
 `.trim();
 
+const SEED_INTERVIEW_LESSON_SYSTEM = `
+You design ONE INTERVIEW-STYLE lesson that walks through a LIST of
+related interview questions in sequence. The lesson is structured so
+the host poses each question, then answers it concretely, then
+transitions to the next — like a self-contained interview prep video.
+
+INPUT: a numbered list of 2-8 interview questions on the SAME topic
+domain (e.g. all about RAG, or all about LLM finetuning). Treat the
+list as the lesson's spine.
+
+YOUR JOB:
+
+- TITLE: punchy and clickable, references the topic domain + question
+  count, e.g. "RAG Interview: 5 questions every ML engineer should
+  nail" or "LLM Finetuning Q&A: 4 questions that trip up most devs".
+  60-100 chars. Up to 100 hard limit.
+- HOOK (first ~8s): set up why these specific questions matter NOW —
+  a real interview scenario, a candidate who failed on Q3, a recruiter
+  signal. Open IN the moment ("Last week a senior ML candidate at
+  Anthropic got rejected because…"), never "in this video we'll cover".
+- OUTLINE: ONE outline section PER input question, in the order given.
+  Each section's heading = "Q{n}: {the question, lightly rephrased
+  for spoken delivery}". Each section's points = 3-5 teaching
+  points that, together, form the answer:
+    1. The plain-English answer in one line
+    2. The naive / common-wrong answer interviewers hear (and why
+       it fails)
+    3. The correct mental model with a REAL example (real tool,
+       real number, real situation)
+    4. (Optional) The follow-up question an interviewer often
+       asks next
+    5. (Optional) A "what would you do differently if…" twist
+  Keep each section tight — the script agent later expands every point
+  into 90-120 seconds of spoken content.
+- AFTER the per-question sections, add ONE final outline section
+  titled "Summary + how to practise" with 2-3 points: the through-line
+  across all answers, the one mistake that recurred, a concrete
+  practise suggestion (mock interview, flashcards, real dataset).
+  So OUTLINE LENGTH = (input questions) + 1.
+- lesson_format: ALWAYS "interview" for this seed path — the script
+  agent uses this to pick the Q&A flow.
+- target_duration_minutes: round((input questions) * 2) + 2,
+  capped at 14. So 3 questions → 8 min, 5 questions → 12 min.
+
+QUALITY GUARDRAILS:
+- Stay concrete. Real tools, real names, real numbers. No "imagine
+  a system".
+- Don't add questions the curator didn't ask. The outline should
+  contain EXACTLY (input questions + 1 summary) sections, in order.
+- Each answer should feel like a 90-second oral explanation a
+  candidate could give live — not a 5-paragraph blog post.
+- Honour brand voice memories verbatim.
+
+Output a SINGLE JSON object only (NOT an array, NO "lessons" wrapper):
+{"title":"…","hook":"…","lesson_format":"interview","target_duration_minutes":10,"outline":[{"heading":"Q1: …","points":["…","…","…"]},{"heading":"Q2: …","points":["…","…","…"]},{"heading":"Summary + how to practise","points":["…","…"]}]}
+`.trim();
+
 const REGEN_LESSON_SYSTEM = `
 You re-plan ONE lesson slot with a COMPLETELY NEW TOPIC. Pick a genuinely
 different subject from the current lesson — NOT a reword, NOT a slight
@@ -693,6 +750,146 @@ export class StrategyAgent {
 
     const updated = await this.lessonRepo.findOne({ where: { id: lesson.id } });
     if (!updated) throw new Error('Lesson vanished after seed');
+    return updated;
+  }
+
+  /**
+   * Seed ONE lesson around a LIST of interview questions on the same
+   * topic. The lesson becomes an interview-style Q&A: each question
+   * gets its own outline section, plus a closing summary. The script
+   * agent later reads lessonFormat='interview' + the outline and
+   * generates a Q&A script that walks through each question on camera.
+   *
+   * Use case: the curator has a bank of 10 questions on "RAG" (or
+   * "LLM finetuning", or "transformer internals") and wants ONE
+   * lesson that answers a chosen subset of, say, 5 of them in order.
+   *
+   * Difference vs. seedAllLessonsFromQuestions:
+   *   - seedAllLessonsFromQuestions: N questions → N lessons (1:1)
+   *   - this method:                 N questions → 1 lesson (N:1)
+   */
+  async seedInterviewLessonFromQuestionList(
+    lessonId: string,
+    opts: { questions: string[] },
+  ): Promise<Lesson> {
+    const cleanQuestions = (opts.questions ?? [])
+      .map((q) => (q ?? '').toString().trim())
+      .filter((q) => q.length >= 8);
+    if (cleanQuestions.length === 0) {
+      throw new BadRequestException(
+        'Provide at least one interview question (min 8 chars each)',
+      );
+    }
+    if (cleanQuestions.length > 8) {
+      // Cap so the outline stays readable + within the script agent's
+      // duration ceiling. The user can always split into two lessons.
+      throw new BadRequestException(
+        `Too many questions (${cleanQuestions.length}). Max 8 per lesson — split into multiple lessons for more.`,
+      );
+    }
+
+    const lesson = await this.lessonRepo.findOne({ where: { id: lessonId } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    const plan = await this.planRepo.findOne({ where: { id: lesson.planId } });
+    if (!plan) throw new BadRequestException('Lesson has no plan');
+    const brand = await this.brandRepo.findOne({ where: { id: plan.brandId } });
+    if (!brand) throw new BadRequestException('Plan has no brand');
+
+    const siblings = (
+      await this.lessonRepo.find({
+        where: { planId: plan.id },
+        order: { lessonNumber: 'ASC' },
+      })
+    ).filter((l) => l.id !== lessonId);
+    const siblingBlock = siblings.length
+      ? siblings
+        .map((s) => `LESSON ${s.lessonNumber}: ${s.title} — ${s.hook ?? ''}`)
+        .join('\n')
+      : '(none)';
+
+    const memories = await this.memories.relevantFor(brand.id, 'strategy');
+    const memoryBlock = this.memories.format(memories);
+
+    const numberedQuestions = cleanQuestions
+      .map((q, i) => `${i + 1}. ${q.slice(0, 400)}`)
+      .join('\n');
+
+    const result = await this.router.run({
+      task: 'strategy',
+      agentType: 'strategy',
+      planId: plan.id,
+      lessonId: lesson.id,
+      modelOverride: brand.modelOverrides?.strategy,
+      jsonOutput: true,
+      // Output scales with question count — 600 tokens of overhead +
+      // ~400 per question + 400 for the summary. 8 Qs = ~3800.
+      maxTokens: Math.max(2000, 600 + cleanQuestions.length * 400 + 400),
+      temperature: 0.7,
+      system: SEED_INTERVIEW_LESSON_SYSTEM,
+      user:
+        `BRAND: ${brand.name}\nVoice/style: ${brand.voiceStyle ?? ''}\n\n` +
+        `WEEK THEME: ${plan.theme ?? '(none)'}\n` +
+        `QUIZ SCOPE: ${plan.quizScope ?? '(none)'}\n\n` +
+        `THE OTHER LESSON(S) THIS WEEK (don't overlap their topics):\n${siblingBlock}\n\n` +
+        `LESSON SLOT TO FILL — number ${lesson.lessonNumber}.\n\n` +
+        `═══ INTERVIEW QUESTIONS TO COVER (${cleanQuestions.length} total, in this order) ═══\n` +
+        `${numberedQuestions}\n═══\n\n` +
+        `BRAND MEMORIES (obey verbatim):\n${memoryBlock}\n\n` +
+        `Design the interview-style lesson that answers ALL ${cleanQuestions.length} ` +
+        `questions in order. Return the single replacement lesson as JSON only.`,
+    });
+
+    let parsed: {
+      title?: string; hook?: string; lesson_format?: string;
+      target_duration_minutes?: number; outline?: OutlineSection[];
+    };
+    try {
+      parsed = JSON.parse(result.text || '{}');
+    } catch {
+      throw new Error('Interview-lesson seeding returned unparseable JSON');
+    }
+    if (!parsed.title?.trim()) throw new Error('Seeding produced no title');
+
+    // Always force interview format for this seed path — regardless of
+    // what the LLM picked. The downstream script agent uses this signal
+    // to pick the Q&A flow.
+    const fmt: LessonFormat = 'interview';
+    const outline = Array.isArray(parsed.outline) ? parsed.outline : [];
+    // Soft warning if the LLM dropped or added sections vs. the expected
+    // (questions + 1 summary). Don't fail — partial coverage is still
+    // useful; curator can regenerate the script if it bothers them.
+    const expectedSections = cleanQuestions.length + 1;
+    if (outline.length !== expectedSections) {
+      this.logger.warn(
+        `Interview seed: outline has ${outline.length} sections, expected ${expectedSections} ` +
+        `(${cleanQuestions.length} Qs + 1 summary) — script agent may skip or invent`,
+      );
+    }
+
+    await this.lessonRepo.update(lesson.id, {
+      title: parsed.title.slice(0, 500),
+      hook: parsed.hook ?? null,
+      outline,
+      targetDurationMinutes:
+        parsed.target_duration_minutes ?? Math.min(14, cleanQuestions.length * 2 + 2),
+      lessonFormat: fmt,
+      status: 'planned',
+    });
+
+    // Wipe stale assets — script / ppt / seo / thumbnail / promo all need
+    // to be regenerated against the new interview topic.
+    const wiped = await this.assetRepo.delete({ lessonId: lesson.id });
+    await this.planRepo.update(plan.id, {
+      totalCostUsd: Number(plan.totalCostUsd ?? 0) + result.costUsd,
+    });
+    this.logger.log(
+      `Seeded lesson ${lesson.lessonNumber} as interview from ${cleanQuestions.length} Qs — ` +
+      `"${parsed.title}" — wiped ${wiped.affected ?? 0} stale asset(s) ` +
+      `($${result.costUsd.toFixed(4)})`,
+    );
+
+    const updated = await this.lessonRepo.findOne({ where: { id: lesson.id } });
+    if (!updated) throw new Error('Lesson vanished after interview seed');
     return updated;
   }
 

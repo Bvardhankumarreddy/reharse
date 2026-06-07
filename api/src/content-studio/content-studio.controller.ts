@@ -254,6 +254,28 @@ export class ContentStudioController {
   }
 
   /**
+   * Seed ONE lesson as an INTERVIEW-style Q&A around a LIST of
+   * questions on the same topic. The lesson becomes interview-format;
+   * each question gets its own outline section + a closing summary.
+   *
+   * Useful when the curator has a question bank (10 RAG questions, 10
+   * LLM finetuning questions) and wants ONE lesson covering N of them.
+   *
+   * Body: { questions: string[] }   — 1 to 8 questions, ≥ 8 chars each.
+   */
+  @Post('lessons/:id/seed-from-interview-questions')
+  seedInterviewLessonFromQuestionList(
+    @Param('id') id: string,
+    @Body() body: { questions?: unknown },
+  ) {
+    if (!Array.isArray(body?.questions)) {
+      throw new BadRequestException('questions must be a non-empty array of strings');
+    }
+    const arr = (body.questions as unknown[]).map((q) => String(q ?? '').trim());
+    return this.strategy.seedInterviewLessonFromQuestionList(id, { questions: arr });
+  }
+
+  /**
    * Bulk-seed every lesson in a plan from an array of questions. The
    * mapping is positional — questions[0] becomes lesson 1, questions[1]
    * becomes lesson 2, etc. Stale assets across all touched lessons get

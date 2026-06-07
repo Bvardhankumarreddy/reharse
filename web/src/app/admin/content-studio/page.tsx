@@ -766,6 +766,10 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
   const [seedOpen, setSeedOpen] = useState(false);
   const [seedQuestion, setSeedQuestion] = useState("");
   const [seedBusy, setSeedBusy] = useState(false);
+  // Interview-Q&A state — N questions → 1 lesson covering all in sequence
+  const [ivOpen, setIvOpen] = useState(false);
+  const [ivQuestions, setIvQuestions] = useState("");
+  const [ivBusy, setIvBusy] = useState(false);
 
   async function regenerateLesson() {
     setRegenBusy(true);
@@ -788,6 +792,45 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setRegenBusy(false); }
+  }
+
+  async function seedInterviewLesson() {
+    // Parse the textarea — accept "1. Q?", "1) Q?", or just one per line.
+    // Empty lines + numeric prefixes are stripped so the curator can paste
+    // a numbered list straight from their question bank.
+    const lines = ivQuestions
+      .split(/\r?\n+/)
+      .map((l) => l.replace(/^\s*\d+[.)\]:\-]\s*/, "").trim())
+      .filter((l) => l.length >= 8);
+    if (lines.length === 0) {
+      onToast("⚠ Paste at least one question (≥ 8 chars). One per line.");
+      return;
+    }
+    if (lines.length > 8) {
+      onToast(`⚠ ${lines.length} questions — cap is 8 per lesson. Trim or split.`);
+      return;
+    }
+    setIvBusy(true);
+    onToast(`Designing an interview lesson around ${lines.length} questions… (~25-45s)`);
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setIvBusy(false); return; }
+    try {
+      const updated = await api<Lesson>(
+        token,
+        `/lessons/${lesson.id}/seed-from-interview-questions`,
+        { method: "POST", body: JSON.stringify({ questions: lines }) },
+      );
+      setLsn(updated);
+      // Server wiped stale assets — match locally.
+      setScript(null); setPpt(null); setSeo(null); setThumb(null); setPromo(null);
+      setAudio(null);
+      setOpen(false); setOpenSlides(false); setOpenSeo(false);
+      setOpenThumb(false); setOpenPromo(false);
+      setIvOpen(false); setIvQuestions("");
+      onToast(`✓ Interview lesson seeded (${lines.length} Qs): ${updated.title}`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setIvBusy(false); }
   }
 
   async function seedFromQuestion() {
@@ -1018,12 +1061,20 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
         </span>
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => { setSeedOpen((v) => !v); setRegenOpen(false); }}
-            disabled={seedBusy || regenBusy}
+            onClick={() => { setSeedOpen((v) => !v); setRegenOpen(false); setIvOpen(false); }}
+            disabled={seedBusy || regenBusy || ivBusy}
             className="text-[10px] px-2 py-0.5 rounded-lg border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/10 disabled:opacity-50 transition"
-            title="Build this lesson around a specific interview question"
+            title="Build this lesson around ONE specific interview question"
           >
             {seedBusy ? "Working…" : "🎯 Seed from Q"}
+          </button>
+          <button
+            onClick={() => { setIvOpen((v) => !v); setSeedOpen(false); setRegenOpen(false); }}
+            disabled={seedBusy || regenBusy || ivBusy}
+            className="text-[10px] px-2 py-0.5 rounded-lg border border-[#00D4FF]/40 text-[#00D4FF] hover:bg-[#00D4FF]/10 disabled:opacity-50 transition"
+            title="Build ONE interview-style lesson that walks through N questions in sequence"
+          >
+            {ivBusy ? "Working…" : "🎤 Interview Q&A"}
           </button>
           <button
             onClick={() => { setRegenOpen((v) => !v); setSeedOpen(false); }}
@@ -1064,6 +1115,41 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
           <div className="flex justify-end gap-2">
             <Btn label="Cancel" onClick={() => { setSeedOpen(false); setSeedQuestion(""); }} />
             <PrimaryBtn label="🎯 Seed lesson from this Q" busy={seedBusy} onClick={seedFromQuestion} />
+          </div>
+        </div>
+      )}
+      {ivOpen && (
+        <div className="px-3 py-2 bg-[#00D4FF]/5 border-b border-[#00D4FF]/10 space-y-2">
+          <p className="text-[10px] text-[#6B7799]">
+            Paste <b>2-8 interview questions</b> on the same topic (one per line, or
+            numbered). The lesson becomes an <b>interview-style Q&amp;A</b> — each
+            question gets its own section, plus a closing summary. Format is forced
+            to <code className="text-[#00D4FF]">interview</code> so the script agent
+            writes a Q&amp;A flow. Stale assets get wiped for re-generation.
+          </p>
+          <textarea
+            value={ivQuestions}
+            onChange={(e) => setIvQuestions(e.target.value)}
+            placeholder={`1. What is RAG and why is it used?\n2. What problem does RAG solve in LLM systems?\n3. What are embeddings in RAG pipelines?\n4. How does retrieval differ from fine-tuning?\n5. What's a common production gotcha with RAG?`}
+            rows={7}
+            className="w-full bg-[#0F1330] border border-white/10 rounded-lg px-3 py-2 text-[12px] text-white outline-none focus:border-[#00D4FF]/40 resize-y font-mono"
+          />
+          <p className="text-[10px] text-[#4A5470]">
+            Tip: numbered prefixes (1. / 1) / 1-) are stripped automatically.
+            Estimated lesson length: ~{Math.min(
+              14,
+              Math.max(
+                4,
+                ivQuestions
+                  .split(/\r?\n+/)
+                  .map((l) => l.replace(/^\s*\d+[.)\]:\-]\s*/, "").trim())
+                  .filter((l) => l.length >= 8).length * 2 + 2,
+              ),
+            )} min.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Btn label="Cancel" onClick={() => { setIvOpen(false); setIvQuestions(""); }} />
+            <PrimaryBtn label="🎤 Seed interview lesson" busy={ivBusy} onClick={seedInterviewLesson} />
           </div>
         </div>
       )}
