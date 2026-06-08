@@ -164,26 +164,39 @@ export class QuizService {
     return cleaned.startsWith('@') ? cleaned : `@${cleaned}`;
   }
 
-  // ── Public: Leaderboard (closed weeks only) ──────────────────────────
+  // ── Public: Leaderboard (24h post-close window, closed weeks only) ───
 
   /**
-   * List quiz weeks that are SAFE to show publicly — i.e. their config's
-   * endsAt is in the past. Live + upcoming weeks are deliberately
-   * omitted so the leaderboard can't leak score signal while a quiz
-   * is still open (which would defeat the score-hiding fix from
-   * commit 3e1f81a).
-   *
-   * Falls back to "weeks with at least one submission whose
-   * submittedAt < NOW() - 1 day" when no config row exists, so legacy
-   * weeks without a config are still surfaceable.
+   * Public visibility window for a closed week's leaderboard, in
+   * hours after config.endsAt. Override via env QUIZ_LEADERBOARD_WINDOW_HOURS
+   * (e.g. set to 168 for a week-long window, or 0 to disable
+   * windowing entirely and keep all closed weeks visible forever).
+   * Default 24 — winners shown for one day post-close, then the
+   * page is empty until the next quiz closes.
+   */
+  private leaderboardWindowMs(): number {
+    const hours = Number(this.config.get<string>('QUIZ_LEADERBOARD_WINDOW_HOURS') ?? 24);
+    if (!Number.isFinite(hours) || hours < 0) return 24 * 3600 * 1000;
+    return Math.floor(hours * 3600 * 1000);
+  }
+
+  /**
+   * List quiz weeks that are SAFE to show publicly RIGHT NOW — i.e.
+   * config.endsAt is in the past AND we're still inside the 24-hour
+   * visibility window. Outside that window the week falls off the
+   * public dashboard (live weeks stay private to defeat real-time
+   * collusion; old weeks fall off so the page doesn't accumulate
+   * a permanent history that's easy to scrape).
    */
   async getPublicClosedWeeks(): Promise<Array<{
     quizWeek: number;
     title: string | null;
     endsAt: Date | null;
     totalEntries: number;
+    visibleUntil: Date;
   }>> {
     const now = new Date();
+    const windowMs = this.leaderboardWindowMs();
 
     const closedConfigs = await this.configs
       .createQueryBuilder('c')
@@ -192,8 +205,16 @@ export class QuizService {
       .orderBy('c.quizWeek', 'DESC')
       .getMany();
 
-    const rows: Array<{ quizWeek: number; title: string | null; endsAt: Date | null; totalEntries: number }> = [];
+    const rows: Array<{
+      quizWeek: number; title: string | null; endsAt: Date | null;
+      totalEntries: number; visibleUntil: Date;
+    }> = [];
     for (const c of closedConfigs) {
+      const visibleUntil = new Date(c.endsAt.getTime() + windowMs);
+      // Drop weeks whose window already lapsed (unless windowing is
+      // disabled via windowMs === 0, in which case visibleUntil === endsAt
+      // and we'd skip everything — special-case "0 means forever").
+      if (windowMs > 0 && now > visibleUntil) continue;
       const totalEntries = await this.submissions.count({ where: { quizWeek: c.quizWeek } });
       if (totalEntries > 0) {
         rows.push({
@@ -201,6 +222,7 @@ export class QuizService {
           title: c.title ?? null,
           endsAt: c.endsAt,
           totalEntries,
+          visibleUntil: windowMs > 0 ? visibleUntil : new Date(8640000000000000),
         });
       }
     }
@@ -210,13 +232,14 @@ export class QuizService {
   /**
    * Public leaderboard for ONE closed week. Returns ONLY name + score +
    * time + rank. No email / UPI / IP / user agent / fingerprint —
-   * those stay admin-side. Throws 400 if the week is still live or
-   * upcoming (anti-collusion guard).
+   * those stay admin-side. Throws 400 if the week is still live, OR
+   * has already fallen outside the 24h visibility window.
    */
   async getPublicLeaderboard(quizWeek: number, limit = 50): Promise<{
     quizWeek: number;
     title: string | null;
     endsAt: Date | null;
+    visibleUntil: Date | null;
     totalEntries: number;
     entries: Array<{
       rank: number;
@@ -229,6 +252,7 @@ export class QuizService {
       throw new BadRequestException('quizWeek must be a positive integer');
     }
     const now = new Date();
+    const windowMs = this.leaderboardWindowMs();
     const config = await this.configs.findOne({
       where: { quizWeek, isActive: true },
     });
@@ -237,6 +261,14 @@ export class QuizService {
       throw new BadRequestException(
         'Leaderboard for this week is published after submissions close',
       );
+    }
+    if (config && windowMs > 0) {
+      const visibleUntil = new Date(config.endsAt.getTime() + windowMs);
+      if (now > visibleUntil) {
+        throw new BadRequestException(
+          'This week\'s leaderboard is no longer public — winners were displayed for 24 hours after close',
+        );
+      }
     }
 
     const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
@@ -249,10 +281,15 @@ export class QuizService {
       .getMany();
     const totalEntries = await this.submissions.count({ where: { quizWeek } });
 
+    const visibleUntil = config && windowMs > 0
+      ? new Date(config.endsAt.getTime() + windowMs)
+      : null;
+
     return {
       quizWeek,
       title: config?.title ?? null,
       endsAt: config?.endsAt ?? null,
+      visibleUntil,
       totalEntries,
       entries: rows.map((r, i) => ({
         rank: i + 1,

@@ -8,6 +8,7 @@ interface ClosedWeek {
   title: string | null;
   endsAt: string | null;
   totalEntries: number;
+  visibleUntil: string | null;
 }
 
 interface LeaderboardEntry {
@@ -21,8 +22,19 @@ interface Leaderboard {
   quizWeek: number;
   title: string | null;
   endsAt: string | null;
+  visibleUntil: string | null;
   totalEntries: number;
   entries: LeaderboardEntry[];
+}
+
+function timeUntil(iso: string | null): string | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return null;
+  const h = Math.floor(ms / (3600 * 1000));
+  const m = Math.floor((ms % (3600 * 1000)) / (60 * 1000));
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 function formatTime(totalSeconds: number): string {
@@ -52,6 +64,13 @@ export default function QuizLeaderboardPage() {
   const [board, setBoard] = useState<Leaderboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingBoard, setLoadingBoard] = useState(false);
+  // Re-render every minute so the "Visible for Xh Ym" countdown ticks
+  // even when the user leaves the page sitting open.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   // Load the list of closed weeks; default the picker to the most recent.
   useEffect(() => {
@@ -103,10 +122,10 @@ export default function QuizLeaderboardPage() {
       <div className="text-center mb-10">
         <div className="text-5xl mb-3">🏆</div>
         <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-          Past Quiz Winners
+          Latest Quiz Winners
         </h1>
         <p className="text-[#B8C5E0]">
-          Leaderboards go public after submissions close each Saturday.
+          Each week&apos;s leaderboard is public for <span className="text-[#FFD700] font-semibold">24 hours</span> after submissions close, then it goes private.
         </p>
       </div>
 
@@ -120,9 +139,10 @@ export default function QuizLeaderboardPage() {
       {weeks && weeks.length === 0 && (
         <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-8 text-center">
           <div className="text-3xl mb-3">⏳</div>
-          <p className="text-white font-semibold mb-1">No closed weeks yet</p>
+          <p className="text-white font-semibold mb-1">No leaderboard right now</p>
           <p className="text-[#B8C5E0] text-sm">
-            The first leaderboard goes public once the current quiz ends.
+            Winners appear here within 24 hours of a quiz closing.
+            Check back after the next Saturday close.
           </p>
         </div>
       )}
@@ -151,15 +171,25 @@ export default function QuizLeaderboardPage() {
 
           {/* Leaderboard table */}
           <div className="bg-[#151B3D] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-              <div>
-                <div className="text-white font-bold">
+            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-white font-bold truncate">
                   {board?.title ?? `Week ${selectedWeek}`}
                 </div>
                 <div className="text-[10px] text-[#6B7799] uppercase tracking-wide">
                   {board ? `${board.totalEntries} ${board.totalEntries === 1 ? "entry" : "entries"} · showing top ${board.entries.length}` : "Loading…"}
                 </div>
               </div>
+              {board && timeUntil(board.visibleUntil) && (
+                <div className="shrink-0 text-right">
+                  <div className="text-[10px] text-[#FFD700] font-semibold uppercase tracking-wide">
+                    Public for
+                  </div>
+                  <div className="text-[11px] text-white font-mono">
+                    {timeUntil(board.visibleUntil)}
+                  </div>
+                </div>
+              )}
             </div>
 
             {loadingBoard && (
