@@ -6,12 +6,9 @@ import Link from "next/link";
 
 interface QuizResult {
   submissionId: string;
-  totalScore: number;
-  maxScore: number;
-  correctCount: number;
+  quizWeek: number;
   totalQuestions: number;
   totalTimeSeconds: number;
-  rank: number;
   totalSubmissions: number;
 }
 
@@ -40,66 +37,72 @@ export default function QuizResultsPage() {
     );
   }
 
-  const percentage = result.maxScore > 0 ? Math.round((result.totalScore / result.maxScore) * 100) : 0;
-  const isPerfect = result.totalScore === result.maxScore && result.maxScore > 0;
-  const isGood = percentage >= 70;
   const minutes = Math.floor(result.totalTimeSeconds / 60);
   const seconds = result.totalTimeSeconds % 60;
 
   return (
     <div className="max-w-2xl mx-auto px-5 py-12 sm:py-16">
-      {/* Score display */}
+      {/* Confirmation header — no score reveal. */}
       <div className="text-center mb-10">
-        <div className="text-6xl mb-4">
-          {isPerfect ? "🎉" : isGood ? "🎯" : "👍"}
-        </div>
+        <div className="text-6xl mb-4">✅</div>
         <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-          {isPerfect ? "Perfect Score!" : isGood ? "Great job!" : "Quiz Complete!"}
+          Submission Recorded
         </h1>
-        <p className="text-[#B8C5E0]">Your submission has been recorded.</p>
+        <p className="text-[#B8C5E0]">
+          Thanks for playing — your answers are locked in.
+        </p>
       </div>
 
-      {/* Big score card */}
+      {/* Big confirmation card */}
       <div className="bg-gradient-to-br from-[#151B3D] to-[#0F1438] border border-[#00D4FF]/20 rounded-3xl p-8 mb-6 text-center">
         <div className="text-[12px] font-bold tracking-widest text-[#00D4FF] uppercase mb-3">
-          Your Score
+          Week {result.quizWeek}
         </div>
-        <div className="text-6xl sm:text-7xl font-bold mb-2">
-          <span className={isPerfect ? "text-[#FFD700]" : "text-white"}>{result.totalScore}</span>
-          <span className="text-[#4A5470]">/{result.maxScore}</span>
+        <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
+          {result.totalQuestions} {result.totalQuestions === 1 ? "question" : "questions"} answered
         </div>
-        <div className={`text-2xl font-bold ${isPerfect ? "text-[#FFD700]" : isGood ? "text-[#00F5A0]" : "text-[#00D4FF]"}`}>
-          {percentage}%
-        </div>
-      </div>
-
-      {/* Stats grid */}
-      <div className="grid grid-cols-3 gap-3 mb-8">
-        <div className="bg-[#151B3D] border border-white/5 rounded-2xl p-4 text-center">
-          <div className="text-2xl font-bold text-white">{result.correctCount}/{result.totalQuestions}</div>
-          <div className="text-[10px] text-[#B8C5E0] mt-1 uppercase tracking-wide">Correct</div>
-        </div>
-        <div className="bg-[#151B3D] border border-white/5 rounded-2xl p-4 text-center">
-          <div className="text-2xl font-bold text-white">{minutes}:{String(seconds).padStart(2, "0")}</div>
-          <div className="text-[10px] text-[#B8C5E0] mt-1 uppercase tracking-wide">Total Time</div>
-        </div>
-        <div className="bg-[#151B3D] border border-white/5 rounded-2xl p-4 text-center">
-          <div className="text-2xl font-bold text-[#FFD700]">#{result.rank}</div>
-          <div className="text-[10px] text-[#B8C5E0] mt-1 uppercase tracking-wide">of {result.totalSubmissions}</div>
+        <div className="text-[#B8C5E0] text-sm">
+          You finished in {minutes}:{String(seconds).padStart(2, "0")}
         </div>
       </div>
 
-      {/* Note */}
-      <p className="text-[#B8C5E0] text-center text-sm mb-8">
-        🏆 Winners announced every Saturday. Correct answers will be revealed once submissions close.
-      </p>
+      {/* Stats — non-revealing only */}
+      <div className="grid grid-cols-2 gap-3 mb-8">
+        <div className="bg-[#151B3D] border border-white/5 rounded-2xl p-4 text-center">
+          <div className="text-2xl font-bold text-white">
+            {minutes}:{String(seconds).padStart(2, "0")}
+          </div>
+          <div className="text-[10px] text-[#B8C5E0] mt-1 uppercase tracking-wide">Your time</div>
+        </div>
+        <div className="bg-[#151B3D] border border-white/5 rounded-2xl p-4 text-center">
+          <div className="text-2xl font-bold text-white">{result.totalSubmissions}</div>
+          <div className="text-[10px] text-[#B8C5E0] mt-1 uppercase tracking-wide">
+            Entries this week
+          </div>
+        </div>
+      </div>
 
-      {/* Share */}
+      {/* Why no score? */}
+      <div className="bg-[#FFD700]/5 border border-[#FFD700]/20 rounded-2xl p-5 mb-6 text-center">
+        <div className="text-[#FFD700] font-bold text-sm mb-2">
+          🔒 Scores stay private until Saturday
+        </div>
+        <p className="text-[#B8C5E0] text-sm leading-relaxed">
+          Keeps the playing field fair while submissions are still open.
+          Winners + the answer key are revealed Saturday at the announcement.
+        </p>
+      </div>
+
+      {/* Share — no score in the text */}
       <div className="bg-[#151B3D] border border-white/5 rounded-2xl p-5 mb-6">
-        <h3 className="text-white font-bold mb-3 text-center">Share your score</h3>
+        <h3 className="text-white font-bold mb-3 text-center">Tell a friend</h3>
         <div className="flex gap-2 justify-center flex-wrap">
           <a
-            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`I scored ${result.totalScore}/${result.maxScore} (rank #${result.rank}) on the Rehearse Weekly AI Quiz! 🎯 Try it: `)}&url=${encodeURIComponent(typeof window !== "undefined" ? `${window.location.origin}/quiz` : "")}`}
+            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
+              `Just submitted the Rehearse Weekly AI Quiz 🎯 Winners announced Saturday. Take it:`,
+            )}&url=${encodeURIComponent(
+              typeof window !== "undefined" ? `${window.location.origin}/quiz` : "",
+            )}`}
             target="_blank"
             rel="noopener"
             className="px-5 py-2 bg-black text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition"
@@ -107,7 +110,11 @@ export default function QuizResultsPage() {
             Share on X
           </a>
           <a
-            href={`https://wa.me/?text=${encodeURIComponent(`I scored ${result.totalScore}/${result.maxScore} on the Rehearse Weekly AI Quiz! Try it: ${typeof window !== "undefined" ? `${window.location.origin}/quiz` : ""}`)}`}
+            href={`https://wa.me/?text=${encodeURIComponent(
+              `Just submitted the Rehearse Weekly AI Quiz 🎯 Try it: ${
+                typeof window !== "undefined" ? `${window.location.origin}/quiz` : ""
+              }`,
+            )}`}
             target="_blank"
             rel="noopener"
             className="px-5 py-2 bg-[#25D366] text-white text-sm font-medium rounded-xl hover:bg-[#1FB855] transition"

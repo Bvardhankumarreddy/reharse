@@ -531,13 +531,16 @@ export class QuizService {
     copyPasteDetected?: boolean;
   }): Promise<{
     submissionId: string;
-    totalScore: number;
-    maxScore: number;
-    correctCount: number;
+    quizWeek: number;
     totalQuestions: number;
     totalTimeSeconds: number;
-    rank: number;
     totalSubmissions: number;
+    // Score / rank / correctCount intentionally OMITTED.
+    // The entrant should NOT know their score before the answers go
+    // public on Saturday — otherwise cheating rings can compare
+    // results in real time and reverse-engineer the answer key
+    // ("Dad got 9/9 with these answers — let's all submit the same").
+    // Admins can see scores via the leaderboard API + CSV export.
   }> {
     const { sessionId, tiebreakerAnswer, userAgent } = opts;
 
@@ -742,51 +745,28 @@ export class QuizService {
     }
   }
 
+  /**
+   * Blind submission confirmation — returned to the entrant after
+   * completeQuiz. Deliberately does NOT include score / correctCount /
+   * maxScore / rank: those would let coordinated cheating rings
+   * reverse-engineer the answer key in real time (one entrant submits,
+   * shares "9/9", group learns which answer set worked). Admin-side
+   * scoring + leaderboard live behind AdminGuard endpoints.
+   */
   private async getSubmissionStats(submissionId: string) {
     const submission = await this.submissions.findOne({ where: { id: submissionId } });
     if (!submission) throw new NotFoundException('Submission not found');
 
-    const correctCount = await this.answers.count({
-      where: { submissionId, isCorrect: true },
-    });
     const totalQuestions = await this.answers.count({ where: { submissionId } });
-
-    // Compute rank for this submission within the same week
-    const better = await this.submissions
-      .createQueryBuilder('s')
-      .where('s.quizWeek = :week', { week: submission.quizWeek })
-      .andWhere(
-        '(s.totalScore > :score OR (s.totalScore = :score AND s.totalTimeSeconds < :time))',
-        { score: submission.totalScore, time: submission.totalTimeSeconds },
-      )
-      .getCount();
-
     const totalSubmissions = await this.submissions.count({
       where: { quizWeek: submission.quizWeek },
     });
 
-    // Max possible score for this submission's set
-    const questions = await this.questions.find({
-      where: { id: In(submission.id ? [] : []) }, // placeholder
-    });
-    void questions;
-    // Recalculate max score from the answer rows + 0 for incorrect
-    const maxScoreRaw = await this.answers
-      .createQueryBuilder('a')
-      .leftJoin('a.question', 'q')
-      .select('COALESCE(SUM(q.points), 0)', 'total')
-      .where('a.submissionId = :id', { id: submissionId })
-      .getRawOne<{ total: string }>();
-    const maxScore = parseInt(maxScoreRaw?.total ?? '0', 10);
-
     return {
       submissionId: submission.id,
-      totalScore: submission.totalScore,
-      maxScore,
-      correctCount,
+      quizWeek: submission.quizWeek,
       totalQuestions,
       totalTimeSeconds: submission.totalTimeSeconds,
-      rank: better + 1,
       totalSubmissions,
     };
   }
