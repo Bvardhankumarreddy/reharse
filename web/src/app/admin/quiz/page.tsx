@@ -2,6 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 
+interface SuspicionFlag {
+  code: string;
+  reason: string;
+  points: number;
+}
+
 interface Submission {
   id: string;
   fullName: string;
@@ -14,6 +20,10 @@ interface Submission {
   tiebreakerAnswer: number | null;
   winnerRank: number | null;
   submittedAt: string;
+  disqualified?: boolean;
+  disqualifiedReason?: string | null;
+  suspicionScore?: number;
+  suspicionFlags?: SuspicionFlag[];
 }
 
 export default function AdminQuizSubmissionsPage() {
@@ -60,6 +70,49 @@ export default function AdminQuizSubmissionsPage() {
       body: JSON.stringify({ rank }),
     });
     void load();
+  }
+
+  async function disqualify(id: string, currentName: string) {
+    if (!token) return;
+    const reason = prompt(
+      `Disqualify ${currentName}? Reason (optional, shown in CSV audit):`,
+      "",
+    );
+    if (reason === null) return;   // user cancelled
+    await fetch(`/api/v1/admin/quiz/submissions/${id}/disqualify`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: reason.trim() || undefined }),
+    });
+    void load();
+  }
+
+  async function reinstate(id: string) {
+    if (!token) return;
+    if (!confirm("Reinstate this submission? They'll reappear on the public leaderboard.")) return;
+    await fetch(`/api/v1/admin/quiz/submissions/${id}/reinstate`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    void load();
+  }
+
+  function suspicionPill(s: Submission) {
+    const score = s.suspicionScore ?? 0;
+    if (score === 0) return null;
+    const tier =
+      score >= 50 ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
+      : score >= 25 ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+      : "bg-slate-500/10 text-slate-400 border-slate-500/20";
+    const codes = (s.suspicionFlags ?? []).map((f) => f.code).join(", ");
+    return (
+      <span
+        title={(s.suspicionFlags ?? []).map((f) => f.reason).join("\n") || codes}
+        className={`text-[10px] font-bold px-2 py-0.5 rounded border whitespace-nowrap ${tier}`}
+      >
+        🚩 {score}
+      </span>
+    );
   }
 
   async function exportCSV() {
@@ -158,12 +211,29 @@ export default function AdminQuizSubmissionsPage() {
                   </tr>
                 ))
               : data.map((s, i) => (
-                  <tr key={s.id} className="border-b border-white/5 last:border-0 hover:bg-white/3">
+                  <tr
+                    key={s.id}
+                    className={
+                      "border-b border-white/5 last:border-0 hover:bg-white/3 " +
+                      (s.disqualified ? "opacity-40 line-through" : "")
+                    }
+                  >
                     <td className="px-5 py-3">
                       {s.winnerRank ? rankBadge(s.winnerRank) : <span className="text-slate-500 text-xs">#{i + 1}</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-white text-sm">{s.fullName}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-white text-sm">{s.fullName}</span>
+                        {suspicionPill(s)}
+                        {s.disqualified && (
+                          <span
+                            title={s.disqualifiedReason ?? "Disqualified"}
+                            className="text-[10px] font-bold px-2 py-0.5 rounded border bg-red-500/15 text-red-300 border-red-500/40 whitespace-nowrap"
+                          >
+                            ✕ DQ
+                          </span>
+                        )}
+                      </div>
                       <div className="text-slate-500 text-xs">{s.email}</div>
                       {s.youtubeHandle && (
                         <div className="text-rose-400 text-[10px]">{s.youtubeHandle}</div>
@@ -178,12 +248,13 @@ export default function AdminQuizSubmissionsPage() {
                     <td className="px-4 py-3 text-slate-400 text-xs">{s.tiebreakerAnswer ?? "—"}</td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{new Date(s.submittedAt).toLocaleDateString()}</td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 items-center">
                         {[1, 2, 3].map((r) => (
                           <button
                             key={r}
                             onClick={() => markWinner(s.id, s.winnerRank === r ? null : r)}
-                            className={`w-6 h-6 text-[10px] font-bold rounded transition ${
+                            disabled={s.disqualified}
+                            className={`w-6 h-6 text-[10px] font-bold rounded transition disabled:opacity-30 disabled:cursor-not-allowed ${
                               s.winnerRank === r
                                 ? "bg-amber-500 text-white"
                                 : "bg-white/5 text-slate-400 hover:bg-amber-500/30 hover:text-amber-300"
@@ -193,6 +264,24 @@ export default function AdminQuizSubmissionsPage() {
                             {r}
                           </button>
                         ))}
+                        {!s.disqualified && (
+                          <button
+                            onClick={() => disqualify(s.id, s.fullName)}
+                            className="ml-1 px-1.5 h-6 text-[10px] font-bold rounded bg-red-500/10 text-red-300 hover:bg-red-500/30 transition"
+                            title="Disqualify this entry — hides from public leaderboard"
+                          >
+                            DQ
+                          </button>
+                        )}
+                        {s.disqualified && (
+                          <button
+                            onClick={() => reinstate(s.id)}
+                            className="ml-1 px-1.5 h-6 text-[10px] font-bold rounded bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/30 transition"
+                            title="Reinstate — re-show on public leaderboard"
+                          >
+                            ↩
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

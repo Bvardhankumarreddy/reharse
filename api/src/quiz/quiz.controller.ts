@@ -158,6 +158,28 @@ export class QuizAdminController {
     return this.quizService.adminMarkWinner(id, body.rank);
   }
 
+  /** Flag a submission as disqualified — hides from public leaderboard + clears winner badge. */
+  @Patch('submissions/:id/disqualify')
+  disqualifySubmission(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+    @Req() req: Request,
+  ) {
+    // Admin identity lives in the AdminGuard's attached request property;
+    // fall back to "admin" if the guard didn't attach one (e.g. local dev).
+    const actor = (req as Request & { admin?: { email?: string } }).admin?.email ?? 'admin';
+    return this.quizService.adminDisqualifySubmission(id, {
+      reason: body.reason,
+      actor,
+    });
+  }
+
+  /** Undo a disqualification — entrant reappears on the public leaderboard. */
+  @Patch('submissions/:id/reinstate')
+  reinstateSubmission(@Param('id') id: string) {
+    return this.quizService.adminReinstateSubmission(id);
+  }
+
   @Get('submissions/export')
   async exportSubmissions(
     @Query('quizWeek') quizWeek: string | undefined,

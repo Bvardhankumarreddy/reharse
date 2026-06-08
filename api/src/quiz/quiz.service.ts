@@ -38,6 +38,76 @@ export interface PublicQuestion {
   // correctAnswer/correctNumber NEVER included
 }
 
+/**
+ * Return the /24 network prefix of an IPv4 address ("152.59.161.78" →
+ * "152.59.161") for cluster detection. IPv6 / malformed strings return
+ * null and the caller skips the subnet signal.
+ */
+function ipv4Subnet24(ip: string | null): string | null {
+  if (!ip) return null;
+  const parts = ip.trim().split('.');
+  if (parts.length !== 4) return null;
+  if (parts.some((p) => !/^\d{1,3}$/.test(p) || Number(p) > 255)) return null;
+  return parts.slice(0, 3).join('.');
+}
+
+/**
+ * Build the visible→source option order for one question. Returns
+ * undefined for numeric (no options to shuffle). True/false produces
+ * a 2-element-effective shuffle padded to 4 (C and D positions hold
+ * source letters that map to empty visible cells; they're never
+ * picked because the public payload only renders A/B).
+ */
+function buildOptionShuffle(
+  q: QuizQuestion,
+): Array<'A' | 'B' | 'C' | 'D'> | undefined {
+  if (q.questionType === 'numeric') return undefined;
+  const isTF = q.questionType === 'true_false';
+  // For true_false we shuffle just A,B (one of 2 perms). For mcq /
+  // multi_select we shuffle all 4 (one of 24 perms).
+  const live: Array<'A' | 'B' | 'C' | 'D'> = isTF ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+  // Fisher-Yates in place.
+  for (let i = live.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [live[i], live[j]] = [live[j], live[i]];
+  }
+  // Pad to 4 so the array is uniform; the unused slots map to empty
+  // visible cells, never selectable.
+  const dead: Array<'A' | 'B' | 'C' | 'D'> = ['A', 'B', 'C', 'D']
+    .filter((x) => !live.includes(x as 'A' | 'B' | 'C' | 'D')) as Array<'A' | 'B' | 'C' | 'D'>;
+  return [...live, ...dead];
+}
+
+/**
+ * Translate VISIBLE letter(s) the entrant clicked back to the SOURCE
+ * letter(s) the grader expects, using this session's shuffle for that
+ * question. shuffle[i] is the SOURCE letter shown at VISIBLE position
+ * i (0=A, 1=B, 2=C, 3=D). Numeric passes through unchanged.
+ */
+function translateAnswerOpts(
+  opts: {
+    selectedAnswer?: string;
+    selectedAnswers?: string[];
+    selectedNumber?: number;
+  },
+  shuffle: Array<'A' | 'B' | 'C' | 'D'>,
+): { selectedAnswer?: string; selectedAnswers?: string[]; selectedNumber?: number } {
+  const visIdx: Record<string, number> = { A: 0, B: 1, C: 2, D: 3 };
+  const translate = (visible: string): string => {
+    const upper = visible.toUpperCase().trim();
+    if (!(upper in visIdx)) return visible;
+    return shuffle[visIdx[upper]];
+  };
+  return {
+    ...opts,
+    selectedAnswer:
+      opts.selectedAnswer != null ? translate(opts.selectedAnswer) : undefined,
+    selectedAnswers: Array.isArray(opts.selectedAnswers)
+      ? opts.selectedAnswers.map(translate)
+      : undefined,
+  };
+}
+
 @Injectable()
 export class QuizService {
   private redis: Redis | null = null;
@@ -272,14 +342,22 @@ export class QuizService {
     }
 
     const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+    // Public leaderboard ONLY shows valid entries — disqualified
+    // (e.g. cheating ring) submissions are hidden from the public
+    // surface but kept in the DB for audit.
     const rows = await this.submissions
       .createQueryBuilder('s')
       .where('s.quizWeek = :week', { week: quizWeek })
+      .andWhere('s.disqualified = false')
       .orderBy('s.totalScore', 'DESC')
       .addOrderBy('s.totalTimeSeconds', 'ASC')
       .limit(safeLimit)
       .getMany();
-    const totalEntries = await this.submissions.count({ where: { quizWeek } });
+    // totalEntries excludes disqualified too, so the "X entries" header
+    // reflects what's actually shown rather than a misleading higher count.
+    const totalEntries = await this.submissions.count({
+      where: { quizWeek, disqualified: false },
+    });
 
     const visibleUntil = config && windowMs > 0
       ? new Date(config.endsAt.getTime() + windowMs)
@@ -417,6 +495,17 @@ export class QuizService {
     const startedAt = new Date();
     const expiresAt = new Date(startedAt.getTime() + info.durationMinutes * 60 * 1000);
 
+    // Build a per-question option shuffle for THIS entrant. Same
+    // question shown to two people gets different visible A/B/C/D
+    // orderings, so "the answer is C" leaked in a WhatsApp group
+    // doesn't transfer — each entrant's "C" maps to a different
+    // source option.
+    const optionShuffles: Record<string, Array<'A' | 'B' | 'C' | 'D'>> = {};
+    for (const q of picked) {
+      const map = buildOptionShuffle(q);
+      if (map) optionShuffles[q.id] = map;
+    }
+
     const session = this.sessions.create({
       fullName: fullName.trim(),
       email: normalizedEmail,
@@ -424,6 +513,7 @@ export class QuizService {
       youtubeHandle,
       quizWeek,
       questionIds: picked.map((q) => q.id),
+      optionShuffles,
       currentIndex: 0,
       answers: [],
       startedAt,
@@ -464,7 +554,7 @@ export class QuizService {
       quizWeek,
       questionNumber: 1,
       totalQuestions: picked.length,
-      question: this.toPublicQuestion(picked[0]),
+      question: this.toPublicQuestion(picked[0], optionShuffles[picked[0].id]),
       expiresAt: expiresAt.toISOString(),
       durationMinutes: info.durationMinutes,
       tiebreakerQuestion: info.tiebreakerQuestion ?? '',
@@ -551,8 +641,14 @@ export class QuizService {
     const question = await this.questions.findOne({ where: { id: currentQuestionId } });
     if (!question) throw new NotFoundException('Question not found');
 
+    // Translate the entrant's VISIBLE answer back to the SOURCE letter
+    // using this session's per-question shuffle. Numeric and unset
+    // shuffles pass through unchanged.
+    const shuffle = session.optionShuffles?.[currentQuestionId];
+    const translatedOpts = shuffle ? translateAnswerOpts(opts, shuffle) : opts;
+
     // Score based on question type
-    const { isCorrect, recordedAnswer, recordedNumber } = this.gradeAnswer(question, opts);
+    const { isCorrect, recordedAnswer, recordedNumber } = this.gradeAnswer(question, translatedOpts);
     const pointsEarned = isCorrect ? question.points : 0;
 
     const now = new Date();
@@ -592,7 +688,10 @@ export class QuizService {
       done: false,
       questionNumber: session.currentIndex + 1,
       totalQuestions: session.questionIds.length,
-      question: this.toPublicQuestion(nextQuestion),
+      question: this.toPublicQuestion(
+        nextQuestion,
+        session.optionShuffles?.[nextQuestion.id],
+      ),
       expiresAt: session.expiresAt ? new Date(session.expiresAt).toISOString() : undefined,
     };
   }
@@ -698,6 +797,18 @@ export class QuizService {
     const totalScore = session.answers.reduce((sum, a) => sum + a.pointsEarned, 0);
     const totalTimeSeconds = session.answers.reduce((sum, a) => sum + a.timeTakenSeconds, 0);
 
+    // Compute suspicion BEFORE saving so the score lands on the new row.
+    const { score: suspicionScore, flags: suspicionFlags } =
+      await this.computeSuspicion({
+        quizWeek: session.quizWeek,
+        ipAddress: session.ipAddress,
+        userAgent: userAgent ?? null,
+        questionsAnswered: session.answers.length,
+        totalTimeSeconds,
+        copyPasteDetected: !!opts.copyPasteDetected,
+        tabSwitchCount: opts.tabSwitchCount ?? 0,
+      });
+
     // Create the submission
     const submission = this.submissions.create({
       fullName: session.fullName,
@@ -710,6 +821,8 @@ export class QuizService {
       tiebreakerAnswer: tiebreakerAnswer ?? null,
       ipAddress: session.ipAddress,
       userAgent: userAgent ?? null,
+      suspicionScore,
+      suspicionFlags,
     });
     const saved = await this.submissions.save(submission);
 
@@ -770,17 +883,35 @@ export class QuizService {
 
   // ── Helpers ───────────────────────────────────────────────────────────
 
-  private toPublicQuestion(q: QuizQuestion): PublicQuestion {
-    // For true_false: coerce options to "True"/"False" so admins don't need to set them
+  /**
+   * Serialize a question for the entrant. When `shuffle` is provided
+   * (mcq / multi_select / true_false), reorders the visible option
+   * letters so the same source question shows differently per entrant.
+   * Numeric questions ignore the shuffle.
+   */
+  private toPublicQuestion(
+    q: QuizQuestion,
+    shuffle?: Array<'A' | 'B' | 'C' | 'D'>,
+  ): PublicQuestion {
     const isTF = q.questionType === 'true_false';
+    // Source slots — empty strings for unused option positions.
+    const source: Record<'A' | 'B' | 'C' | 'D', string> = {
+      A: isTF ? (q.optionA || 'True')  : (q.optionA ?? ''),
+      B: isTF ? (q.optionB || 'False') : (q.optionB ?? ''),
+      C: isTF ? ''                     : (q.optionC ?? ''),
+      D: isTF ? ''                     : (q.optionD ?? ''),
+    };
+    // Without a shuffle (legacy sessions / numeric / no shuffle stored),
+    // serve in source order — preserves the pre-stricter behaviour.
+    const order = shuffle ?? (['A', 'B', 'C', 'D'] as const);
     return {
       id: q.id,
       questionType: q.questionType ?? 'mcq',
       questionText: q.questionText,
-      optionA: isTF ? (q.optionA || 'True') : q.optionA,
-      optionB: isTF ? (q.optionB || 'False') : q.optionB,
-      optionC: isTF ? '' : q.optionC,
-      optionD: isTF ? '' : q.optionD,
+      optionA: source[order[0]],
+      optionB: source[order[1]],
+      optionC: source[order[2]],
+      optionD: source[order[3]],
       numericUnit: q.numericUnit ?? null,
     };
   }
@@ -905,6 +1036,134 @@ export class QuizService {
       totalTimeSeconds: submission.totalTimeSeconds,
       totalSubmissions,
     };
+  }
+
+  // ── Suspicion scoring (auto-computed at submit) ──────────────────────
+
+  /**
+   * Score a submission's "looks-fraudy-ness" 0..100 based on
+   * behavioural + network signals. The thresholds are deliberately
+   * conservative: a single signal alone is "yellow flag" territory,
+   * two compounding signals push past the ≥50 "red flag" cutoff that
+   * the admin queue highlights.
+   *
+   * Anyone with score ≥ 50 should be eyeballed before the prize
+   * goes out; disqualification stays MANUAL — this just sorts the
+   * haystack.
+   */
+  private async computeSuspicion(input: {
+    quizWeek: number;
+    ipAddress: string | null;
+    userAgent: string | null;
+    questionsAnswered: number;
+    totalTimeSeconds: number;
+    copyPasteDetected: boolean;
+    tabSwitchCount: number;
+  }): Promise<{ score: number; flags: Array<{ code: string; reason: string; points: number }> }> {
+    const flags: Array<{ code: string; reason: string; points: number }> = [];
+    let score = 0;
+    const push = (code: string, reason: string, points: number) => {
+      flags.push({ code, reason, points });
+      score += points;
+    };
+
+    // 1. Fast-completion floor — 60s on >=5 Qs is humanly possible
+    //    only with foreknowledge of the answers.
+    if (input.questionsAnswered >= 5 && input.totalTimeSeconds < 60 && input.totalTimeSeconds > 0) {
+      push(
+        'fast_completion',
+        `Completed ${input.questionsAnswered} questions in ${input.totalTimeSeconds}s ` +
+        `(~${(input.totalTimeSeconds / input.questionsAnswered).toFixed(1)}s/Q)`,
+        40,
+      );
+    }
+
+    // 2. /24 subnet cluster — count PRIOR submissions this week from
+    //    the same /24 network. 1+ other = +25 (covers the 2nd-from-IP
+    //    case onward, which is the family-on-WiFi pattern).
+    const subnet = ipv4Subnet24(input.ipAddress);
+    if (subnet) {
+      const others = await this.submissions
+        .createQueryBuilder('s')
+        .where('s.quizWeek = :week', { week: input.quizWeek })
+        .andWhere('s."ipAddress" LIKE :prefix', { prefix: subnet + '.%' })
+        .getCount();
+      if (others >= 1) {
+        push(
+          'subnet_cluster',
+          `${others + 1} entries from ${subnet}.0/24 this week`,
+          25,
+        );
+      }
+    }
+
+    // 3. User-agent exact-match — same browser+OS string showing up
+    //    multiple times in a week is a tell for "same phone hopping
+    //    accounts". 1+ other = +10.
+    if (input.userAgent) {
+      const others = await this.submissions
+        .createQueryBuilder('s')
+        .where('s.quizWeek = :week', { week: input.quizWeek })
+        .andWhere('s."userAgent" = :ua', { ua: input.userAgent })
+        .getCount();
+      if (others >= 1) {
+        push(
+          'ua_duplicate',
+          `${others + 1} entries with identical user-agent this week`,
+          10,
+        );
+      }
+    }
+
+    // 4. Copy/paste during quiz — strong "answers came from elsewhere" signal.
+    if (input.copyPasteDetected) {
+      push('copy_paste', 'Copy/paste detected during quiz', 10);
+    }
+
+    // 5. Excessive tab switching during a short quiz.
+    if (input.tabSwitchCount > 3) {
+      push(
+        'tab_switching',
+        `${input.tabSwitchCount} tab switches during quiz`,
+        5,
+      );
+    }
+
+    return { score: Math.min(100, score), flags };
+  }
+
+  // ── Admin: Disqualification ──────────────────────────────────────────
+
+  /**
+   * Mark a submission as disqualified. Stays in the DB (we never delete
+   * the audit trail); the public leaderboard + CSV "official only"
+   * filter respect this flag. Reversible via adminReinstateSubmission.
+   */
+  async adminDisqualifySubmission(
+    submissionId: string,
+    opts: { reason?: string; actor?: string },
+  ): Promise<QuizSubmission> {
+    const submission = await this.submissions.findOne({ where: { id: submissionId } });
+    if (!submission) throw new NotFoundException('Submission not found');
+    submission.disqualified = true;
+    submission.disqualifiedReason = (opts.reason ?? '').trim() || null;
+    submission.disqualifiedAt = new Date();
+    submission.disqualifiedBy = opts.actor ?? null;
+    // If the entrant was holding a winnerRank, clear it — leaderboard
+    // recomputes from scratch each request, but admin views key off
+    // winnerRank for "manually picked" badging.
+    submission.winnerRank = null;
+    return this.submissions.save(submission);
+  }
+
+  async adminReinstateSubmission(submissionId: string): Promise<QuizSubmission> {
+    const submission = await this.submissions.findOne({ where: { id: submissionId } });
+    if (!submission) throw new NotFoundException('Submission not found');
+    submission.disqualified = false;
+    submission.disqualifiedReason = null;
+    submission.disqualifiedAt = null;
+    submission.disqualifiedBy = null;
+    return this.submissions.save(submission);
   }
 
   // ── Admin: Quiz Config ────────────────────────────────────────────────
@@ -1074,7 +1333,9 @@ export class QuizService {
     const baseCols = [
       'rank', 'fullName', 'email', 'upiId', 'youtubeHandle', 'quizWeek',
       'totalScore', 'totalTimeSeconds', 'tiebreakerAnswer', 'winnerRank',
-      'submittedAt', 'answersSummary',
+      'submittedAt', 'disqualified', 'disqualifiedReason',
+      'suspicionScore', 'suspicionFlags',
+      'answersSummary',
     ];
     const header = [...baseCols, ...qCols].join(',') + '\n';
 
@@ -1132,6 +1393,10 @@ export class QuizService {
         );
       }
 
+      const flagsSummary = (s.suspicionFlags ?? [])
+        .map((f) => `${f.code}(+${f.points})`)
+        .join(';');
+
       return [
         escape(i + 1),
         escape(s.fullName),
@@ -1144,6 +1409,10 @@ export class QuizService {
         escape(s.tiebreakerAnswer ?? ''),
         escape(s.winnerRank ?? ''),
         escape(s.submittedAt.toISOString()),
+        escape(s.disqualified ? 'TRUE' : 'FALSE'),
+        escape(s.disqualifiedReason ?? ''),
+        escape(s.suspicionScore ?? 0),
+        escape(flagsSummary),
         escape(summary),
         ...perQ,
       ].join(',');

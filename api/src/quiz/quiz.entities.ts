@@ -180,6 +180,32 @@ export class QuizSubmission {
   @CreateDateColumn()
   submittedAt: Date;
 
+  // ── Disqualification (admin-driven) ─────────────────────────────────
+  @Column({ type: 'boolean', default: false })
+  disqualified: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  disqualifiedReason: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  disqualifiedAt: Date | null;
+
+  @Column({ type: 'text', nullable: true })
+  disqualifiedBy: string | null;
+
+  // ── Suspicion scoring (auto-computed at submit) ─────────────────────
+  /** 0-100; higher = more suspicious. ≥50 surfaces a red flag in admin. */
+  @Column({ type: 'int', default: 0 })
+  suspicionScore: number;
+
+  /** Per-flag breakdown — what triggered the score, so admins can audit. */
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  suspicionFlags: Array<{
+    code: string;        // 'fast_completion' | 'subnet_cluster' | 'ua_duplicate' | 'copy_paste' | 'tab_switching'
+    reason: string;      // Human-readable
+    points: number;      // Contribution to suspicionScore
+  }>;
+
   @OneToMany(() => QuizSubmissionAnswer, (a) => a.submission, { cascade: true })
   answers: QuizSubmissionAnswer[];
 }
@@ -250,6 +276,16 @@ export class QuizSession {
   /** Ordered list of question IDs chosen for this session */
   @Column({ type: 'jsonb' })
   questionIds: string[];
+
+  /**
+   * Per-entrant option order. One key per question (only for option-bearing
+   * types — mcq/multi_select/true_false). Value is the visible→source
+   * letter map: ['C','A','D','B'] means visible 'A' = source 'C'.
+   * Stops "tell everyone the answer is C" collusion — same question
+   * shows different letters per entrant.
+   */
+  @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
+  optionShuffles: Record<string, Array<'A' | 'B' | 'C' | 'D'>>;
 
   /** Index into questionIds — current question number (0-based) */
   @Column({ type: 'int', default: 0 })
