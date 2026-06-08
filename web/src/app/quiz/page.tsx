@@ -191,6 +191,14 @@ export default function QuizLandingPage() {
         </button>
       )}
 
+      {/* Past winners */}
+      <Link
+        href="/quiz/leaderboard"
+        className="mt-3 block w-full text-center bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold py-3 rounded-2xl transition"
+      >
+        🏆 Past quiz winners
+      </Link>
+
       {/* Promo: Rehearse */}
       <div className="mt-16 bg-gradient-to-br from-[#151B3D] to-[#0F1438] border border-[#00D4FF]/20 rounded-2xl p-6 sm:p-8 text-center">
         <span className="inline-block text-[10px] font-bold tracking-widest text-[#00D4FF] uppercase mb-2">

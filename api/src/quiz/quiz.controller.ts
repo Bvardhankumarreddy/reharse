@@ -21,6 +21,33 @@ export class QuizPublicController {
     return this.quizService.getCurrentQuizInfo();
   }
 
+  /**
+   * GET /api/v1/quiz/leaderboard/weeks — list quiz weeks whose entries
+   * are safe to show publicly (config.endsAt < now). Used to populate
+   * the week picker on the public leaderboard page. Live + upcoming
+   * weeks are intentionally omitted.
+   */
+  @Get('leaderboard/weeks')
+  publicLeaderboardWeeks() {
+    return this.quizService.getPublicClosedWeeks();
+  }
+
+  /**
+   * GET /api/v1/quiz/leaderboard/:week — public leaderboard for ONE
+   * closed quiz week. Returns ONLY name + score + time + rank. PII
+   * (email, UPI, IP, fingerprint) stays admin-side. Returns 400 if
+   * the requested week is still live or upcoming.
+   */
+  @Get('leaderboard/:week')
+  publicLeaderboard(
+    @Param('week', ParseIntPipe) week: number,
+    @Query('limit') limit?: string,
+  ) {
+    return this.quizService.getPublicLeaderboard(
+      week, Number(limit) || 50,
+    );
+  }
+
   /** POST /api/v1/quiz/start — begin a new quiz session */
   @Post('start')
   start(

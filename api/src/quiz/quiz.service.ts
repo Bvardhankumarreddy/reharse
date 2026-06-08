@@ -164,6 +164,105 @@ export class QuizService {
     return cleaned.startsWith('@') ? cleaned : `@${cleaned}`;
   }
 
+  // ── Public: Leaderboard (closed weeks only) ──────────────────────────
+
+  /**
+   * List quiz weeks that are SAFE to show publicly — i.e. their config's
+   * endsAt is in the past. Live + upcoming weeks are deliberately
+   * omitted so the leaderboard can't leak score signal while a quiz
+   * is still open (which would defeat the score-hiding fix from
+   * commit 3e1f81a).
+   *
+   * Falls back to "weeks with at least one submission whose
+   * submittedAt < NOW() - 1 day" when no config row exists, so legacy
+   * weeks without a config are still surfaceable.
+   */
+  async getPublicClosedWeeks(): Promise<Array<{
+    quizWeek: number;
+    title: string | null;
+    endsAt: Date | null;
+    totalEntries: number;
+  }>> {
+    const now = new Date();
+
+    const closedConfigs = await this.configs
+      .createQueryBuilder('c')
+      .where('c.isActive = true')
+      .andWhere('c.endsAt < :now', { now })
+      .orderBy('c.quizWeek', 'DESC')
+      .getMany();
+
+    const rows: Array<{ quizWeek: number; title: string | null; endsAt: Date | null; totalEntries: number }> = [];
+    for (const c of closedConfigs) {
+      const totalEntries = await this.submissions.count({ where: { quizWeek: c.quizWeek } });
+      if (totalEntries > 0) {
+        rows.push({
+          quizWeek: c.quizWeek,
+          title: c.title ?? null,
+          endsAt: c.endsAt,
+          totalEntries,
+        });
+      }
+    }
+    return rows;
+  }
+
+  /**
+   * Public leaderboard for ONE closed week. Returns ONLY name + score +
+   * time + rank. No email / UPI / IP / user agent / fingerprint —
+   * those stay admin-side. Throws 400 if the week is still live or
+   * upcoming (anti-collusion guard).
+   */
+  async getPublicLeaderboard(quizWeek: number, limit = 50): Promise<{
+    quizWeek: number;
+    title: string | null;
+    endsAt: Date | null;
+    totalEntries: number;
+    entries: Array<{
+      rank: number;
+      fullName: string;
+      totalScore: number;
+      totalTimeSeconds: number;
+    }>;
+  }> {
+    if (!Number.isInteger(quizWeek) || quizWeek < 1) {
+      throw new BadRequestException('quizWeek must be a positive integer');
+    }
+    const now = new Date();
+    const config = await this.configs.findOne({
+      where: { quizWeek, isActive: true },
+    });
+    if (config && config.endsAt > now) {
+      // Live or upcoming — keep the leaderboard private.
+      throw new BadRequestException(
+        'Leaderboard for this week is published after submissions close',
+      );
+    }
+
+    const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+    const rows = await this.submissions
+      .createQueryBuilder('s')
+      .where('s.quizWeek = :week', { week: quizWeek })
+      .orderBy('s.totalScore', 'DESC')
+      .addOrderBy('s.totalTimeSeconds', 'ASC')
+      .limit(safeLimit)
+      .getMany();
+    const totalEntries = await this.submissions.count({ where: { quizWeek } });
+
+    return {
+      quizWeek,
+      title: config?.title ?? null,
+      endsAt: config?.endsAt ?? null,
+      totalEntries,
+      entries: rows.map((r, i) => ({
+        rank: i + 1,
+        fullName: r.fullName,
+        totalScore: r.totalScore,
+        totalTimeSeconds: r.totalTimeSeconds,
+      })),
+    };
+  }
+
   // ── Public: Start Quiz ────────────────────────────────────────────────
 
   async startQuiz(opts: {
