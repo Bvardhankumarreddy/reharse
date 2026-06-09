@@ -22,17 +22,27 @@ LinkedIn and Instagram posts MUST each include AT LEAST 20 hashtags. NEVER
 return an empty or short hashtags array. Mix broad + niche + brand +
 topic-specific tags. If unsure, adapt from the lesson topic and brand name.
 
+HASHTAG CASING (non-negotiable):
+- EVERY hashtag is ALL LOWERCASE, every platform, every field.
+  ✅ "aishorts" "machinelearning" "techindia"
+  ❌ "AIShorts" "MachineLearning" "TechIndia"
+- Applies to the hashtags array AND any inline hashtags inside
+  linkedin body / instagram caption.
+- The post-pass will lowercase anything you miss, but emitting
+  lowercase up front saves output tokens.
+
 LINKEDIN (technical-pro audience):
 - hook: 1 line, ≤ 200 chars, concrete stakes.
 - body: 3–5 short paragraphs (~600–900 chars total).
 - cta: 1 line.
-- hashtags: REQUIRED, AT LEAST 20 (20–24), no spaces, no "#". Mix broad
-  (AI, ArtificialIntelligence, Innovation, TechIndia) + many topic-specific.
+- hashtags: REQUIRED, AT LEAST 20 (20–24), no spaces, no "#", ALL LOWERCASE.
+  Mix broad (ai, artificialintelligence, innovation, techindia) + many
+  topic-specific.
 
 INSTAGRAM:
 - caption: 80–220 chars, punchy. Allow 1 emoji max if natural.
-- hashtags: REQUIRED, AT LEAST 20 (20–30), no spaces, no "#". Mix niche +
-  popular + brand + topic-specific.
+- hashtags: REQUIRED, AT LEAST 20 (20–30), no spaces, no "#", ALL LOWERCASE.
+  Mix niche + popular + brand + topic-specific.
 
 WHATSAPP_STATUS:
 - text: ≤ 700 chars total AND ≤ 10 lines. Conversational. End with a
@@ -116,9 +126,21 @@ function clampWhatsapp(s: string): string {
 function cleanHashtags(arr: unknown, max: number): string[] {
   if (!Array.isArray(arr)) return [];
   return arr
-    .map((h) => String(h).replace(/^#/, '').trim().replace(/\s+/g, ''))
+    // Strip the leading "#" + interior whitespace, then force lowercase
+    // so the LLM's PascalCase ("AIShorts") becomes "aishorts" — matches
+    // the casing convention from the AQB lowercase pass.
+    .map((h) => String(h).replace(/^#/, '').trim().replace(/\s+/g, '').toLowerCase())
     .filter(Boolean)
     .slice(0, max);
+}
+
+/**
+ * Lowercase every #Word hashtag in a body of text. Body content
+ * outside hashtags is untouched. Used to clean inline hashtags in
+ * caption/body fields without disturbing the surrounding prose.
+ */
+function lowercaseInlineHashtags(s: string): string {
+  return s.replace(/#([A-Za-z0-9_]+)/g, (_m, word) => '#' + word.toLowerCase());
 }
 
 @Injectable()
@@ -195,12 +217,15 @@ export class PromoAgent {
         const brandSlug = String(brand.slug ?? brand.name ?? '');
         const footer = socialFooter(lesson.lessonNumber, lesson.title);
 
-        const liHook = String(li.hook ?? '').slice(0, 250);
-        const liBody = String(li.body ?? '').slice(0, 1500);
-        const liCta  = String(li.cta  ?? '').slice(0, 200);
+        // Inline hashtags inside body/caption get lowercased too, so a
+        // stray "#AIShorts" in the LinkedIn body or Instagram caption
+        // ends up matching the (already-lowercased) array entries.
+        const liHook = lowercaseInlineHashtags(String(li.hook ?? '').slice(0, 250));
+        const liBody = lowercaseInlineHashtags(String(li.body ?? '').slice(0, 1500));
+        const liCta  = lowercaseInlineHashtags(String(li.cta  ?? '').slice(0, 200));
         const liTags = ensureHashtags(cleanHashtags(li.hashtags, 24), brandSlug, lesson.title, 20, 24);
 
-        const igCaption = String(ig.caption ?? '').slice(0, 300);
+        const igCaption = lowercaseInlineHashtags(String(ig.caption ?? '').slice(0, 300));
         const igTags = ensureHashtags(cleanHashtags(ig.hashtags, 30), brandSlug, lesson.title, 20, 30);
 
         const out: PromoParsed = {
