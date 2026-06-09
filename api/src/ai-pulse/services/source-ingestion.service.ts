@@ -1,14 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import Parser from 'rss-parser';
 import { AiPulseNewsItem } from '../entities/news-item.entity';
 import { SOURCES, SourceSpec } from '../config/sources.config';
+
+// rss-parser is a CommonJS module that exports the constructor as
+// module.exports (no `.default` wrapper). The ES `import Parser from
+// 'rss-parser'` form compiles to `rss_parser_1.default` at runtime
+// under this project's tsconfig — which is undefined. Going through
+// require() bypasses the interop and gets the real constructor.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const RssParser = require('rss-parser');
 
 @Injectable()
 export class AiPulseIngestionService {
   private readonly logger = new Logger(AiPulseIngestionService.name);
-  private parser = new Parser({ timeout: 15_000 });
+  private parser = new RssParser({ timeout: 15_000 });
 
   constructor(
     @InjectRepository(AiPulseNewsItem)
