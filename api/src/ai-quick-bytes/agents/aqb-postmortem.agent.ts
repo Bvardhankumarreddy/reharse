@@ -118,8 +118,23 @@ export class AqbPostmortemAgent {
       ? `${(views / mean).toFixed(2)}× channel mean (${Math.round(mean)})`
       : 'no baseline yet';
 
+    // Prefer the LIVE YouTube title (curator's manual edits on YouTube
+    // Studio) over the generated hook when available — that's the
+    // version viewers actually saw, including any custom tags like
+    // "#trending" the curator added at upload time.
+    const headline = script.liveYoutubeTitle?.trim() || script.hook;
+    const headlineSource = script.liveYoutubeTitle?.trim()
+      ? 'live YouTube title'
+      : 'generated hook';
+    const teluguHeadline =
+      script.liveTeluguYoutubeTitle?.trim() || script.teluguHook || null;
+    const teluguLine = teluguHeadline
+      ? `TELUGU TITLE (${script.liveTeluguYoutubeTitle?.trim() ? 'live' : 'generated'}): ${teluguHeadline}\n`
+      : '';
+
     const user =
-      `HOOK: ${script.hook}\n` +
+      `HEADLINE (${headlineSource}): ${headline}\n` +
+      teluguLine +
       `BODY: ${script.body.slice(0, 1500)}\n` +
       `STATUS: published, ${views} views — ${liftLabel}\n` +
       `THUMBNAIL PROMPT (most recent): ${stringifyThumbnail(script.thumbnailPrompt)}\n\n` +

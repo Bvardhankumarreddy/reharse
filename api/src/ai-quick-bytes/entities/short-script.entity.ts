@@ -79,6 +79,19 @@ export class ShortScript {
   @Column({ type: 'varchar', length: 500, nullable: true })
   youtubeUrl: string | null;
 
+  // ── Live YouTube snippet (auto-refreshed by the metrics fetcher) ───
+  // Captures manual title / description edits the curator made on
+  // YouTube Studio after upload. Postmortem + improvement agents
+  // prefer these over the LLM-generated values when present.
+  @Column({ type: 'text', nullable: true })
+  liveYoutubeTitle: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  liveYoutubeDescription: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  liveYoutubeFetchedAt: Date | null;
+
   @Column({ type: 'numeric', precision: 10, scale: 6, nullable: true })
   costUsd: number | null;
 
@@ -148,6 +161,16 @@ export class ShortScript {
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   teluguYoutubeUrl: string | null;
+
+  // Live YouTube snippet for the Telugu upload (parallel to English above).
+  @Column({ type: 'text', nullable: true })
+  liveTeluguYoutubeTitle: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  liveTeluguYoutubeDescription: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  liveTeluguYoutubeFetchedAt: Date | null;
 
   @Column({ type: 'jsonb', nullable: true })
   teluguDistributionPackage: Record<string, unknown> | null;

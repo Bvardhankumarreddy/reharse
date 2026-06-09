@@ -252,6 +252,17 @@ export class ApprovalController {
       dayNumber: script.dayNumber,
       package: script.distributionPackage,
       generatedAt: script.distributionGeneratedAt,
+      // Live YouTube snippet — what's actually live on YouTube right now,
+      // captured by the hourly metrics-fetcher. Surfaces curator's
+      // manual edits (extra hashtags, reworded title, etc.) back into
+      // the admin so they're visible alongside the LLM-generated package.
+      liveYoutube: script.liveYoutubeTitle != null || script.liveYoutubeDescription != null
+        ? {
+            title: script.liveYoutubeTitle,
+            description: script.liveYoutubeDescription,
+            fetchedAt: script.liveYoutubeFetchedAt,
+          }
+        : null,
     };
   }
 

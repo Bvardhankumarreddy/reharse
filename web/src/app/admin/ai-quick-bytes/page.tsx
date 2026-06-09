@@ -734,6 +734,40 @@ function ScriptCard({ script, onAct }: {
                     <CopyField label="Title" value={dist.package.youtube?.title ?? ""} />
                     <CopyField label="Description" value={dist.package.youtube?.description ?? ""} multiline />
                     <CopyField label="Tags" value={(dist.package.youtube?.tags ?? []).join(", ")} />
+                    {/* Live YouTube snippet — appears once metrics-fetcher has run
+                        at least once on this short. Shows curator's manual edits
+                        on YouTube Studio (extra hashtags, reworded title). */}
+                    {dist.liveYoutube && (dist.liveYoutube.title || dist.liveYoutube.description) && (
+                      <div className="mt-3 pt-3 border-t border-[#00D4FF]/15">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-[#00D4FF]">
+                            🔴 Live on YouTube
+                          </span>
+                          {dist.liveYoutube.fetchedAt && (
+                            <span className="text-[9px] text-[#6B7799]">
+                              Last fetch: {new Date(dist.liveYoutube.fetchedAt).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        {dist.liveYoutube.title && (
+                          <CopyField label="Live title" value={dist.liveYoutube.title} />
+                        )}
+                        {dist.liveYoutube.description && (
+                          <CopyField
+                            label="Live description"
+                            value={dist.liveYoutube.description}
+                            multiline
+                          />
+                        )}
+                        {dist.liveYoutube.title && dist.package.youtube?.title &&
+                         dist.liveYoutube.title.trim() !== dist.package.youtube.title.trim() && (
+                          <p className="text-[10px] text-[#FFB020] mt-1">
+                            ⚠ Live title differs from generated — your manual YouTube
+                            Studio edits are what the learning loop now uses.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </Block>
                   <Block title="📸 Instagram">
                     <CopyField label="Caption + hashtags" value={dist.package.instagram?.full_text ?? ""} multiline />

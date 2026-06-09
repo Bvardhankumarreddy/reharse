@@ -102,8 +102,16 @@ export class AqbImprovementAgent {
     }
 
     // 4) Winning hashtags → 'hashtag' / ['distribution']
+    //    Sources scanned per winner script (in priority order):
+    //    - LIVE YouTube title + description (curator's manual edits on
+    //      YouTube Studio — captures custom tags like "#trending")
+    //    - distributionPackage.{youtube.tags, instagram.hashtags,
+    //      linkedin.hashtags} (LLM-generated baseline)
     const hashtagCounts = tally(
-      winnerScripts.flatMap((s) => extractHashtags(s.distributionPackage)),
+      winnerScripts.flatMap((s) => [
+        ...extractLiveHashtags(s),
+        ...extractHashtags(s.distributionPackage),
+      ]),
     );
     const topHashtags = Object.entries(hashtagCounts)
       .sort((a, b) => b[1] - a[1])
@@ -154,4 +162,32 @@ function extractHashtags(pkg: unknown): string[] {
   return [...ig, ...li, ...yt]
     .map((t) => String(t).replace(/^#/, '').trim().toLowerCase())
     .filter((t) => t && t.length <= 40);
+}
+
+/**
+ * Mine #hashtags from the LIVE YouTube title + description across both
+ * languages. Captures custom tags the curator added on YouTube Studio
+ * (e.g. "#trending") that aren't in the LLM-generated distribution
+ * package. Same lowercase + length cutoff as extractHashtags so they
+ * merge cleanly.
+ */
+function extractLiveHashtags(s: {
+  liveYoutubeTitle?: string | null;
+  liveYoutubeDescription?: string | null;
+  liveTeluguYoutubeTitle?: string | null;
+  liveTeluguYoutubeDescription?: string | null;
+}): string[] {
+  const corpus = [
+    s.liveYoutubeTitle ?? '',
+    s.liveYoutubeDescription ?? '',
+    s.liveTeluguYoutubeTitle ?? '',
+    s.liveTeluguYoutubeDescription ?? '',
+  ].join(' ');
+  if (!corpus.trim()) return [];
+  // Match #word — ASCII word chars only; non-ASCII (Telugu glyphs in
+  // a tag) gets skipped so we don't accidentally promote half-tags.
+  const matches = corpus.match(/#([A-Za-z0-9_]+)/g) ?? [];
+  return matches
+    .map((m) => m.slice(1).toLowerCase())
+    .filter((t) => t.length > 0 && t.length <= 40);
 }

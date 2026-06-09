@@ -56,7 +56,16 @@ export class AqbMetricsFetcherService {
     return { scanned: shorts.length, saved };
   }
 
-  /** Per-language pass. Calls videos.list with the right id per short. */
+  /**
+   * Per-language pass. ONE call to videos.list per batch, requesting
+   * BOTH `statistics` (views/likes/comments → time-series row in
+   * aqb_short_metrics) AND `snippet` (live title + description →
+   * write-through onto the script row, so the learning loop reads
+   * the curator's manual edits on YouTube Studio).
+   *
+   * Adding `snippet` does NOT increase the YouTube quota cost —
+   * videos.list charges 1 unit per call regardless of part count.
+   */
   private async fetchForLanguage(
     shorts: ShortScript[], language: 'en' | 'te', batchSize: number,
   ): Promise<number> {
@@ -74,25 +83,37 @@ export class AqbMetricsFetcherService {
         const { data } = await axios.get(
           'https://www.googleapis.com/youtube/v3/videos',
           {
-            params: { part: 'statistics', id: ids.join(','), key: this.apiKey },
+            params: {
+              part: 'statistics,snippet',
+              id: ids.join(','),
+              key: this.apiKey,
+            },
             timeout: 20_000,
           },
         );
-        const byId = new Map<string, { v: number; l: number | null; c: number | null }>();
+        const byId = new Map<string, {
+          v: number; l: number | null; c: number | null;
+          title: string | null; description: string | null;
+        }>();
         for (const it of (data?.items ?? []) as Array<{
           id: string;
           statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
+          snippet?: { title?: string; description?: string };
         }>) {
           byId.set(it.id, {
             v: Number(it.statistics?.viewCount ?? 0),
             l: it.statistics?.likeCount != null ? Number(it.statistics.likeCount) : null,
             c: it.statistics?.commentCount != null ? Number(it.statistics.commentCount) : null,
+            title: it.snippet?.title ?? null,
+            description: it.snippet?.description ?? null,
           });
         }
+        const now = new Date();
         for (const s of batch) {
           const vid = idOf(s)!;
           const stat = byId.get(vid);
           if (!stat) continue;
+          // 1) Time-series metrics row — unchanged shape, fully back-compat.
           await this.metrics.save(
             this.metrics.create({
               scriptId: s.id,
@@ -103,6 +124,23 @@ export class AqbMetricsFetcherService {
               comments: stat.c,
             }),
           );
+          // 2) Snippet write-through onto the script row, per language.
+          //    Only patch when at least one snippet field is non-null —
+          //    defends against an empty snippet wiping a previous fetch.
+          if (stat.title != null || stat.description != null) {
+            const patch = language === 'te'
+              ? {
+                  liveTeluguYoutubeTitle: stat.title,
+                  liveTeluguYoutubeDescription: stat.description,
+                  liveTeluguYoutubeFetchedAt: now,
+                }
+              : {
+                  liveYoutubeTitle: stat.title,
+                  liveYoutubeDescription: stat.description,
+                  liveYoutubeFetchedAt: now,
+                };
+            await this.scripts.update(s.id, patch);
+          }
           saved++;
         }
       } catch (e) {

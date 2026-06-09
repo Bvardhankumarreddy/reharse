@@ -122,6 +122,11 @@ export interface DistributionResp {
   dayNumber: number | null;
   package: DistributionPackage | null;
   generatedAt: string | null;
+  liveYoutube?: {
+    title: string | null;
+    description: string | null;
+    fetchedAt: string | null;
+  } | null;
 }
 
 // ── Telugu track (AQB v2) ───────────────────────────────────────────────
