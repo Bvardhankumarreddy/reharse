@@ -27,6 +27,7 @@ import { AiSquadModule } from './ai-squad/ai-squad.module';
 import { CareersModule } from './careers/careers.module';
 import { ContentStudioModule } from './content-studio/content-studio.module';
 import { TrustSafetyModule } from './trust-safety/trust-safety.module';
+import { AiPulseModule } from './ai-pulse/ai-pulse.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { TrustSafetyModule } from './trust-safety/trust-safety.module';
     AiSquadModule,
     CareersModule,
     ContentStudioModule,
+    AiPulseModule,
   ],
   controllers: [HealthController],
 })
