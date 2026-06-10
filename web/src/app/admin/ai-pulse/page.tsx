@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import {
   api, fetchToken,
   type AiPulseVertical, type NewsItem, type Script, type VerticalRow,
-  VERTICAL_LABELS, VERTICAL_DOW,
+  type Memory, type MemoryType, type Postmortem,
+  VERTICAL_LABELS, VERTICAL_DOW, MEMORY_TYPE_LABELS, MEMORY_TYPE_EMOJI,
 } from "./_helpers";
 
-type Tab = "queue" | "news" | "verticals";
+type Tab = "queue" | "news" | "verticals" | "learnings";
 
 export default function AiPulseAdminPage() {
   const [token, setToken] = useState<string | null>(null);
@@ -43,7 +44,7 @@ export default function AiPulseAdminPage() {
 
         {/* Tab strip */}
         <div className="flex gap-2 border-b border-white/10 mb-6">
-          {(["queue", "news", "verticals"] as Tab[]).map((t) => (
+          {(["queue", "news", "verticals", "learnings"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -56,7 +57,8 @@ export default function AiPulseAdminPage() {
             >
               {t === "queue" ? "Approval Queue"
                 : t === "news" ? "Ingested News"
-                : "Verticals"}
+                : t === "verticals" ? "Verticals"
+                : "🧠 Learnings"}
             </button>
           ))}
         </div>
@@ -64,6 +66,7 @@ export default function AiPulseAdminPage() {
         {tab === "queue"     && <QueuePanel     token={token} onToast={onToast} />}
         {tab === "news"      && <NewsPanel      token={token} onToast={onToast} />}
         {tab === "verticals" && <VerticalsPanel token={token} onToast={onToast} />}
+        {tab === "learnings" && <LearningsPanel token={token} onToast={onToast} />}
       </div>
 
       {toast && (
@@ -577,6 +580,243 @@ function ScriptDetail({
       )}
     </div>
   );
+}
+
+// ── Learnings tab — memories + postmortems + manual sweep triggers ─────
+function LearningsPanel({ token, onToast }: { token: string; onToast: (m: string) => void }) {
+  const [vertical, setVertical] = useState<string>("");
+  const [memories, setMemories] = useState<Memory[] | null>(null);
+  const [postmortems, setPostmortems] = useState<Postmortem[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [openPmId, setOpenPmId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const qs = vertical ? `?vertical=${vertical}` : "";
+      const [m, p] = await Promise.all([
+        api<Memory[]>(token, `/memories${qs}`),
+        api<Postmortem[]>(token, `/postmortems${qs}`),
+      ]);
+      setMemories(m);
+      setPostmortems(p);
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+  }, [token, vertical, onToast]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function runSweep(kind: "metrics" | "postmortem" | "improvement") {
+    setBusy(kind);
+    try {
+      const r = await api<unknown>(token, `/intelligence/${kind}-sweep`, { method: "POST" });
+      onToast(`✓ ${kind}-sweep done: ${summariseSweep(kind, r)}`);
+      await load();
+    } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
+    finally { setBusy(null); }
+  }
+
+  // Group memories by vertical → memory_type for display.
+  const memoriesByVerticalType = (memories ?? []).reduce<
+    Record<string, Record<string, Memory[]>>
+  >((acc, m) => {
+    (acc[m.vertical] ??= {})[m.memory_type] ??= [];
+    acc[m.vertical][m.memory_type].push(m);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-4">
+      {/* Manual sweep triggers + filter */}
+      <div className="bg-[#151B3D] border border-white/5 rounded-2xl p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">🧠 Learning loop</div>
+            <div className="text-[11px] text-[#6B7799]">
+              metrics hourly · postmortem 04:30 UTC · improvement 06:00 UTC. Manual triggers below.
+            </div>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => runSweep("metrics")}
+              disabled={busy !== null}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#00D4FF]/15 border border-[#00D4FF]/40 text-[#00D4FF] hover:bg-[#00D4FF]/25 disabled:opacity-40"
+            >
+              {busy === "metrics" ? "…" : "📊 Run metrics"}
+            </button>
+            <button
+              onClick={() => runSweep("postmortem")}
+              disabled={busy !== null}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#FFB020]/15 border border-[#FFB020]/40 text-[#FFB020] hover:bg-[#FFB020]/25 disabled:opacity-40"
+            >
+              {busy === "postmortem" ? "…" : "📝 Run postmortems"}
+            </button>
+            <button
+              onClick={() => runSweep("improvement")}
+              disabled={busy !== null}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#00F5A0]/15 border border-[#00F5A0]/40 text-[#00F5A0] hover:bg-[#00F5A0]/25 disabled:opacity-40"
+            >
+              {busy === "improvement" ? "…" : "🚀 Run improvement"}
+            </button>
+          </div>
+        </div>
+        <select
+          value={vertical}
+          onChange={(e) => setVertical(e.target.value)}
+          className="bg-[#0A0E27] border border-white/10 rounded-xl px-3 py-2 text-sm w-full max-w-xs"
+        >
+          <option value="">All verticals</option>
+          {Object.entries(VERTICAL_LABELS).map(([k, l]) => (
+            <option key={k} value={k}>{l}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Active memories */}
+      <div className="bg-[#151B3D] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+          <div>
+            <div className="text-sm font-bold">🧠 Active memories</div>
+            <div className="text-[10px] text-[#6B7799] uppercase tracking-wide">
+              {memories ? `${memories.length} promoted` : "Loading…"}
+            </div>
+          </div>
+        </div>
+        {!memories ? <Loading /> : memories.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-[#6B7799]">
+            <div className="text-3xl mb-2">⏳</div>
+            <p className="font-semibold text-white mb-1">No memories yet</p>
+            <p className="text-[11px] max-w-md mx-auto">
+              The improvement loop promotes patterns once a vertical has ≥3 shorts with metrics
+              AND at least one short hits 1.5× the vertical&apos;s mean views.
+              Publish 5-10 shorts + wait ~1 week.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {Object.entries(memoriesByVerticalType).map(([v, byType]) => (
+              <div key={v} className="px-4 py-3 space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-[#00D4FF]">
+                  {VERTICAL_LABELS[v as AiPulseVertical] ?? v}
+                </div>
+                {(Object.keys(byType) as MemoryType[]).map((type) => (
+                  <div key={type} className="space-y-1">
+                    <div className="text-[10px] font-semibold text-[#FFB020] uppercase tracking-wide">
+                      {MEMORY_TYPE_EMOJI[type]} {MEMORY_TYPE_LABELS[type]}
+                    </div>
+                    {byType[type].map((m) => (
+                      <div key={m.id} className="bg-[#0A0E27] border border-white/10 rounded-lg p-2.5 text-[12px] text-[#B8C5E0]">
+                        {m.content}
+                        {m.evidence?.length > 0 && (
+                          <div className="mt-1 text-[10px] text-[#6B7799]">
+                            Evidence: {m.evidence.length} winning script(s)
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Postmortems */}
+      <div className="bg-[#151B3D] border border-white/5 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-white/5">
+          <div className="text-sm font-bold">📝 Recent postmortems</div>
+          <div className="text-[10px] text-[#6B7799] uppercase tracking-wide">
+            {postmortems ? `${postmortems.length} written` : "Loading…"}
+          </div>
+        </div>
+        {!postmortems ? <Loading /> : postmortems.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-[#6B7799]">
+            <div className="text-3xl mb-2">⏳</div>
+            <p className="font-semibold text-white mb-1">No postmortems yet</p>
+            <p className="text-[11px] max-w-md mx-auto">
+              Postmortems are written for shorts that have been published for at least 3 days
+              and have metric snapshots in the DB. Publish some shorts and wait.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {postmortems.map((pm) => (
+              <div key={pm.id} className="px-4 py-3 space-y-2">
+                <button
+                  onClick={() => setOpenPmId(openPmId === pm.id ? null : pm.id)}
+                  className="w-full flex items-center justify-between gap-2 text-left"
+                >
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-[#00D4FF]">
+                      {VERTICAL_LABELS[pm.vertical] ?? pm.vertical}
+                    </div>
+                    <div className="text-[10px] text-[#6B7799]">
+                      {new Date(pm.created_at).toLocaleString()}
+                      {pm.content.topicSignal && <> · {pm.content.topicSignal}</>}
+                    </div>
+                  </div>
+                  <span className="text-xs text-[#6B7799]">{openPmId === pm.id ? "▾" : "▸"}</span>
+                </button>
+                {openPmId === pm.id && (
+                  <div className="space-y-2 text-[12px] text-[#B8C5E0] bg-[#0A0E27] border border-white/10 rounded-lg p-3">
+                    {(pm.content.worked ?? []).length > 0 && (
+                      <PmList label="✅ Worked" items={pm.content.worked ?? []} />
+                    )}
+                    {(pm.content.didntWork ?? []).length > 0 && (
+                      <PmList label="❌ Didn't work" items={pm.content.didntWork ?? []} />
+                    )}
+                    {(pm.content.next ?? []).length > 0 && (
+                      <PmList label="➡ Try next" items={pm.content.next ?? []} />
+                    )}
+                    {pm.content.reusableHookPattern && (
+                      <div>
+                        <span className="text-[#FFB020] font-semibold">🎯 Hook pattern:</span>{" "}
+                        {pm.content.reusableHookPattern}
+                      </div>
+                    )}
+                    {pm.content.winningThumbnailStyle && pm.content.winningThumbnailStyle !== "none" && (
+                      <div>
+                        <span className="text-[#FFB020] font-semibold">🎨 Thumbnail style:</span>{" "}
+                        {pm.content.winningThumbnailStyle}
+                      </div>
+                    )}
+                    {(pm.content.winningHashtags ?? []).length > 0 && (
+                      <div>
+                        <span className="text-[#FFB020] font-semibold">#️⃣ Hashtags:</span>{" "}
+                        {(pm.content.winningHashtags ?? []).join(" ")}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PmList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div>
+      <div className="text-[10px] font-semibold text-[#B8C5E0] uppercase tracking-wide mb-0.5">
+        {label}
+      </div>
+      <ul className="list-disc list-inside space-y-0.5">
+        {items.map((it, i) => <li key={i}>{it}</li>)}
+      </ul>
+    </div>
+  );
+}
+
+function summariseSweep(kind: string, r: unknown): string {
+  const obj = (r ?? {}) as Record<string, unknown>;
+  if (kind === "metrics") return `${obj.saved ?? 0} snapshots / ${obj.scanned ?? 0} shorts`;
+  if (kind === "postmortem") return `${obj.generated ?? 0}/${obj.scanned ?? 0} written`;
+  if (kind === "improvement") {
+    return `${obj.winners ?? 0} winner(s), ${obj.promoted ?? 0} memory(ies) promoted`;
+  }
+  return JSON.stringify(obj).slice(0, 80);
 }
 
 // ── Small UI primitives ─────────────────────────────────────────────────

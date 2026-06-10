@@ -60,6 +60,56 @@ export interface DistributionPackage {
   source_reference: { name: string; url: string };
 }
 
+export type MemoryType =
+  | 'hook_pattern' | 'topic_signal' | 'hashtag' | 'thumbnail_style' | 'dont';
+
+export const MEMORY_TYPE_LABELS: Record<MemoryType, string> = {
+  hook_pattern:    'Hook pattern',
+  topic_signal:    'Topic signal',
+  hashtag:         'Hashtag',
+  thumbnail_style: 'Thumbnail style',
+  dont:            'Avoid',
+};
+
+export const MEMORY_TYPE_EMOJI: Record<MemoryType, string> = {
+  hook_pattern:    '🎯',
+  topic_signal:    '📰',
+  hashtag:         '#️⃣',
+  thumbnail_style: '🎨',
+  dont:            '🚫',
+};
+
+export interface Memory {
+  id: string;
+  vertical: AiPulseVertical;
+  memory_type: MemoryType;
+  content: string;
+  evidence: string[];
+  applies_to: string[];
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface PostmortemContent {
+  worked?: string[];
+  didntWork?: string[];
+  next?: string[];
+  reusableHookPattern?: string;
+  winningThumbnailStyle?: string;
+  topicSignal?: string;
+  winningHashtags?: string[];
+}
+
+export interface Postmortem {
+  id: string;
+  script_id: string;
+  vertical: AiPulseVertical;
+  content: PostmortemContent;
+  model_used: string | null;
+  cost_usd: number | string;
+  created_at: string;
+}
+
 export interface Script {
   id: string;
   news_item_id: string;
