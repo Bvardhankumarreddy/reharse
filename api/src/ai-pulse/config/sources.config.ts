@@ -81,6 +81,26 @@ export const SOURCES: Record<string, SourceSpec> = {
     enabled: false,
     note: 'Paywall on most articles — enable if subscription onboarded.',
   },
+  the_verge_tech: {
+    display_name: 'The Verge',
+    type: 'rss',
+    url: 'https://www.theverge.com/rss/index.xml',
+    vertical: 'tech_industry',
+    weight: 0.85,
+    keyword_filter: ['hiring', 'layoff', 'workforce', 'jobs', 'salary'],
+    enabled: true,
+    note: 'Broad tech-industry coverage (US-leaning).',
+  },
+  ars_technica_tech: {
+    display_name: 'Ars Technica',
+    type: 'rss',
+    url: 'https://feeds.arstechnica.com/arstechnica/index',
+    vertical: 'tech_industry',
+    weight: 0.85,
+    keyword_filter: ['hiring', 'layoff', 'workforce', 'jobs', 'engineer'],
+    enabled: true,
+    note: 'Deeper-tech coverage, often picks up workforce trends earlier.',
+  },
 
   // ── ai_business (SCAFFOLDED, disabled) ─────────────────────────────
   techcrunch_business: {

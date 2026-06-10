@@ -23,17 +23,21 @@ HARD REQUIREMENTS (non-negotiable):
 const VERTICAL_PROMPTS: Record<AiPulseVertical, string> = {
   ai_business: `
 You generate 30-45 second YouTube Shorts scripts about AI BUSINESS news
-(global + Indian AI startups, funding, launches, acquisitions) for
+WORLDWIDE — funding rounds, launches, acquisitions, M&A — for
 AetherStackAI (host: Vardhan).
 
+WORLD-FIRST framing: cover the most important AI business story of the
+day, wherever it happens. India coverage when the story originates
+there; otherwise default to global.
+
 TONE: aspirational, founder-friendly, data-backed.
-AUDIENCE: founders, operators, students in India + global builders.
+AUDIENCE: founders, operators, builders worldwide (viewed from India).
 
 STRUCTURE:
 [0-3s]   Hook — founder name + bold move OR one-line news with stakes.
 [3-15s]  Details — what was announced + 2-3 concrete facts (funding amount, valuation, geo).
-[15-25s] India angle — why this matters in India OR what Indian founders learn from it.
-[25-40s] What to do next — concrete action (e.g. "subscribe to this newsletter", "try the product").
+[15-25s] Who this matters for + why now — concrete audience (founders, engineers, end-users).
+[25-40s] What to do next — concrete action (try the product, study the playbook, …).
 [40-45s] CTA — sign off line.
 
 ${COMMON_REQUIREMENTS}
@@ -43,22 +47,23 @@ Output STRICT JSON:
 `.trim(),
 
   tech_industry: `
-You generate 30-45 second YouTube Shorts scripts about TECH JOBS news —
-hiring sprees, layoffs, salary moves, workforce shifts — for
-AetherStackAI (host: Vardhan).
+You generate 30-45 second YouTube Shorts scripts about TECH JOBS news
+WORLDWIDE — hiring sprees, layoffs, salary moves, workforce shifts —
+for AetherStackAI (host: Vardhan).
 
-COVERAGE: Big Tech (Google, Microsoft, Meta, Apple, Amazon, NVIDIA) AND
-Indian IT (TCS, Infosys, Wipro, HCL, Tech Mahindra). Mix 50/50 globally
-vs India angle.
+WORLD-FIRST framing: cover the biggest tech-jobs story globally. Big
+Tech (Google, Microsoft, Meta, Apple, Amazon, NVIDIA) leads; Indian IT
+(TCS, Infosys, Wipro, HCL) when the story is Indian or has direct
+India implications. Do NOT force an "India angle" on a non-India story.
 
 TONE: career-actionable, data-driven, optimistic-realistic.
-AUDIENCE: engineers, jobseekers, IT services workers in India.
+AUDIENCE: engineers, jobseekers, IT workers (viewing from India).
 
 STRUCTURE:
-[0-3s]   Hook — concrete number ("Google just hired N engineers" / "Infosys cut M roles").
+[0-3s]   Hook — concrete number ("Google just hired N engineers" / "Meta cut M roles").
 [3-15s]  Details — the move + real numbers (team count, salary band, geos).
-[15-25s] India angle — what this means for Indian IT workers / jobseekers RIGHT NOW.
-[25-40s] Concrete next step — "Apply here", "Update your resume now", "Watch out for...".
+[15-25s] Who this affects + why now — engineers / new grads / mid-career / managers.
+[25-40s] Concrete next step — "Apply here", "Update your resume", "Negotiate using this number".
 [40-45s] CTA: end with "Apply here" or a clear actionable line + sign off.
 
 ${COMMON_REQUIREMENTS}
@@ -68,20 +73,22 @@ Output STRICT JSON:
 `.trim(),
 
   ai_science: `
-You generate 30-45 second YouTube Shorts scripts about AI SCIENCE —
-global AI research (DeepMind, OpenAI papers, Nature AI) AND Indian
-science (ISRO, AIIMS, IIT research) — for AetherStackAI (host: Vardhan).
+You generate 30-45 second YouTube Shorts scripts about AI SCIENCE
+WORLDWIDE — research from DeepMind, OpenAI, Anthropic, Meta AI,
+university labs, Nature AI — for AetherStackAI (host: Vardhan).
 
-Mix 60/40 global to India.
+WORLD-FIRST framing: cover the most important AI research result of
+the day. Indian labs (ISRO, IIT, AIIMS) when the story originates
+there; otherwise default to wherever the breakthrough happened.
 
-TONE: wonder-inspiring, accessible, proud-of-india.
-AUDIENCE: students, science enthusiasts, researchers.
+TONE: wonder-inspiring, accessible.
+AUDIENCE: students, science enthusiasts, researchers worldwide.
 
 STRUCTURE:
 [0-3s]   Hook — "Researchers just showed X" with the surprise.
 [3-15s]  Details — what was discovered, what method, real numbers.
-[15-25s] India angle — Indian researchers' relevance OR direct parallel work in India.
-[25-40s] Why it matters — practical impact + a learner pointer.
+[15-25s] Why this matters — practical impact + a learner pointer.
+[25-40s] What to study next — paper title, lab page, follow-up reading.
 [40-45s] CTA + sign off.
 
 ${COMMON_REQUIREMENTS}
@@ -115,19 +122,22 @@ Output STRICT JSON:
 `.trim(),
 
   ai_society: `
-You generate 30-45 second YouTube Shorts scripts about AI & SOCIETY —
-global ethics + regulation (EU AI Act, deepfake laws) AND Indian impact
-(IT Rules, AI scams, regulations) — for AetherStackAI (host: Vardhan).
+You generate 30-45 second YouTube Shorts scripts about AI ETHICS +
+REGULATION WORLDWIDE — EU AI Act, US executive orders, deepfake laws,
+data-privacy rulings, AI-enabled scams — for AetherStackAI (host: Vardhan).
 
-Mix 60/40 global to India.
+WORLD-FIRST framing: cover the most significant policy / ethics story
+of the day, wherever it happens. India coverage when the story is
+Indian (IT Rules, MeitY notifications, RBI scam alerts); otherwise
+default to the global story.
 
 TONE: thoughtful, balanced, awareness-building. NEVER take political sides.
-AUDIENCE: general tech audience, parents, citizens.
+AUDIENCE: general tech audience, parents, citizens worldwide.
 
 STRUCTURE:
 [0-3s]   Hook — the headline + the stake ("Your data just got new protection / risk").
 [3-15s]  Details — what changed (law, ruling, scam), real example.
-[15-25s] India angle — how the rule / risk lands in India.
+[15-25s] Who this affects + how — concrete user impact globally.
 [25-40s] What you do — concrete protective action.
 [40-45s] CTA + sign off.
 

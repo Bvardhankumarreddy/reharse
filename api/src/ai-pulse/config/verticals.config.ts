@@ -14,45 +14,50 @@ export interface VerticalSpec {
 }
 
 export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
+  // World-first editorial orientation (June 2026 update):
+  // Cover what's happening globally; India is ONE perspective among
+  // many, not the dominant frame. india_mix_percent stays low across
+  // the board — the only exception is ai_education, which is hybrid
+  // by design ("here's the global tool, here's how to use it").
   ai_business: {
     display_name: 'AI Business',
-    description: 'Global + Indian AI startups, funding rounds, launches, acquisitions',
+    description: 'AI startups worldwide — funding rounds, launches, acquisitions, M&A',
     day_of_week: [1], // Monday
     publish_time: '06:00',
     tone: 'aspirational, founder-friendly, data-backed',
-    target_audience: 'founders, operators, students in India + global builders',
-    style_keywords: ['startup', 'funding', 'launch', 'made-in-india', 'global-ai'],
+    target_audience: 'founders, operators, builders (globally; viewing from India)',
+    style_keywords: ['startup', 'funding', 'launch', 'acquisition', 'globalai'],
     forbidden_topics: ['unverified rumor', 'negative VC gossip'],
-    india_mix_percent: 50,
+    india_mix_percent: 20,
     enabled: false,
   },
   tech_industry: {
     display_name: 'Tech Industry',
-    description: 'Tech jobs, hiring sprees, layoffs, salary moves — Big Tech + Indian IT',
+    description: 'Tech jobs worldwide — hiring sprees, layoffs, salary moves at Big Tech + global IT',
     day_of_week: [2, 4], // Tuesday + Thursday
     publish_time: '06:00',
     tone: 'career-actionable, data-driven, optimistic-realistic',
-    target_audience: 'engineers, jobseekers, IT services workers in India',
-    style_keywords: ['hiring', 'layoff', 'salary', 'jobs', 'career', 'india-it'],
+    target_audience: 'engineers, jobseekers, IT workers (viewing from India)',
+    style_keywords: ['hiring', 'layoff', 'salary', 'jobs', 'career'],
     forbidden_topics: ['gossip', 'unverified compensation rumors'],
-    india_mix_percent: 50,
+    india_mix_percent: 20,
     enabled: true,
   },
   ai_science: {
     display_name: 'AI Science',
-    description: 'Global AI research (DeepMind, OpenAI papers) + Indian science (ISRO, AIIMS, IIT)',
+    description: 'AI research worldwide — DeepMind, OpenAI, Nature AI, university labs',
     day_of_week: [3], // Wednesday
     publish_time: '06:00',
-    tone: 'wonder-inspiring, accessible, proud-of-india',
-    target_audience: 'students, science enthusiasts, researchers',
-    style_keywords: ['breakthrough', 'discovery', 'research', 'isro', 'iit'],
+    tone: 'wonder-inspiring, accessible',
+    target_audience: 'students, science enthusiasts, researchers (globally)',
+    style_keywords: ['breakthrough', 'discovery', 'research'],
     forbidden_topics: ['military/defense applications'],
-    india_mix_percent: 40,
+    india_mix_percent: 15,
     enabled: false,
   },
   ai_education: {
     display_name: 'AI Education',
-    description: 'Global AI edu tools (ChatGPT EDU, Khan Academy) + how Indian students use them (UPSC/JEE/CBSE)',
+    description: 'Global AI edu tools (ChatGPT EDU, Khan Academy, NotebookLM) — hybrid: how to use them for Indian exams',
     day_of_week: [5], // Friday
     publish_time: '06:00',
     tone: 'practical, opportunity-focused, hands-on',
@@ -64,14 +69,14 @@ export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
   },
   ai_society: {
     display_name: 'AI Society',
-    description: 'Global AI ethics (EU AI Act, deepfake laws) + Indian impact (IT Rules, scams, regulations)',
+    description: 'AI ethics + regulation worldwide — EU AI Act, deepfake laws, scams, policy shifts',
     day_of_week: [6], // Saturday
     publish_time: '06:00',
     tone: 'thoughtful, balanced, awareness-building',
     target_audience: 'general tech audience, parents, citizens',
     style_keywords: ['ethics', 'regulation', 'deepfake', 'scam', 'protect'],
     forbidden_topics: ['fear-mongering', 'partisan politics'],
-    india_mix_percent: 40,
+    india_mix_percent: 20,
     enabled: false,
   },
 };

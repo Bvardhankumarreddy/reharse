@@ -126,9 +126,15 @@ export class AiPulseScoringService {
     const r = clamp01(parsed.relevance);
     const f = clamp01(parsed.freshness);
     const i = clamp01(parsed.india_relevance);
-    // Weighted total — India mix nudges the weight on the India score.
+    // World-first weighting: relevance + freshness dominate the score.
+    // India relevance contributes only a small bonus proportional to the
+    // vertical's india_mix_percent (default 20% → 0.10 India weight max).
+    // ai_education at 50% gets a stronger India bonus by design.
     const indiaWeight = indiaMixPercent / 100;
-    const total = (r * 0.5) + (f * 0.2) + (i * (0.3 + 0.2 * indiaWeight));
+    const total =
+      r * 0.60 +
+      f * 0.30 +
+      i * (0.10 * indiaWeight * 2);   // max 0.10 at indiaMix=50; 0.04 at indiaMix=20
     return { relevance: r, freshness: f, india_relevance: i, total: Math.min(1, total) };
   }
 }
