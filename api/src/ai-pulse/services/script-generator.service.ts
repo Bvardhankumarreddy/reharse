@@ -6,6 +6,7 @@ import OpenAI from 'openai';
 import { AiPulseNewsItem, AiPulseVertical } from '../entities/news-item.entity';
 import { AiPulseScript } from '../entities/news-script.entity';
 import { VERTICALS } from '../config/verticals.config';
+import { AiPulseMemoryService } from './memory.service';
 
 const COMMON_REQUIREMENTS = `
 HARD REQUIREMENTS (non-negotiable):
@@ -183,6 +184,7 @@ export class AiPulseScriptGeneratorService {
     @InjectRepository(AiPulseScript)
     private readonly scripts: Repository<AiPulseScript>,
     private readonly config: ConfigService,
+    private readonly memorySvc: AiPulseMemoryService,
   ) {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     this.openai = apiKey ? new OpenAI({ apiKey }) : null;
@@ -195,11 +197,18 @@ export class AiPulseScriptGeneratorService {
     const systemPrompt = VERTICAL_PROMPTS[item.vertical];
     if (!systemPrompt) throw new Error(`No system prompt for vertical ${item.vertical}`);
 
+    // Inject vertical-scoped winning patterns (empty until the
+    // improvement loop has promoted memories).
+    const memoryBlock = this.memorySvc.format(
+      await this.memorySvc.relevantFor(item.vertical, 'script', 6),
+    );
+
     // ── English ─────────────────────────────────────────────────────
     const enUser =
       `NEWS:\nHeadline: ${item.headline}\nSummary: ${item.summary ?? '(none)'}\n` +
       `Source name (use this VERBATIM in the final-line citation): ${item.source_name}\n` +
       `Source URL: ${item.source_url}\nPublished: ${item.published_at?.toISOString() ?? 'unknown'}\n\n` +
+      (memoryBlock ? `${memoryBlock}\n\n` : '') +
       `Generate the script per the system prompt format. The LAST LINE of ` +
       `english_full_script MUST be exactly:\n` +
       `  Source: ${item.source_name}. Link in description.`;

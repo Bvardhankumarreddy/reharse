@@ -10,6 +10,8 @@ import { AiPulseVerticalConfig } from '../entities/vertical-config.entity';
 import { AiPulseIngestionService } from '../services/source-ingestion.service';
 import { AiPulseScoringService } from '../services/scoring.service';
 import { AiPulseSchedulerService } from '../services/scheduler.service';
+import { AiPulseMemory } from '../entities/memory.entity';
+import { AiPulsePostmortem } from '../entities/postmortem.entity';
 import { VERTICAL_KEYS, VERTICALS } from '../config/verticals.config';
 
 @Controller('admin/ai-pulse')
@@ -20,6 +22,10 @@ export class AiPulseIngestionController {
     private readonly news: Repository<AiPulseNewsItem>,
     @InjectRepository(AiPulseVerticalConfig)
     private readonly verticalConfig: Repository<AiPulseVerticalConfig>,
+    @InjectRepository(AiPulseMemory)
+    private readonly memories: Repository<AiPulseMemory>,
+    @InjectRepository(AiPulsePostmortem)
+    private readonly postmortems: Repository<AiPulsePostmortem>,
     private readonly ingestion: AiPulseIngestionService,
     private readonly scoring: AiPulseScoringService,
     private readonly scheduler: AiPulseSchedulerService,
@@ -119,4 +125,37 @@ export class AiPulseIngestionController {
     const limit = limitQ ? Number(limitQ) : undefined;
     return this.scheduler.runGeneration(vertical as AiPulseVertical, limit);
   }
+
+  /** Active memories — what the learning loop has promoted so far. */
+  @Get('memories')
+  async listMemories(@Query('vertical') vertical?: string) {
+    const qb = this.memories
+      .createQueryBuilder('m')
+      .where('m.is_active = true')
+      .orderBy('m.created_at', 'DESC')
+      .limit(200);
+    if (vertical) qb.andWhere('m.vertical = :v', { v: vertical });
+    return qb.getMany();
+  }
+
+  /** Postmortems written by the daily cron — drill-down on per-script learnings. */
+  @Get('postmortems')
+  async listPostmortems(@Query('vertical') vertical?: string) {
+    const qb = this.postmortems
+      .createQueryBuilder('p')
+      .orderBy('p.created_at', 'DESC')
+      .limit(100);
+    if (vertical) qb.andWhere('p.vertical = :v', { v: vertical });
+    return qb.getMany();
+  }
+
+  /** Manual trigger for the learning loop (one-shot for testing). */
+  @Post('intelligence/metrics-sweep')
+  async runMetrics() { return this.scheduler.cronMetrics(); }
+
+  @Post('intelligence/postmortem-sweep')
+  async runPostmortem() { return this.scheduler.cronPostmortem(); }
+
+  @Post('intelligence/improvement-sweep')
+  async runImprovement() { return this.scheduler.cronImprovement(); }
 }

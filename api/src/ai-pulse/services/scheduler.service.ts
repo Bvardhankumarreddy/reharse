@@ -10,6 +10,9 @@ import { AiPulseScoringService } from './scoring.service';
 import { AiPulseScriptGeneratorService } from './script-generator.service';
 import { AiPulseThumbnailService } from './thumbnail.service';
 import { AiPulseDistributionService } from './distribution.service';
+import { AiPulseMetricsFetcherService } from './metrics-fetcher.service';
+import { AiPulsePostmortemService } from './postmortem.service';
+import { AiPulseImprovementService } from './improvement.service';
 import { DAY_VERTICAL_MAP, VERTICALS } from '../config/verticals.config';
 import { AiPulseVertical } from '../entities/news-item.entity';
 
@@ -28,6 +31,9 @@ export class AiPulseSchedulerService implements OnModuleInit {
     private readonly scriptGen: AiPulseScriptGeneratorService,
     private readonly thumbnails: AiPulseThumbnailService,
     private readonly distribution: AiPulseDistributionService,
+    private readonly metricsFetcher: AiPulseMetricsFetcherService,
+    private readonly postmortem: AiPulsePostmortemService,
+    private readonly improvement: AiPulseImprovementService,
     @InjectQueue(AI_PULSE_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -41,8 +47,16 @@ export class AiPulseSchedulerService implements OnModuleInit {
   //   Sun → SKIP (AI Quick Bytes runs)
   async onModuleInit() {
     const canonical = [
-      { name: 'ingest',   cron: '0 */4 * * *', jobId: 'ai-pulse-ingest-cron' },
-      { name: 'generate', cron: '30 0 * * *',  jobId: 'ai-pulse-generate-cron' },
+      // Existing production crons.
+      { name: 'ingest',      cron: '0 */4 * * *', jobId: 'ai-pulse-ingest-cron' },
+      { name: 'generate',    cron: '30 0 * * *',  jobId: 'ai-pulse-generate-cron' },
+      // Learning loop (parallel to AQB):
+      //   metrics-sweep    : hourly @ :20 — YouTube stats + live snippet
+      //   postmortem-sweep : daily 04:30 UTC — JSON postmortem for ≥3d-old shorts
+      //   improvement-sweep: daily 06:00 UTC — mine winners → promote memories
+      { name: 'metrics-sweep',    cron: '20 * * * *', jobId: 'ai-pulse-metrics-cron' },
+      { name: 'postmortem-sweep', cron: '30 4 * * *', jobId: 'ai-pulse-postmortem-cron' },
+      { name: 'improvement-sweep', cron: '0 6 * * *', jobId: 'ai-pulse-improvement-cron' },
     ];
     // Clean up stale repeatable jobs whose cron drifted (so we don't
     // end up with both old + new schedules armed after a redeploy).
@@ -88,6 +102,44 @@ export class AiPulseSchedulerService implements OnModuleInit {
       return r;
     } catch (e) {
       this.logger.warn(`[cron] ingest failed: ${(e as Error).message}`);
+      throw e;
+    }
+  }
+
+  @Process('metrics-sweep')
+  async cronMetrics() {
+    try {
+      const r = await this.metricsFetcher.fetchAll();
+      this.logger.log(`[cron] metrics: ${r.saved} snapshots / ${r.scanned} shorts`);
+      return r;
+    } catch (e) {
+      this.logger.warn(`[cron] metrics failed: ${(e as Error).message}`);
+      throw e;
+    }
+  }
+
+  @Process('postmortem-sweep')
+  async cronPostmortem() {
+    try {
+      const r = await this.postmortem.runDailyBatch();
+      this.logger.log(`[cron] postmortem: ${r.generated}/${r.scanned} written`);
+      return r;
+    } catch (e) {
+      this.logger.warn(`[cron] postmortem failed: ${(e as Error).message}`);
+      throw e;
+    }
+  }
+
+  @Process('improvement-sweep')
+  async cronImprovement() {
+    try {
+      const r = await this.improvement.runDaily();
+      this.logger.log(
+        `[cron] improvement: ${r.winners} winner(s) across ${r.scanned} shorts; promoted ${r.promoted} memory(ies)`,
+      );
+      return r;
+    } catch (e) {
+      this.logger.warn(`[cron] improvement failed: ${(e as Error).message}`);
       throw e;
     }
   }

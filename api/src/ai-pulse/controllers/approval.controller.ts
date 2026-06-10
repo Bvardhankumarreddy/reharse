@@ -101,11 +101,21 @@ export class AiPulseApprovalController {
     if (body.english_video_url) {
       script.english_video_url = body.english_video_url;
       script.english_video_status = 'ready';
+      // Extract the YouTube video ID so the hourly metrics fetcher
+      // can pull stats for this short. Supports watch?v=, youtu.be/,
+      // and shorts/ URL formats.
+      script.english_youtube_video_id = extractYouTubeId(body.english_video_url);
     }
     if (body.telugu_video_url) {
       script.telugu_video_url = body.telugu_video_url;
       script.telugu_video_status = 'ready';
+      script.telugu_youtube_video_id = extractYouTubeId(body.telugu_video_url);
     }
     return this.scripts.save(script);
   }
+}
+
+function extractYouTubeId(url: string): string | null {
+  const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
+  return m?.[1] ?? null;
 }

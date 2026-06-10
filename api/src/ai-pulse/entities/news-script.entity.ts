@@ -104,6 +104,20 @@ export class AiPulseScript {
   @Column({ type: 'varchar', length: 50, default: 'pending' })
   english_video_status: AiPulseVideoStatus;
 
+  // ── YouTube video IDs (extracted from URL on mark-published) ──────
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  english_youtube_video_id: string | null;
+
+  // ── Live YouTube snippet (auto-refreshed by the metrics fetcher) ──
+  @Column({ type: 'text', nullable: true })
+  live_youtube_title: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  live_youtube_description: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  live_youtube_fetched_at: Date | null;
+
   @Column({ type: 'varchar', length: 100, nullable: true })
   telugu_avatar_id: string | null;
 
@@ -118,6 +132,18 @@ export class AiPulseScript {
 
   @Column({ type: 'varchar', length: 50, default: 'pending' })
   telugu_video_status: AiPulseVideoStatus;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  telugu_youtube_video_id: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  live_telugu_youtube_title: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  live_telugu_youtube_description: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  live_telugu_youtube_fetched_at: Date | null;
 
   @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
   thumbnail_prompts: AiPulseThumbnailPrompt[];
