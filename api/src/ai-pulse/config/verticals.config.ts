@@ -10,6 +10,7 @@ export interface VerticalSpec {
   style_keywords: string[];
   forbidden_topics: string[];
   india_mix_percent: number; // 0..100 — share of content with India-specific angle
+  top_n_per_run: number;     // how many top-scored stories become scripts per run (matches AQB pattern)
   enabled: boolean;          // phased rollout — only tech_industry is true at launch
 }
 
@@ -29,6 +30,7 @@ export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
     style_keywords: ['startup', 'funding', 'launch', 'acquisition', 'globalai'],
     forbidden_topics: ['unverified rumor', 'negative VC gossip'],
     india_mix_percent: 20,
+    top_n_per_run: 3,
     enabled: false,
   },
   tech_industry: {
@@ -41,6 +43,7 @@ export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
     style_keywords: ['hiring', 'layoff', 'salary', 'jobs', 'career'],
     forbidden_topics: ['gossip', 'unverified compensation rumors'],
     india_mix_percent: 20,
+    top_n_per_run: 3,
     enabled: true,
   },
   ai_science: {
@@ -53,6 +56,7 @@ export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
     style_keywords: ['breakthrough', 'discovery', 'research'],
     forbidden_topics: ['military/defense applications'],
     india_mix_percent: 15,
+    top_n_per_run: 3,
     enabled: false,
   },
   ai_education: {
@@ -65,6 +69,7 @@ export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
     style_keywords: ['skill', 'tool', 'opportunity', 'upsc', 'jee', 'cbse'],
     forbidden_topics: ['exam rankings drama', 'coaching wars'],
     india_mix_percent: 50,
+    top_n_per_run: 3,
     enabled: false,
   },
   ai_society: {
@@ -77,6 +82,7 @@ export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
     style_keywords: ['ethics', 'regulation', 'deepfake', 'scam', 'protect'],
     forbidden_topics: ['fear-mongering', 'partisan politics'],
     india_mix_percent: 20,
+    top_n_per_run: 3,
     enabled: false,
   },
 };

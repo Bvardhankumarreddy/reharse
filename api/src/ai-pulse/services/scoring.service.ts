@@ -21,20 +21,27 @@ export class AiPulseScoringService {
   }
 
   /**
-   * Score all pending items for a vertical (cron path: just past day).
-   * Returns the top-scored item with status='selected', or null if
-   * nothing is available / vertical isn't configured.
+   * Score all pending items for a vertical, mark the TOP N (per
+   * vertical config) as 'selected', and return the selected items in
+   * score order. Mirrors AQB's generateForTopStories(limit) pattern.
+   *
+   * Returns empty array if nothing eligible / vertical not configured.
    */
-  async scoreVerticalForToday(vertical: AiPulseVertical): Promise<AiPulseNewsItem | null> {
+  async scoreVerticalForToday(
+    vertical: AiPulseVertical,
+    limit?: number,
+  ): Promise<AiPulseNewsItem[]> {
     if (!this.openai) {
       this.logger.warn('OPENAI_API_KEY not set — scoring dormant');
-      return null;
+      return [];
     }
     const spec = VERTICALS[vertical];
     if (!spec) {
       this.logger.warn(`No spec for vertical ${vertical}`);
-      return null;
+      return [];
     }
+    // Clamp limit: caller override ∈ [1, 10], default to spec.top_n_per_run.
+    const topN = Math.max(1, Math.min(10, limit ?? spec.top_n_per_run ?? 1));
 
     // Look back 72 hours so a Monday cron can still pick a Saturday story.
     const cutoff = new Date(Date.now() - 72 * 3600 * 1000);
@@ -45,7 +52,7 @@ export class AiPulseScoringService {
     });
     if (candidates.length === 0) {
       this.logger.log(`AI Pulse scoring (${vertical}): 0 candidates`);
-      return null;
+      return [];
     }
 
     for (const item of candidates) {
@@ -63,19 +70,23 @@ export class AiPulseScoringService {
       }
     }
 
-    // Pick the top-scored item for this vertical, mark it selected.
+    // Pick top N scored items, mark them selected.
     const top = await this.news
       .createQueryBuilder('n')
       .where('n.vertical = :v', { v: vertical })
       .andWhere('n.status = :s', { s: 'scored' })
       .andWhere('n.published_at >= :cutoff', { cutoff })
       .orderBy('n.total_score', 'DESC')
-      .getOne();
-    if (top) {
-      await this.news.update(top.id, { status: 'selected' });
-      this.logger.log(`AI Pulse selected for ${vertical}: "${top.headline}" (${top.total_score})`);
+      .limit(topN)
+      .getMany();
+    for (const it of top) {
+      await this.news.update(it.id, { status: 'selected' });
     }
-    return top ?? null;
+    this.logger.log(
+      `AI Pulse selected ${top.length}/${candidates.length} for ${vertical}: ` +
+      top.map((t) => `"${t.headline.slice(0, 40)}…" (${t.total_score})`).join(' · '),
+    );
+    return top;
   }
 
   /** Public helper: score a single item by id (admin trigger path). */

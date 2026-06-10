@@ -40,6 +40,7 @@ export class AiPulseIngestionController {
         day_of_week: spec.day_of_week,
         publish_time: spec.publish_time,
         india_mix_percent: spec.india_mix_percent,
+        top_n_per_run: spec.top_n_per_run,
         enabled: row?.enabled ?? spec.enabled,
       };
     });
@@ -87,26 +88,35 @@ export class AiPulseIngestionController {
     return qb.getMany();
   }
 
-  /** Score the candidate set for a vertical RIGHT NOW + return the chosen one. */
+  /** Score the candidate set for a vertical RIGHT NOW + return the top N. */
   @Post('verticals/:vertical/score')
-  async manualScore(@Param('vertical') vertical: string) {
+  async manualScore(
+    @Param('vertical') vertical: string,
+    @Query('limit') limitQ?: string,
+  ) {
     if (!VERTICAL_KEYS.includes(vertical as AiPulseVertical)) {
       throw new BadRequestException(`Unknown vertical "${vertical}"`);
     }
-    const top = await this.scoring.scoreVerticalForToday(vertical as AiPulseVertical);
+    const limit = limitQ ? Number(limitQ) : undefined;
+    const top = await this.scoring.scoreVerticalForToday(vertical as AiPulseVertical, limit);
     return { vertical, top };
   }
 
   /**
    * Trigger end-to-end generation for a vertical RIGHT NOW (same path
-   * the cron uses). Returns the new script id + headline. Approval
-   * gate still applies — admin must approve before HeyGen video gen.
+   * the cron uses). Picks the top N candidates (default per vertical's
+   * top_n_per_run, override via ?limit). Returns one entry per generated
+   * script. Approval gate still applies — admin approves before HeyGen.
    */
   @Post('verticals/:vertical/generate')
-  async manualGenerate(@Param('vertical') vertical: string) {
+  async manualGenerate(
+    @Param('vertical') vertical: string,
+    @Query('limit') limitQ?: string,
+  ) {
     if (!VERTICAL_KEYS.includes(vertical as AiPulseVertical)) {
       throw new BadRequestException(`Unknown vertical "${vertical}"`);
     }
-    return this.scheduler.runGeneration(vertical as AiPulseVertical);
+    const limit = limitQ ? Number(limitQ) : undefined;
+    return this.scheduler.runGeneration(vertical as AiPulseVertical, limit);
   }
 }

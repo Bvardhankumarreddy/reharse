@@ -24,6 +24,7 @@ export interface VerticalRow {
   day_of_week: number[];
   publish_time: string;
   india_mix_percent: number;
+  top_n_per_run: number;
   enabled: boolean;
 }
 

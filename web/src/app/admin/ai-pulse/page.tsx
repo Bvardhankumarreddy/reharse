@@ -111,14 +111,17 @@ function VerticalsPanel({ token, onToast }: { token: string; onToast: (m: string
     finally { setBusyKey(null); }
   }
 
-  async function generateNow(v: AiPulseVertical) {
+  async function generateNow(v: AiPulseVertical, topN: number) {
     setBusyKey(`gen-${v}`);
-    onToast(`Generating ${VERTICAL_LABELS[v]} — ~30-60s (script + Telugu + thumbnails + distribution)`);
+    onToast(`Generating top ${topN} for ${VERTICAL_LABELS[v]} — ~${30 * topN}-${60 * topN}s …`);
     try {
-      const r = await api<{ newsItemId: string | null; scriptId: string | null; headline: string | null }>(
-        token, `/verticals/${v}/generate`, { method: "POST" });
-      if (r.scriptId) onToast(`✓ Generated: "${r.headline?.slice(0, 60) ?? "(no headline)"}" → open Queue tab`);
-      else onToast(`⚠ No eligible news for ${VERTICAL_LABELS[v]} — run Ingest first`);
+      const r = await api<{
+        generated: number;
+        requested: number;
+        scripts: Array<{ newsItemId: string; scriptId: string; headline: string }>;
+      }>(token, `/verticals/${v}/generate`, { method: "POST" });
+      if (r.generated === 0) onToast(`⚠ No eligible news for ${VERTICAL_LABELS[v]} — run Ingest first`);
+      else onToast(`✓ Generated ${r.generated}/${r.requested} scripts → open Queue tab`);
     } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
     finally { setBusyKey(null); }
   }
@@ -148,6 +151,7 @@ function VerticalsPanel({ token, onToast }: { token: string; onToast: (m: string
               <th className="text-left px-4 py-3 font-medium">Vertical</th>
               <th className="text-left px-4 py-3 font-medium">Day</th>
               <th className="text-left px-4 py-3 font-medium">India mix</th>
+              <th className="text-left px-4 py-3 font-medium">Top-N / run</th>
               <th className="text-left px-4 py-3 font-medium">Enabled</th>
               <th className="text-left px-4 py-3 font-medium">Generate now</th>
             </tr>
@@ -161,6 +165,7 @@ function VerticalsPanel({ token, onToast }: { token: string; onToast: (m: string
                 </td>
                 <td className="px-4 py-3 text-[#B8C5E0]">{VERTICAL_DOW[r.vertical]}</td>
                 <td className="px-4 py-3 text-[#B8C5E0]">{r.india_mix_percent}%</td>
+                <td className="px-4 py-3 text-[#B8C5E0] font-mono">{r.top_n_per_run}</td>
                 <td className="px-4 py-3">
                   <button
                     onClick={() => toggle(r.vertical, !r.enabled)}
@@ -177,12 +182,12 @@ function VerticalsPanel({ token, onToast }: { token: string; onToast: (m: string
                 </td>
                 <td className="px-4 py-3">
                   <button
-                    onClick={() => generateNow(r.vertical)}
+                    onClick={() => generateNow(r.vertical, r.top_n_per_run)}
                     disabled={!r.enabled || busyKey === `gen-${r.vertical}`}
-                    title={r.enabled ? "Trigger end-to-end generation right now" : "Enable the vertical first"}
+                    title={r.enabled ? `Generate top ${r.top_n_per_run} stories now` : "Enable the vertical first"}
                     className="px-3 py-1 text-xs font-semibold rounded-lg border border-white/10 text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed"
                   >
-                    {busyKey === `gen-${r.vertical}` ? "Working…" : "⚡ Generate"}
+                    {busyKey === `gen-${r.vertical}` ? "Working…" : `⚡ Generate ${r.top_n_per_run}`}
                   </button>
                 </td>
               </tr>

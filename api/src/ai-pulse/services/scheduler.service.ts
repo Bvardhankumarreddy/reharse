@@ -111,26 +111,45 @@ export class AiPulseSchedulerService implements OnModuleInit {
 
   /**
    * End-to-end generation for one vertical (used by both the cron and
-   * the admin "Generate now" button).
+   * the admin "Generate now" button). Mirrors AQB's top-N pattern:
+   * scores all pending candidates, picks the top N (per vertical's
+   * top_n_per_run config; override via limit), and generates a full
+   * script + thumbnails + distribution package for each.
+   *
+   * Per-story errors are non-fatal: one bad story doesn't block the
+   * others. Returns a summary of what was generated.
    */
-  async runGeneration(vertical: AiPulseVertical): Promise<{
-    newsItemId: string | null;
-    scriptId: string | null;
-    headline: string | null;
+  async runGeneration(
+    vertical: AiPulseVertical, limit?: number,
+  ): Promise<{
+    generated: number;
+    requested: number;
+    scripts: Array<{ newsItemId: string; scriptId: string; headline: string }>;
   }> {
-    this.logger.log(`[generate] vertical=${vertical}`);
+    this.logger.log(`[generate] vertical=${vertical} limit=${limit ?? 'spec'}`);
 
-    const top = await this.scoring.scoreVerticalForToday(vertical);
-    if (!top) {
+    const top = await this.scoring.scoreVerticalForToday(vertical, limit);
+    if (top.length === 0) {
       this.logger.warn(`[generate] no eligible news for ${vertical}`);
-      return { newsItemId: null, scriptId: null, headline: null };
+      return { generated: 0, requested: limit ?? 0, scripts: [] };
     }
 
-    const script = await this.scriptGen.generateScript(top.id);
-    await this.thumbnails.generatePrompts(script.id);
-    await this.distribution.generatePackage(script.id);
+    const out: Array<{ newsItemId: string; scriptId: string; headline: string }> = [];
+    for (const item of top) {
+      try {
+        const script = await this.scriptGen.generateScript(item.id);
+        await this.thumbnails.generatePrompts(script.id);
+        await this.distribution.generatePackage(script.id);
+        out.push({ newsItemId: item.id, scriptId: script.id, headline: item.headline });
+        this.logger.log(`[generate] +1 script ${script.id} for "${item.headline.slice(0, 60)}…"`);
+      } catch (e) {
+        this.logger.warn(
+          `[generate] script for "${item.headline.slice(0, 60)}…" failed: ${(e as Error).message}`,
+        );
+      }
+    }
 
-    this.logger.log(`[generate] done — script ${script.id} pending review`);
-    return { newsItemId: top.id, scriptId: script.id, headline: top.headline };
+    this.logger.log(`[generate] done — ${out.length}/${top.length} script(s) pending review`);
+    return { generated: out.length, requested: top.length, scripts: out };
   }
 }
