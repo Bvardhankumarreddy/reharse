@@ -263,10 +263,13 @@ function SubscribeBox() {
   if (state === "ok") {
     return (
       <div className="mt-3 bg-[#00F5A0]/5 border border-[#00F5A0]/30 rounded-2xl p-5 text-center">
-        <div className="text-2xl mb-1">✓</div>
-        <p className="text-[#00F5A0] font-semibold text-sm">You&apos;re subscribed</p>
-        <p className="text-[#B8C5E0] text-xs mt-1">
-          We&apos;ll email <span className="text-white">{email}</span> when the next quiz is about to start.
+        <div className="text-3xl mb-1">✉️</div>
+        <p className="text-[#00F5A0] font-semibold text-sm">You&apos;re subscribed!</p>
+        <p className="text-[#B8C5E0] text-xs mt-1.5 leading-relaxed">
+          A confirmation email is on its way to{" "}
+          <span className="text-white font-semibold">{email}</span>.
+          <br />
+          You&apos;ll get a reminder right before each new quiz opens.
         </p>
       </div>
     );
