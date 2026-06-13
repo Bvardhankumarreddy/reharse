@@ -4,7 +4,7 @@ import {
 
 @Entity('quiz_subscribers')
 @Unique('uq_quiz_sub_email', ['email'])
-@Unique('uq_quiz_sub_token', ['unsubscribe_token'])
+@Unique('uq_quiz_sub_token', ['unsubscribeToken'])
 export class QuizSubscriber {
   @PrimaryGeneratedColumn('uuid')
   id: string;
