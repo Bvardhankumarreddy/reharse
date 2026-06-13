@@ -62,6 +62,7 @@ export class QuizMailerService {
       this.logger.log(`[mail-skip] to=${opts.to} subject="${opts.subject}"`);
       return { messageId: null };
     }
+    this.logger.log(`[mail-send] BEGIN to=${opts.to} subject="${opts.subject}"`);
     try {
       const result = await this.client.send(new SendEmailCommand({
         FromEmailAddress: this.fromAddress,
@@ -77,9 +78,10 @@ export class QuizMailerService {
           },
         },
       }));
+      this.logger.log(`[mail-send] OK to=${opts.to} messageId=${result.MessageId ?? '(none)'}`);
       return { messageId: result.MessageId ?? null };
     } catch (e) {
-      this.logger.warn(`Quiz mail to ${opts.to} failed: ${(e as Error).message}`);
+      this.logger.warn(`[mail-send] FAIL to=${opts.to}: ${(e as Error).message}`);
       throw e;
     }
   }
