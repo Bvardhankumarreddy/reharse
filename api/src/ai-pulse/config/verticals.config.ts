@@ -31,7 +31,7 @@ export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
     forbidden_topics: ['unverified rumor', 'negative VC gossip'],
     india_mix_percent: 20,
     top_n_per_run: 3,
-    enabled: false,
+    enabled: true,
   },
   tech_industry: {
     display_name: 'Tech Industry',
@@ -57,7 +57,7 @@ export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
     forbidden_topics: ['military/defense applications'],
     india_mix_percent: 15,
     top_n_per_run: 3,
-    enabled: false,
+    enabled: true,
   },
   ai_education: {
     display_name: 'AI Education',
@@ -70,7 +70,7 @@ export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
     forbidden_topics: ['exam rankings drama', 'coaching wars'],
     india_mix_percent: 50,
     top_n_per_run: 3,
-    enabled: false,
+    enabled: true,
   },
   ai_society: {
     display_name: 'AI Society',
@@ -83,7 +83,7 @@ export const VERTICALS: Record<AiPulseVertical, VerticalSpec> = {
     forbidden_topics: ['fear-mongering', 'partisan politics'],
     india_mix_percent: 20,
     top_n_per_run: 3,
-    enabled: false,
+    enabled: true,
   },
 };
 

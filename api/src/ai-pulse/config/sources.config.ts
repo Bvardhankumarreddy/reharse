@@ -110,7 +110,7 @@ export const SOURCES: Record<string, SourceSpec> = {
     vertical: 'ai_business',
     weight: 0.9,
     keyword_filter: ['AI', 'artificial intelligence', 'GenAI', 'LLM'],
-    enabled: false,
+    enabled: true,
   },
   inc42_business: {
     display_name: 'Inc42 — AI Startups',
@@ -119,7 +119,7 @@ export const SOURCES: Record<string, SourceSpec> = {
     vertical: 'ai_business',
     weight: 0.9,
     keyword_filter: ['AI', 'GenAI', 'artificial intelligence', 'funding'],
-    enabled: false,
+    enabled: true,
   },
   yourstory_business: {
     display_name: 'YourStory',
@@ -128,7 +128,7 @@ export const SOURCES: Record<string, SourceSpec> = {
     vertical: 'ai_business',
     weight: 0.8,
     keyword_filter: ['AI', 'artificial intelligence', 'funding', 'startup'],
-    enabled: false,
+    enabled: true,
   },
 
   // ── ai_science (SCAFFOLDED, disabled) ──────────────────────────────
@@ -139,7 +139,7 @@ export const SOURCES: Record<string, SourceSpec> = {
     vertical: 'ai_science',
     weight: 0.95,
     keyword_filter: ['AI', 'machine learning', 'research'],
-    enabled: false,
+    enabled: true,
   },
   the_hindu_science: {
     display_name: 'The Hindu — Science',
@@ -148,7 +148,7 @@ export const SOURCES: Record<string, SourceSpec> = {
     vertical: 'ai_science',
     weight: 0.85,
     keyword_filter: ['AI', 'artificial intelligence', 'ISRO', 'IIT'],
-    enabled: false,
+    enabled: true,
   },
 
   // ── ai_education (SCAFFOLDED, disabled) ────────────────────────────
@@ -159,7 +159,7 @@ export const SOURCES: Record<string, SourceSpec> = {
     vertical: 'ai_education',
     weight: 0.75,
     keyword_filter: ['AI', 'artificial intelligence', 'data science'],
-    enabled: false,
+    enabled: true,
   },
 
   // ── ai_society (SCAFFOLDED, disabled) ──────────────────────────────
@@ -170,7 +170,7 @@ export const SOURCES: Record<string, SourceSpec> = {
     vertical: 'ai_society',
     weight: 0.9,
     keyword_filter: ['AI', 'deepfake', 'regulation', 'IT Rules'],
-    enabled: false,
+    enabled: true,
   },
   indian_express_society: {
     display_name: 'Indian Express',
@@ -179,7 +179,7 @@ export const SOURCES: Record<string, SourceSpec> = {
     vertical: 'ai_society',
     weight: 0.8,
     keyword_filter: ['AI', 'artificial intelligence', 'deepfake'],
-    enabled: false,
+    enabled: true,
   },
 };
 

@@ -146,19 +146,37 @@ export class AiPulseSchedulerService implements OnModuleInit {
 
   @Process('generate')
   async cronGenerate() {
-    const dow = new Date().getUTCDay();
-    const vertical = DAY_VERTICAL_MAP[dow];
-    if (!vertical) {
-      this.logger.log(`[cron] generate: Sunday — skipping (AI Quick Bytes runs)`);
-      return { skipped: 'sunday' };
+    // EVERY DAY across EVERY ENABLED vertical (not just the day-of-week
+    // mapped one). The day_of_week column in VERTICALS / DB stays as
+    // documentation; the cron now ignores it. Per-vertical errors are
+    // non-fatal — one failure doesn't block the others.
+    const allConfigs = await this.verticalConfig.find();
+    const enabledByVertical = new Map(allConfigs.map((c) => [c.vertical, c.enabled]));
+    const enabledVerticals = (Object.keys(VERTICALS) as AiPulseVertical[]).filter(
+      (v) => enabledByVertical.get(v) ?? VERTICALS[v]?.enabled ?? false,
+    );
+
+    if (enabledVerticals.length === 0) {
+      this.logger.log('[cron] generate: 0 verticals enabled — nothing to do');
+      return { totalGenerated: 0, verticals: {} };
     }
-    const cfg = await this.verticalConfig.findOne({ where: { vertical } });
-    const enabledInDB = cfg?.enabled ?? VERTICALS[vertical]?.enabled ?? false;
-    if (!enabledInDB) {
-      this.logger.log(`[cron] generate: vertical ${vertical} disabled — skipping`);
-      return { skipped: 'disabled', vertical };
+
+    const verticalResults: Record<string, { generated: number; requested: number }> = {};
+    let totalGenerated = 0;
+    for (const vertical of enabledVerticals) {
+      try {
+        const r = await this.runGeneration(vertical);
+        verticalResults[vertical] = { generated: r.generated, requested: r.requested };
+        totalGenerated += r.generated;
+      } catch (e) {
+        this.logger.warn(`[cron] generate(${vertical}) failed: ${(e as Error).message}`);
+        verticalResults[vertical] = { generated: 0, requested: 0 };
+      }
     }
-    return this.runGeneration(vertical);
+    this.logger.log(
+      `[cron] generate: ${totalGenerated} scripts across ${enabledVerticals.length} vertical(s)`,
+    );
+    return { totalGenerated, verticals: verticalResults };
   }
 
   /**
