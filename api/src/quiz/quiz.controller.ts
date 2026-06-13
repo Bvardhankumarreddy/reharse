@@ -9,11 +9,45 @@ import * as Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { AdminGuard } from '../auth/admin.guard';
 import { QuizService } from './quiz.service';
+import { QuizSubscriberService } from './quiz-subscriber.service';
 
 // ── Public quiz endpoints (no auth) ─────────────────────────────────────
 @Controller('quiz')
 export class QuizPublicController {
-  constructor(private readonly quizService: QuizService) {}
+  constructor(
+    private readonly quizService: QuizService,
+    private readonly subscribers: QuizSubscriberService,
+  ) {}
+
+  /**
+   * POST /api/v1/quiz/subscribe
+   * { email, name?, youtubeHandle? } → opt in for quiz-start notifications.
+   * Idempotent: re-subscribing the same email is a no-op success.
+   * Re-subscribing an inactive (previously-unsubscribed) email reactivates.
+   */
+  @Post('subscribe')
+  async subscribe(@Body() body: {
+    email?: string; name?: string; youtubeHandle?: string;
+  }) {
+    return this.subscribers.subscribe(body);
+  }
+
+  /**
+   * GET /api/v1/quiz/unsubscribe/:token
+   * Public one-click unsubscribe (no auth, token-keyed). Returns plain
+   * HTML so the link works straight from an email client.
+   */
+  @Get('unsubscribe/:token')
+  async unsubscribe(@Param('token') token: string, @Res() res: Response) {
+    try {
+      await this.subscribers.unsubscribe(token);
+      res.setHeader('Content-Type', 'text/html');
+      res.send(unsubResponseHtml('You\'ve been unsubscribed', 'Sorry to see you go. You won\'t get any more quiz reminders.'));
+    } catch {
+      res.status(404).setHeader('Content-Type', 'text/html');
+      res.send(unsubResponseHtml('Invalid link', 'This unsubscribe link is invalid or expired. If you keep getting emails, just reply and we\'ll remove you manually.'));
+    }
+  }
 
   /** GET /api/v1/quiz/info — current week's quiz metadata */
   @Get('info')
@@ -101,7 +135,29 @@ export class QuizPublicController {
 @Controller('admin/quiz')
 @UseGuards(AdminGuard)
 export class QuizAdminController {
-  constructor(private readonly quizService: QuizService) {}
+  constructor(
+    private readonly quizService: QuizService,
+    private readonly subscribers: QuizSubscriberService,
+  ) {}
+
+  // ── Subscribers (notification opt-ins) ──────────────────────────────
+
+  @Get('subscribers')
+  listSubscribers(@Query('active') active?: string) {
+    const a = active === 'true' ? true : active === 'false' ? false : undefined;
+    return this.subscribers.adminList({ active: a });
+  }
+
+  @Get('subscribers/count')
+  subscriberCount() {
+    return this.subscribers.adminCount();
+  }
+
+  /** Manual fire — useful for testing the cron path without waiting 5 min. */
+  @Post('subscribers/notify-now')
+  notifyNow() {
+    return this.subscribers.runDueNotificationsBatch();
+  }
 
   // ── Quiz Config (start/end times, duration) ──────────────────────────
 
@@ -324,4 +380,25 @@ numeric,"How many parameters (in billions) does GPT-4 have approximately?",,,,,,
     res.setHeader('Content-Disposition', 'attachment; filename=quiz_questions_template.csv');
     res.send(csv);
   }
+}
+
+/** Minimal HTML returned by the public unsubscribe endpoint. */
+function unsubResponseHtml(title: string, message: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8">
+  <title>${title}</title><meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#0A0E27;
+           color:#fff; min-height:100vh; display:flex; align-items:center; justify-content:center;
+           padding:24px; margin:0; }
+    .card { background:#151B3D; border:1px solid rgba(255,255,255,.1); border-radius:16px;
+            padding:32px; max-width:480px; text-align:center; }
+    h1 { margin:0 0 12px 0; font-size:22px; }
+    p  { margin:0 0 20px 0; color:#B8C5E0; }
+    a  { color:#00D4FF; text-decoration:none; font-weight:600; }
+  </style></head>
+  <body><div class="card">
+    <h1>${title}</h1>
+    <p>${message}</p>
+    <a href="https://reharse.inferix.in/quiz">← Back to Quiz</a>
+  </div></body></html>`;
 }

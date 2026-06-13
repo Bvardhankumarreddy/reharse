@@ -199,6 +199,10 @@ export default function QuizLandingPage() {
         🏆 Past quiz winners
       </Link>
 
+      {/* Subscribe — get emailed when the next quiz starts */}
+      <SubscribeBox />
+
+
       {/* Promo: Rehearse */}
       <div className="mt-16 bg-gradient-to-br from-[#151B3D] to-[#0F1438] border border-[#00D4FF]/20 rounded-2xl p-6 sm:p-8 text-center">
         <span className="inline-block text-[10px] font-bold tracking-widest text-[#00D4FF] uppercase mb-2">
@@ -221,5 +225,107 @@ export default function QuizLandingPage() {
         </a>
       </div>
     </div>
+  );
+}
+
+// ── Subscribe block ─────────────────────────────────────────────────────
+function SubscribeBox() {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [state, setState] = useState<"idle" | "ok" | "err">("idle");
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setState("idle");
+    try {
+      const res = await fetch("/api/v1/quiz/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { message?: string }).message ?? "Subscription failed");
+      }
+      setState("ok");
+    } catch (err) {
+      setState("err");
+      setErrMsg(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (state === "ok") {
+    return (
+      <div className="mt-3 bg-[#00F5A0]/5 border border-[#00F5A0]/30 rounded-2xl p-5 text-center">
+        <div className="text-2xl mb-1">✓</div>
+        <p className="text-[#00F5A0] font-semibold text-sm">You&apos;re subscribed</p>
+        <p className="text-[#B8C5E0] text-xs mt-1">
+          We&apos;ll email <span className="text-white">{email}</span> when the next quiz is about to start.
+        </p>
+      </div>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-3 block w-full text-center bg-[#FFD700]/10 hover:bg-[#FFD700]/20 border border-[#FFD700]/40 text-[#FFD700] font-semibold py-3 rounded-2xl transition"
+      >
+        🔔 Notify me when the next quiz starts
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-3 bg-[#151B3D] border border-[#FFD700]/30 rounded-2xl p-5 space-y-3">
+      <div>
+        <div className="text-[#FFD700] font-bold text-sm">🔔 Get a quiz reminder</div>
+        <p className="text-[#B8C5E0] text-xs mt-0.5">
+          One email, right before each quiz opens. Unsubscribe anytime.
+        </p>
+      </div>
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="your@email.com"
+        className="w-full bg-[#0A0E27] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-[#4A5470] focus:outline-none focus:border-[#FFD700]/60"
+      />
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Your name (optional)"
+        className="w-full bg-[#0A0E27] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-[#4A5470] focus:outline-none focus:border-[#FFD700]/60"
+      />
+      {state === "err" && (
+        <p className="text-[#FF5C7C] text-xs">{errMsg ?? "Something went wrong"}</p>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="px-3 py-2 text-xs font-semibold rounded-lg border border-white/10 text-[#B8C5E0] hover:bg-white/5"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={submitting || !email.trim()}
+          className="flex-1 py-2 text-xs font-bold rounded-lg bg-gradient-to-r from-[#FFD700] to-[#FFA500] text-[#0A0E27] disabled:opacity-50"
+        >
+          {submitting ? "Subscribing…" : "Subscribe"}
+        </button>
+      </div>
+    </form>
   );
 }
