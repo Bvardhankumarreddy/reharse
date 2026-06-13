@@ -13,6 +13,7 @@ import {
 import { QuizSubscriber } from './quiz-subscriber.entity';
 import { QuizSubscriberService } from './quiz-subscriber.service';
 import { QuizMailerService } from './quiz-mailer.service';
+import { QuizResultsService } from './quiz-results.service';
 import { QuizNotifierWorker, QUIZ_NOTIFIER_QUEUE } from './quiz-notifier.worker';
 import { AdminModule } from '../admin/admin.module';
 import { TrustSafetyModule } from '../trust-safety/trust-safety.module';
@@ -32,6 +33,6 @@ import { TrustSafetyModule } from '../trust-safety/trust-safety.module';
     TrustSafetyModule, // FingerprintService + UniqueQuestionService
   ],
   controllers: [QuizPublicController, QuizAdminController],
-  providers: [QuizService, QuizSubscriberService, QuizMailerService, QuizNotifierWorker],
+  providers: [QuizService, QuizSubscriberService, QuizMailerService, QuizResultsService, QuizNotifierWorker],
 })
 export class QuizModule {}

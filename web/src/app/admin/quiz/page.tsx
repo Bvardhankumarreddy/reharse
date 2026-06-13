@@ -131,6 +131,40 @@ export default function AdminQuizSubmissionsPage() {
     URL.revokeObjectURL(url);
   }
 
+  /**
+   * Trigger personalized results emails for the filtered quiz week.
+   * Dry-run option counts + logs without actually sending.
+   */
+  async function sendResultsEmail(dryRun: boolean) {
+    if (!token) return;
+    if (!quizWeek.trim()) {
+      alert("Set a quiz week filter first — results are sent per week.");
+      return;
+    }
+    const week = parseInt(quizWeek, 10);
+    const verb = dryRun ? "DRY-RUN preview" : "SEND results emails";
+    if (!confirm(`${verb} for Quiz Week ${week}?\n\nEvery participant gets a personalized scorecard email with a CSV attachment (UPI excluded).`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/v1/admin/quiz/results/${week}/send?dryRun=${dryRun}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { message?: string }).message ?? `HTTP ${res.status}`);
+      }
+      const r = await res.json() as { sent: number; failed: number; skipped: number; total: number };
+      alert(
+        `${dryRun ? "DRY RUN — would send" : "Sent"} ${r.sent}/${r.total} emails\n` +
+        `Failed: ${r.failed}\nSkipped (no email): ${r.skipped}`,
+      );
+    } catch (e) {
+      alert(`Failed: ${e instanceof Error ? e.message : "unknown error"}`);
+    }
+  }
+
   function rankBadge(rank: number | null) {
     if (!rank) return null;
     const colors = ["bg-amber-500/20 text-amber-400", "bg-slate-400/20 text-slate-300", "bg-orange-500/20 text-orange-400"];
@@ -179,6 +213,22 @@ export default function AdminQuizSubmissionsPage() {
           className="ml-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-xl transition"
         >
           Export CSV
+        </button>
+        <button
+          onClick={() => sendResultsEmail(true)}
+          disabled={!quizWeek.trim()}
+          title={quizWeek.trim() ? "Preview the send (counts only, no emails)" : "Set a Week filter first"}
+          className="px-3 py-2 bg-[#1e293b] border border-white/10 hover:bg-white/5 text-white text-sm font-medium rounded-xl transition disabled:opacity-40"
+        >
+          🧪 Dry-run results
+        </button>
+        <button
+          onClick={() => sendResultsEmail(false)}
+          disabled={!quizWeek.trim()}
+          title={quizWeek.trim() ? "SEND personalized results email to every participant of this week" : "Set a Week filter first"}
+          className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold rounded-xl transition disabled:opacity-40"
+        >
+          📧 Send results
         </button>
         <span className="text-slate-400 text-sm self-center">{total} submissions</span>
       </div>

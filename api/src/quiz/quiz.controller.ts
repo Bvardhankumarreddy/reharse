@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx';
 import { AdminGuard } from '../auth/admin.guard';
 import { QuizService } from './quiz.service';
 import { QuizSubscriberService } from './quiz-subscriber.service';
+import { QuizResultsService } from './quiz-results.service';
 
 // ── Public quiz endpoints (no auth) ─────────────────────────────────────
 @Controller('quiz')
@@ -138,7 +139,22 @@ export class QuizAdminController {
   constructor(
     private readonly quizService: QuizService,
     private readonly subscribers: QuizSubscriberService,
+    private readonly results: QuizResultsService,
   ) {}
+
+  /**
+   * Manual trigger — send personalized results email to every
+   * participant of a quiz week. CSV attachment (UPI excluded).
+   * Use ?dryRun=true to count + log without actually sending.
+   */
+  @Post('results/:week/send')
+  sendResults(
+    @Param('week', ParseIntPipe) week: number,
+    @Query('dryRun') dryRunQ?: string,
+  ) {
+    const dryRun = dryRunQ === 'true' || dryRunQ === '1';
+    return this.results.sendResultEmailsForWeek(week, { dryRun });
+  }
 
   // ── Subscribers (notification opt-ins) ──────────────────────────────
 
