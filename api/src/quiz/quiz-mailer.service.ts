@@ -1,52 +1,55 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 
 /**
- * Tiny mailer wrapper for the quiz-notification flow. Reads SMTP config
- * from env on first use and caches the transport. Dormant (logs + skips)
- * when SMTP env vars aren't set, so dev / staging boot without breaking.
+ * Quiz mailer — AWS SES v2 transport.
  *
- * Required env:
- *   QUIZ_MAIL_HOST       (e.g. email-smtp.ap-south-1.amazonaws.com for SES)
- *   QUIZ_MAIL_PORT       (587 = STARTTLS, 465 = TLS)
- *   QUIZ_MAIL_USER
- *   QUIZ_MAIL_PASS
- *   QUIZ_MAIL_FROM       (e.g. "Rehearse Quiz <quiz@reharse.inferix.in>")
+ * Auth chain (SDK picks the first available):
+ *   1. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY env vars
+ *   2. EC2 instance profile (if the node has an IAM role attached)
+ *   3. ~/.aws/credentials profile (local dev only)
+ *
+ * Required env on the api deployment:
+ *   QUIZ_MAIL_FROM      e.g. "Rehearse Quiz <quiz@inferix.in>"
  * Optional:
  *   QUIZ_MAIL_REPLY_TO
+ *   QUIZ_SES_REGION     defaults to AWS_REGION env, then ap-south-1
+ *   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  (if no instance role)
+ *
+ * Dormant (logs + skips) when QUIZ_MAIL_FROM is unset OR the SES
+ * client can't be initialized, so dev / staging boot without breaking.
  */
 @Injectable()
 export class QuizMailerService {
   private readonly logger = new Logger(QuizMailerService.name);
-  private transport: nodemailer.Transporter | null = null;
-  private readonly fromAddress: string;
+  private readonly client: SESv2Client | null;
+  private readonly fromAddress: string | null;
   private readonly replyTo: string | undefined;
 
   constructor(private readonly config: ConfigService) {
-    const host = this.config.get<string>('QUIZ_MAIL_HOST');
-    const portStr = this.config.get<string>('QUIZ_MAIL_PORT');
-    const user = this.config.get<string>('QUIZ_MAIL_USER');
-    const pass = this.config.get<string>('QUIZ_MAIL_PASS');
-    this.fromAddress = this.config.get<string>('QUIZ_MAIL_FROM')
-      ?? 'Rehearse Quiz <quiz@reharse.inferix.in>';
+    this.fromAddress = this.config.get<string>('QUIZ_MAIL_FROM') ?? null;
     this.replyTo = this.config.get<string>('QUIZ_MAIL_REPLY_TO');
+    const region = this.config.get<string>('QUIZ_SES_REGION')
+      ?? this.config.get<string>('AWS_REGION')
+      ?? 'ap-south-1';
 
-    if (host && user && pass) {
-      const port = Number(portStr ?? 587);
-      this.transport = nodemailer.createTransport({
-        host, port,
-        secure: port === 465,        // implicit TLS only on 465
-        auth: { user, pass },
-      });
-      this.logger.log(`Quiz mailer ready: ${host}:${port} from "${this.fromAddress}"`);
+    if (this.fromAddress) {
+      // The SDK will resolve credentials from env vars OR the EC2
+      // instance role automatically. No explicit credentials block
+      // needed for the common case.
+      this.client = new SESv2Client({ region });
+      this.logger.log(`Quiz mailer ready: SES ${region} from "${this.fromAddress}"`);
     } else {
-      this.logger.warn('QUIZ_MAIL_* env vars not set — quiz emails will be skipped (dev mode)');
+      this.client = null;
+      this.logger.warn(
+        'QUIZ_MAIL_FROM not set — quiz emails will be skipped (dev mode)',
+      );
     }
   }
 
   isConfigured(): boolean {
-    return this.transport !== null;
+    return this.client !== null && this.fromAddress !== null;
   }
 
   async send(opts: {
@@ -55,20 +58,26 @@ export class QuizMailerService {
     html: string;
     text: string;
   }): Promise<{ messageId: string | null }> {
-    if (!this.transport) {
+    if (!this.client || !this.fromAddress) {
       this.logger.log(`[mail-skip] to=${opts.to} subject="${opts.subject}"`);
       return { messageId: null };
     }
     try {
-      const info = await this.transport.sendMail({
-        from: this.fromAddress,
-        to: opts.to,
-        subject: opts.subject,
-        text: opts.text,
-        html: opts.html,
-        replyTo: this.replyTo,
-      });
-      return { messageId: info.messageId ?? null };
+      const result = await this.client.send(new SendEmailCommand({
+        FromEmailAddress: this.fromAddress,
+        Destination: { ToAddresses: [opts.to] },
+        ReplyToAddresses: this.replyTo ? [this.replyTo] : undefined,
+        Content: {
+          Simple: {
+            Subject: { Data: opts.subject, Charset: 'UTF-8' },
+            Body: {
+              Text: { Data: opts.text, Charset: 'UTF-8' },
+              Html: { Data: opts.html, Charset: 'UTF-8' },
+            },
+          },
+        },
+      }));
+      return { messageId: result.MessageId ?? null };
     } catch (e) {
       this.logger.warn(`Quiz mail to ${opts.to} failed: ${(e as Error).message}`);
       throw e;
