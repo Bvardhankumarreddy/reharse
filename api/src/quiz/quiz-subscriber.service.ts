@@ -74,8 +74,13 @@ export class QuizSubscriberService {
     if (!alreadySubscribed) {
       try {
         const nextQuiz = await this.findNextQuiz();
+        // referenceQuiz is the source of "X min / N questions" facts.
+        // Prefer the next scheduled quiz; fall back to the most recent
+        // past config so the email still has accurate facts even if no
+        // future quiz is scheduled yet.
+        const referenceQuiz = nextQuiz ?? (await this.findMostRecentQuiz());
         const { messageId } = await this.mailer.send(buildWelcomeEmail({
-          sub, nextQuiz, publicBaseUrl: this.publicBaseUrl,
+          sub, nextQuiz, referenceQuiz, publicBaseUrl: this.publicBaseUrl,
         }));
         welcomeEmailSent = messageId !== null;
       } catch (e) {
@@ -85,7 +90,7 @@ export class QuizSubscriberService {
     return { subscribed: true, reactivated, welcomeEmailSent };
   }
 
-  /** Next quiz strictly in the future, used to enrich the welcome email. */
+  /** Next quiz strictly in the future — drives the "Next quiz" card. */
   private async findNextQuiz(): Promise<QuizConfig | null> {
     const now = new Date();
     return this.configs
@@ -93,6 +98,15 @@ export class QuizSubscriberService {
       .where('c.isActive = true')
       .andWhere('c.startsAt > :now', { now })
       .orderBy('c.startsAt', 'ASC')
+      .getOne();
+  }
+
+  /** Most recent quiz config (any time) — fallback for "What to expect" facts. */
+  private async findMostRecentQuiz(): Promise<QuizConfig | null> {
+    return this.configs
+      .createQueryBuilder('c')
+      .where('c.isActive = true')
+      .orderBy('c.startsAt', 'DESC')
       .getOne();
   }
 
@@ -305,13 +319,20 @@ function buildNotificationEmail(input: {
 function buildWelcomeEmail(input: {
   sub: QuizSubscriber;
   nextQuiz: QuizConfig | null;
+  referenceQuiz: QuizConfig | null;
   publicBaseUrl: string;
 }): { to: string; subject: string; html: string; text: string } {
-  const { sub, nextQuiz, publicBaseUrl } = input;
+  const { sub, nextQuiz, referenceQuiz, publicBaseUrl } = input;
   const greetingName = sub.name?.split(' ')[0] || 'there';
   const quizUrl = `${publicBaseUrl}/quiz`;
   const leaderboardUrl = `${publicBaseUrl}/quiz/leaderboard`;
   const unsubUrl = `${publicBaseUrl}/api/v1/quiz/unsubscribe/${sub.unsubscribeToken}`;
+
+  // Dynamic facts — sourced from quiz config when available, with
+  // sane defaults if no quiz is configured yet. The cron-reminder
+  // email already does this; matching the same source-of-truth here.
+  const durationMinutes = referenceQuiz?.durationMinutes ?? 5;
+  const questionsPerQuiz = referenceQuiz?.questionsPerQuiz ?? 9;
 
   // Optional "next quiz" block — only included when there's one scheduled.
   let nextQuizLine = '';
@@ -343,7 +364,7 @@ function buildWelcomeEmail(input: {
     nextQuizLine +
     `What to expect:`,
     `  • One short email per quiz (right before it opens)`,
-    `  • You have 5 minutes to finish 9 questions`,
+    `  • You'll have ${durationMinutes} minutes to finish ${questionsPerQuiz} questions`,
     `  • No reattempts — answer carefully`,
     `  • Winners get prizes (your YouTube handle is verified before payout)`,
     '',
@@ -371,7 +392,7 @@ function buildWelcomeEmail(input: {
     <p style="font-size:14px; color:#333; font-weight:600; margin: 18px 0 6px 0;">What to expect:</p>
     <ul style="font-size:13px; color:#555; padding-left:18px; line-height:1.8; margin: 0 0 22px 0;">
       <li>One short email per quiz, right before it opens</li>
-      <li>You'll have 5 minutes to finish 9 questions</li>
+      <li>You'll have ${durationMinutes} minutes to finish ${questionsPerQuiz} questions</li>
       <li>No reattempts — answer carefully</li>
       <li>Winners get prizes; your YouTube handle is verified before payout</li>
     </ul>
