@@ -183,16 +183,18 @@ export class ScriptGeneratorService {
       this.logger.error(`Thumbnail prompt failed for ${script.id}: ${(e as Error).message}`);
     }
 
-    // ── Distribution package (non-fatal) ───────────────────────────────
-    try {
-      const { package: pkg, cost_usd } = await this.distribution.generatePackage(script, item);
-      script.distributionPackage = pkg as unknown as Record<string, unknown>;
-      script.distributionCostUsd = cost_usd;
-      script.distributionGeneratedAt = new Date();
-      await this.scriptRepo.save(script);
-    } catch (e) {
-      this.logger.error(`Distribution package failed for ${script.id}: ${(e as Error).message}`);
-    }
+    // ── English distribution package ──────────────────────────────────
+    // INTENTIONALLY NOT auto-generated at script creation. The curator
+    // triggers per-platform generation manually from the admin UI's
+    // "🔄 Regenerate (N)" button (shipped in 63cf95c — supports
+    // per-platform checkboxes). Reasons:
+    //   1) Rejected scripts no longer waste ~$0.04 each on distribution
+    //   2) Curator may only post to 2-3 platforms, not all 5
+    //   3) Copy stays fresh — generated right before publish, not 3
+    //      days earlier in the queue
+    // The existing /approval/:id/distribution/regenerate endpoint
+    // handles BOTH first-time create and subsequent refreshes — admin
+    // UI's "No distribution package yet" prompt covers the empty state.
 
     // ── Telugu translation (non-fatal — English ships regardless) ──────
     if (this.translation.isConfigured()) {
