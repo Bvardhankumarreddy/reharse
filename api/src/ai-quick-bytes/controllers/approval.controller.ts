@@ -210,6 +210,58 @@ export class ApprovalController {
     return this.publishing.getDailyStats();
   }
 
+  /**
+   * One-shot backfill — walks every script with a non-null
+   * distributionPackage / teluguDistributionPackage and lowercases
+   * every hashtag / tag in place. No LLM cost.
+   *
+   * Idempotent: re-running is a no-op (already-lowercase strings
+   * stay lowercase). Use ?dryRun=true to see the count of rows
+   * that WOULD be touched without writing.
+   */
+  @Post('backfill/lowercase-hashtags')
+  async backfillLowercaseHashtags(@Query('dryRun') dryRunQ?: string) {
+    const dryRun = dryRunQ === 'true' || dryRunQ === '1';
+    const scripts = await this.scriptRepo
+      .createQueryBuilder('s')
+      .where('s.distributionPackage IS NOT NULL OR s.teluguDistributionPackage IS NOT NULL')
+      .getMany();
+
+    let touched = 0;
+    for (const s of scripts) {
+      const before = JSON.stringify({
+        en: s.distributionPackage ?? null,
+        te: s.teluguDistributionPackage ?? null,
+      });
+      if (s.distributionPackage) {
+        s.distributionPackage = lowercaseHashtagsInPackage(
+          s.distributionPackage as Record<string, unknown>,
+        ) as unknown as Record<string, unknown>;
+      }
+      if (s.teluguDistributionPackage) {
+        s.teluguDistributionPackage = lowercaseHashtagsInPackage(
+          s.teluguDistributionPackage as Record<string, unknown>,
+        ) as unknown as Record<string, unknown>;
+      }
+      const after = JSON.stringify({
+        en: s.distributionPackage ?? null,
+        te: s.teluguDistributionPackage ?? null,
+      });
+      if (before !== after) {
+        touched++;
+        if (!dryRun) await this.scriptRepo.save(s);
+      }
+    }
+    return {
+      scanned: scripts.length,
+      touched,
+      dryRun,
+      message: dryRun
+        ? `Would update ${touched}/${scripts.length} scripts (no writes performed)`
+        : `Updated ${touched}/${scripts.length} scripts`,
+    };
+  }
+
   // ── Thumbnail prompt ────────────────────────────────────────────────
 
   @Get(':id/thumbnail')
@@ -435,4 +487,62 @@ export class ApprovalController {
     await this.scriptRepo.save(script);
     return { success: true, updated: platform };
   }
+}
+
+// ── Backfill helpers ───────────────────────────────────────────────────
+/**
+ * Same lowercase pass used by the live distribution generator, applied
+ * to a stored package. Walks every text field where #hashtags can appear
+ * plus every tags / hashtags array, mutating + returning the same object
+ * shape. Idempotent on already-lowercase input.
+ */
+function lowercaseHashtagsInPackage(pkg: Record<string, unknown>): Record<string, unknown> {
+  if (!pkg || typeof pkg !== 'object') return pkg;
+
+  const lowerArr = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? (v as unknown[])
+          .map((t) => String(t ?? '').toLowerCase().trim())
+          .filter(Boolean)
+      : [];
+
+  type S = { title?: string; description?: string; tags?: unknown[];
+             caption?: string; full_text?: string; hashtags?: unknown[];
+             body?: string };
+  const yt = pkg.youtube as S | undefined;
+  if (yt) {
+    if (typeof yt.title === 'string') yt.title = lowercaseHashtagsInText(yt.title);
+    if (typeof yt.description === 'string') yt.description = lowercaseHashtagsInText(yt.description);
+    if (yt.tags) yt.tags = lowerArr(yt.tags);
+  }
+  const ig = pkg.instagram as S | undefined;
+  if (ig) {
+    if (typeof ig.caption === 'string') ig.caption = lowercaseHashtagsInText(ig.caption);
+    if (typeof ig.full_text === 'string') ig.full_text = lowercaseHashtagsInText(ig.full_text);
+    if (ig.hashtags) ig.hashtags = lowerArr(ig.hashtags);
+  }
+  const li = pkg.linkedin as S | undefined;
+  if (li) {
+    if (typeof li.body === 'string') li.body = lowercaseHashtagsInText(li.body);
+    if (typeof li.full_text === 'string') li.full_text = lowercaseHashtagsInText(li.full_text);
+    if (li.hashtags) li.hashtags = lowerArr(li.hashtags);
+  }
+  const wc = pkg.whatsapp_channel as S | undefined;
+  if (wc && typeof wc.full_text === 'string') {
+    wc.full_text = lowercaseHashtagsInText(wc.full_text);
+  }
+  const ws = pkg.whatsapp_status as S | undefined;
+  if (ws && typeof ws.full_text === 'string') {
+    ws.full_text = lowercaseHashtagsInText(ws.full_text);
+  }
+  return pkg;
+}
+
+/**
+ * Lowercase every #word hashtag in a string. Only matches ASCII word
+ * chars after #, so Telugu glyphs and body text outside hashtags are
+ * untouched.
+ */
+function lowercaseHashtagsInText(s: string): string {
+  return s.replace(/#([A-Za-z0-9_]+)/g, (_m, word) => '#' + word.toLowerCase());
 }
