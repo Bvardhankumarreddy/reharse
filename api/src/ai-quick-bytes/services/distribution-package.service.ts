@@ -309,6 +309,17 @@ export class DistributionPackageService {
       );
     }
 
+    // ── Mandatory hashtag injection (post-LLM, deterministic) ─────────
+    // Every distribution package gets the brand-discovery tags:
+    //   #shortvideos #shortsfeed #shortvideo
+    // Plus #day{N} for the dayNumber-tracked Shorts cadence.
+    // Already-present tags (case-insensitive) are not duplicated.
+    const mandatoryTags = ['shortvideos', 'shortsfeed', 'shortvideo'];
+    if (script.dayNumber != null) {
+      mandatoryTags.push(`day${script.dayNumber}`);
+    }
+    injectMandatoryHashtags(distributionPackage, mandatoryTags, platforms);
+
     this.logger.log(
       `Distribution package (${language}) for script ${script.id} · ` +
       `platforms=[${platforms.join(',')}] · cost=$${cost.toFixed(4)}`,
@@ -429,4 +440,68 @@ exactly as specified in the system prompt.`;
  */
 function lowercaseHashtags(s: string): string {
   return s.replace(/#([A-Za-z0-9_]+)/g, (_m, word) => '#' + word.toLowerCase());
+}
+
+/**
+ * Inject the mandatory brand-discovery hashtags into the YouTube tags
+ * array + Instagram + LinkedIn hashtag arrays, AND append them inline
+ * to the description / caption / full_text fields so they actually
+ * render alongside the post. Case-insensitive dedup against existing
+ * entries — re-running is a free no-op.
+ *
+ * - YouTube tags are stored WITHOUT '#' (SEO format)
+ * - Instagram / LinkedIn arrays use '#'-prefixed form
+ * - Body text gets each tag prefixed with '#' on a trailing line
+ */
+function injectMandatoryHashtags(
+  pkg: DistributionPackage,
+  tags: string[],
+  platforms: DistributionPlatform[],
+): void {
+  if (tags.length === 0) return;
+  const cleanTags = tags
+    .map((t) => t.replace(/^#/, '').toLowerCase().trim())
+    .filter(Boolean);
+  if (cleanTags.length === 0) return;
+  const hashedLine = cleanTags.map((t) => `#${t}`).join(' ');
+
+  const dedupArray = (existing: unknown, withHash: boolean): string[] => {
+    const arr = Array.isArray(existing) ? (existing as unknown[]).map(String) : [];
+    const seen = new Set(arr.map((t) => t.replace(/^#/, '').toLowerCase().trim()).filter(Boolean));
+    const out = [...arr];
+    for (const t of cleanTags) {
+      if (seen.has(t)) continue;
+      seen.add(t);
+      out.push(withHash ? `#${t}` : t);
+    }
+    return out;
+  };
+
+  const appendInline = (body: string | undefined): string => {
+    if (!body) return body ?? '';
+    // Only append tags that aren't already in the body text.
+    const missing = cleanTags.filter((t) => !new RegExp(`#${t}\\b`, 'i').test(body));
+    if (missing.length === 0) return body;
+    const line = missing.map((t) => `#${t}`).join(' ');
+    return `${body.trimEnd()}\n${line}`;
+  };
+
+  if (platforms.includes('youtube') && pkg.youtube) {
+    pkg.youtube.tags = dedupArray(pkg.youtube.tags, false);
+    pkg.youtube.description = appendInline(pkg.youtube.description);
+  }
+  if (platforms.includes('instagram') && pkg.instagram) {
+    pkg.instagram.hashtags = dedupArray(pkg.instagram.hashtags, true);
+    pkg.instagram.caption = appendInline(pkg.instagram.caption);
+    pkg.instagram.full_text = appendInline(pkg.instagram.full_text);
+  }
+  if (platforms.includes('linkedin') && pkg.linkedin) {
+    pkg.linkedin.hashtags = dedupArray(pkg.linkedin.hashtags, true);
+    pkg.linkedin.full_text = appendInline(pkg.linkedin.full_text);
+  }
+  // WhatsApp: append inline (no separate hashtag array)
+  if (platforms.includes('whatsapp_channel') && pkg.whatsapp_channel?.full_text) {
+    pkg.whatsapp_channel.full_text = appendInline(pkg.whatsapp_channel.full_text);
+  }
+  void hashedLine;   // suppress unused-var warning if a platform path is skipped
 }

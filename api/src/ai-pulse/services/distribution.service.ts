@@ -143,8 +143,68 @@ export class AiPulseDistributionService {
     pkg.whatsapp_channel!.full_text = ensureUrl(pkg.whatsapp_channel!.full_text);
     pkg.whatsapp_status!.full_text  = ensureUrl(pkg.whatsapp_status!.full_text);
 
+    // ── Mandatory hashtag injection (post-LLM, deterministic) ──────────
+    // Every AI Pulse distribution package gets the brand-discovery tags
+    // for the YouTube Shorts surface: #shortvideos #shortsfeed #shortvideo.
+    // (No #dayN — AI Pulse doesn't use a day counter; that's an AQB thing.)
+    // Case-insensitive dedup — re-running is a free no-op.
+    const mandatoryTags = ['shortvideos', 'shortsfeed', 'shortvideo'];
+    injectMandatoryHashtagsInto(pkg, mandatoryTags);
+
     await this.scripts.update(scriptId, { distribution_package: pkg });
     this.logger.log(`Distribution package for script ${scriptId} — ${pkg.source_reference.name}`);
     return pkg;
+  }
+}
+
+/**
+ * Inject mandatory brand-discovery hashtags into the per-platform tag
+ * arrays AND inline into the description / caption / full_text bodies.
+ * Case-insensitive dedup so re-runs don't duplicate.
+ *
+ * - YouTube tags: stored WITHOUT '#'
+ * - Instagram / LinkedIn hashtags: WITH '#'
+ * - Body fields: tags appended as a trailing '#hashtag' line
+ */
+function injectMandatoryHashtagsInto(pkg: AiPulseDistributionPackage, tags: string[]): void {
+  const cleanTags = tags
+    .map((t) => t.replace(/^#/, '').toLowerCase().trim())
+    .filter(Boolean);
+  if (cleanTags.length === 0) return;
+
+  const dedupArray = (existing: unknown, withHash: boolean): string[] => {
+    const arr = Array.isArray(existing) ? (existing as unknown[]).map(String) : [];
+    const seen = new Set(arr.map((t) => t.replace(/^#/, '').toLowerCase().trim()).filter(Boolean));
+    const out = [...arr];
+    for (const t of cleanTags) {
+      if (seen.has(t)) continue;
+      seen.add(t);
+      out.push(withHash ? `#${t}` : t);
+    }
+    return out;
+  };
+
+  const appendInline = (body: string | undefined): string => {
+    if (!body) return body ?? '';
+    const missing = cleanTags.filter((t) => !new RegExp(`#${t}\\b`, 'i').test(body));
+    if (missing.length === 0) return body;
+    return `${body.trimEnd()}\n${missing.map((t) => `#${t}`).join(' ')}`;
+  };
+
+  if (pkg.youtube) {
+    pkg.youtube.tags = dedupArray(pkg.youtube.tags, false);
+    pkg.youtube.description = appendInline(pkg.youtube.description);
+  }
+  if (pkg.instagram) {
+    pkg.instagram.hashtags = dedupArray(pkg.instagram.hashtags, true);
+    pkg.instagram.caption = appendInline(pkg.instagram.caption);
+    pkg.instagram.full_text = appendInline(pkg.instagram.full_text);
+  }
+  if (pkg.linkedin) {
+    pkg.linkedin.hashtags = dedupArray(pkg.linkedin.hashtags, true);
+    pkg.linkedin.full_text = appendInline(pkg.linkedin.full_text);
+  }
+  if (pkg.whatsapp_channel?.full_text) {
+    pkg.whatsapp_channel.full_text = appendInline(pkg.whatsapp_channel.full_text);
   }
 }
