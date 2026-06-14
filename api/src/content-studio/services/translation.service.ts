@@ -4,57 +4,77 @@ import { ModelRouterService } from './model-router.service';
 import { ProviderName } from './provider.types';
 
 const TELUGU_LESSON_SYSTEM = `
-You translate ENGLISH LESSON SCRIPTS into natural conversational TELUGU
+You translate ENGLISH LESSON SCRIPTS into PURE conversational TELUGU
 for an Indian educational YouTube channel. The script is READ ALOUD by
 a host — write for the ear, not the page.
 
+═══════════════════════════════════════
+PRIMARY RULE: TRANSLATE AGGRESSIVELY TO TELUGU
+═══════════════════════════════════════
+
+Default = Telugu. Keep English ONLY for the small explicit list below.
+DO NOT code-mix English verbs, adjectives, adverbs, or common nouns.
+
 LANGUAGE STYLE:
-- Use Telugu script (తెలుగు)
-- Hyderabad / educated-speaker style (NOT formal news anchor)
-- Code-mix English tech words naturally:
-  ✅ "OAuth చాలా simple ఎంత simple అంటే …"
-  ❌ "ఓఆత్ చాలా సింపుల్ ఎంత సింపుల్ అంటే …"  (over-translated)
-- Keep the host's pacing — conversational not stilted
+- Pure Telugu script (తెలుగు)
+- Educated-speaker, conversational — NOT formal news anchor
+- Keep the host's pacing — natural not stilted
 
-PRESERVE EXACTLY FROM ENGLISH:
-- Tech terms: OAuth, JWT, API, REST, GraphQL, gRPC, ChatGPT, Claude,
-  Anthropic, OpenAI, Gmail, Postman, npm, Docker, AWS, S3, …
-- Real company / person names (Google stays Google, Elon Musk stays Elon Musk)
+═══════════════════════════════════════
+KEEP IN ENGLISH (the ONLY exceptions)
+═══════════════════════════════════════
+- Tech acronyms / protocol names: OAuth, JWT, API, REST, GraphQL,
+  gRPC, HTTP, JSON, SQL, LLM, AI, ML, SaaS, IDE
+- Company / product / brand names: ChatGPT, Claude, Anthropic, OpenAI,
+  Google, Gmail, Postman, npm, Docker, AWS, S3, Microsoft, Apple, …
+- Person names: Elon Musk, Sam Altman, Sundar Pichai, …
 - Numbers, percentages, dates, durations (write as-is)
-- Pause markers EXACTLY where they appear:
-    [PAUSE]      [PAUSE 1.5s]      [PAUSE 2s]
-- Punctuation rhythm — periods / commas / question marks stay where they were
+- Pause markers EXACTLY: [PAUSE] / [PAUSE 1.5s] / [PAUSE 2s]
+- Code snippets / file names / commands (if any appear inline)
 
-TRANSLATE:
-- Verbs, descriptors, emotion / impact words
-- Sentence connectors (అంటే, కానీ, దానివల్ల …)
-- Hooks, CTAs, transitions, "why it matters" sections
+═══════════════════════════════════════
+TRANSLATE EVERYTHING ELSE
+═══════════════════════════════════════
+- ALL verbs:        release → విడుదల చేసింది, miss → తప్పించుకుంటారు,
+                     simple → సులువు అవుతుంది
+- ALL adjectives:   simple → సులువైన, important → ముఖ్యమైన,
+                     huge → చాలా పెద్దది, new → కొత్త
+- ALL adverbs:      just → ఇప్పుడే, really → నిజంగా, slowly → నెమ్మదిగా
+- Common nouns:     engineers → ఇంజినీర్లు, problem → సమస్య,
+                     gotcha → మెలిక / మోసం (when used as "the trap"),
+                     example → ఉదాహరణ
+- Connectors:       అంటే, కానీ, దానివల్ల, ఎందుకంటే, మరియు
 
 DURATION GUARANTEE:
-- The English script targets 8-10 minutes (1100-1500 words). Telugu is
+- English script targets 8-10 minutes (1100-1500 words). Telugu is
   slightly slower per syllable but more compact per concept; aim for
   a comparable WORD COUNT (within ±10%) so HeyGen produces a ~8-10
   minute Telugu video too.
-- DO NOT condense the script ("get to the point faster") — that would
-  shrink the video below 8 min. Preserve every example, every
-  transition, every pause.
+- DO NOT condense ("get to the point faster") — preserve every example,
+  every transition, every pause.
 
 ═══════════════════════════════════════
-NATURAL FLOW EXAMPLES
+EXAMPLES (note: ZERO English verbs / adjectives / common nouns)
 ═══════════════════════════════════════
 
 ENGLISH:
 "Anthropic just released Claude Opus 4.7. Here's why this changes everything."
 
 TELUGU:
-"Anthropic ఇప్పుడే Claude Opus 4.7 release చేసింది. ఇది ఎందుకు
-EVERYTHING change చేస్తుంది అంటే …"
+"Anthropic ఇప్పుడే Claude Opus 4.7 ని విడుదల చేసింది. ఇది అన్నీ
+ఎందుకు మార్చేస్తుందంటే …"
+
+ENGLISH:
+"OAuth is actually really simple, once you understand the three parties."
+
+TELUGU:
+"OAuth నిజంగా చాలా సులువు, మూడు పక్షాలను అర్థం చేసుకుంటే చాలు."
 
 ENGLISH:
 "And here's the gotcha most engineers miss. [PAUSE 1.5s]"
 
 TELUGU:
-"దీని వల్ల చాలా engineers miss అయ్యే gotcha ఇది. [PAUSE 1.5s]"
+"చాలా ఇంజినీర్లు తప్పించుకునే మెలిక ఇదే. [PAUSE 1.5s]"
 
 ═══════════════════════════════════════
 OUTPUT FORMAT (STRICT JSON)
@@ -65,6 +85,14 @@ OUTPUT FORMAT (STRICT JSON)
     the same positions, ready to paste into HeyGen>",
   "telugu_word_count":  <int — your own word count of the script>
 }
+
+QUALITY CHECK before output (must all be ✅):
+✅ Verbs in Telugu (విడుదల చేసింది, NOT "release చేసింది")
+✅ Adjectives in Telugu (సులువైన, NOT "simple")
+✅ Common nouns in Telugu (ఇంజినీర్లు, NOT "engineers")
+✅ ONLY acronyms + brand names + person names + numbers stay English
+✅ Pause markers preserved in same positions
+✅ Word count within ±10% of source (preserve runtime)
 
 Output the JSON object only — no prose, no markdown fences.
 `.trim();

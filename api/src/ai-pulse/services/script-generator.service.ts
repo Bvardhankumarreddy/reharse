@@ -150,26 +150,73 @@ Output STRICT JSON:
 };
 
 const TELUGU_SYSTEM = `
-You translate ENGLISH SHORT-FORM SCRIPTS into natural conversational
-TELUGU for AetherStackAI shorts. Hyderabad-style code-mix.
+You translate ENGLISH SHORT-FORM SCRIPTS into PURE conversational TELUGU
+for AetherStackAI shorts.
+
+═══════════════════════════════════════
+PRIMARY RULE: TRANSLATE AGGRESSIVELY TO TELUGU
+═══════════════════════════════════════
+Default = Telugu. Keep English ONLY for the small explicit list below.
+DO NOT code-mix English verbs, adjectives, adverbs, or common nouns.
 
 LANGUAGE STYLE:
-- Telugu script (తెలుగు).
-- Code-mix English tech words naturally:
-  ✅ "Google ఇప్పుడే 10,000 engineers hire చేసింది."
-  ❌ over-translated nouns.
-- Keep host pacing — conversational, not stilted.
+- Pure Telugu script (తెలుగు).
+- Educated-speaker, conversational — NOT formal news anchor.
+- Keep host pacing — natural, not stilted.
 
-PRESERVE EXACTLY:
-- Tech terms, company names, person names, numbers, dates.
-- Pause markers exactly where they appear: [PAUSE] / [PAUSE 1.5s] / [PAUSE 2s].
-- The LAST LINE source citation — translate the prefix to Telugu but
-  KEEP the source name verbatim:
-    "Source: TechCrunch. Link in description."
-    → "Source: TechCrunch. Description లో link ఉంది."
+═══════════════════════════════════════
+KEEP IN ENGLISH (the ONLY exceptions)
+═══════════════════════════════════════
+- Company / product / brand names: Google, Apple, OpenAI, Anthropic,
+  ChatGPT, Claude, Gemini, Meta, NVIDIA, TechCrunch, Bloomberg, …
+- Person names: Sam Altman, Elon Musk, Sundar Pichai, …
+- Tech acronyms ONLY: AI, ML, API, LLM, OAuth, RAG, GPT, …
+- Numbers, percentages, dates, durations, currency
+- Pause markers EXACTLY: [PAUSE] / [PAUSE 1.5s] / [PAUSE 2s]
+- Source NAME in the citation (TechCrunch / Bloomberg / Inc42 stay as-is)
+
+═══════════════════════════════════════
+TRANSLATE EVERYTHING ELSE
+═══════════════════════════════════════
+- ALL verbs:       hire → నియమించుకుంది, launch → ప్రారంభించింది,
+                    release → విడుదల చేసింది, fire → తొలగించింది
+- ALL adjectives:  new → కొత్త, smart → తెలివైన, important → ముఖ్యమైన
+- ALL adverbs:     just → ఇప్పుడే, really → నిజంగా
+- Common nouns:    engineers → ఇంజినీర్లు, jobs → ఉద్యోగాలు,
+                    layoff → తొలగింపు, salary → జీతం
+- Connectors:      అంటే, కానీ, దానివల్ల, ఎందుకంటే
+
+SOURCE CITATION (last line):
+The English script ends with: "Source: <Name>. Link in description."
+Translate the prefix + suffix to Telugu, keep the source name English:
+
+  English: "Source: TechCrunch. Link in description."
+  Telugu:  "Source: TechCrunch. వివరణలో లింక్ ఉంది."
+
+═══════════════════════════════════════
+EXAMPLES (note: ZERO English verbs / adjectives / common nouns)
+═══════════════════════════════════════
+
+ENGLISH: "Google just hired 10,000 engineers."
+TELUGU:  "Google ఇప్పుడే 10,000 ఇంజినీర్లను నియమించుకుంది."
+
+ENGLISH: "Meta cut 5,000 roles in its AI division this morning."
+TELUGU:  "Meta తన AI విభాగంలో ఈ ఉదయం 5,000 ఉద్యోగాలను తొలగించింది."
+
+ENGLISH: "Anthropic just released Claude Opus 4.7."
+TELUGU:  "Anthropic ఇప్పుడే Claude Opus 4.7 ని విడుదల చేసింది."
 
 OUTPUT FORMAT (STRICT JSON):
 {"telugu_title":"...","telugu_hook":"...","telugu_full_script":"..."}
+
+QUALITY CHECK before output (must all be ✅):
+✅ Verbs in Telugu (నియమించుకుంది, NOT "hire చేసింది")
+✅ Adjectives in Telugu (కొత్త, NOT "new")
+✅ Common nouns in Telugu (ఇంజినీర్లు, NOT "engineers")
+✅ ONLY brand names + person names + acronyms + numbers stay English
+✅ Pause markers preserved in same positions
+✅ Source citation translated except for source name
+
 Output the JSON object only — no prose, no markdown fences.
 `.trim();
 
