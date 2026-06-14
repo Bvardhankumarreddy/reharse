@@ -15,7 +15,15 @@ const VERTICAL_STYLE: Record<AiPulseVertical, string> = {
 };
 
 const SYSTEM = `
-You design 3 YouTube Shorts thumbnail prompts for AetherStackAI.
+You design YouTube Shorts thumbnail prompts for AetherStackAI's
+"AI Pulse" — daily AI news from around the world, hosted by Vardhan.
+
+AUDIENCE: Educated global+Indian tech viewers — engineers, founders,
+analysts, students. They respond to SPECIFIC NUMBERS, REAL PRODUCT
+SCREENSHOTS, HARD COMPARISONS, and SHARP QUESTIONS — far more than to
+a guy with wide eyes pointing at his face. AI thumbnails are saturated
+with the MrBeast "shocked face" cliché — we deliberately diversify.
+
 Output JSON ONLY — strict format below.
 
 EACH thumbnail must:
@@ -24,20 +32,70 @@ EACH thumbnail must:
 - Include a SOURCE BADGE in the BOTTOM-RIGHT corner reading
   EXACTLY "via {SOURCE_NAME}" — non-negotiable.
 - Be readable on mobile in 1 second.
+- Use ONE focal point. ≤2 accent colors. No HUD/matrix/status-bar clutter.
 
-Generate 3 distinct styles in this order:
-  1. "shocked_reaction"  — face + bold overlay, eye-catching
-  2. "bold_text"         — minimal background + huge typography
-  3. "visual_metaphor"   — icon / illustration that conveys the story
+═══════════════════════════════════════
+3-STYLE SELECTION (pick 3 DISTINCT from this menu — story decides which)
+═══════════════════════════════════════
+
+▶️ "data_reveal" — Giant number / stat dominates the frame ("$300B",
+   "10×", "94%"). Subhead with 3-4 word context. No face. Glow under
+   the number. USE WHEN: story has a hard, surprising number.
+
+▶️ "product_screenshot" — Real-looking screenshot of the actual product
+   (Cursor IDE, ChatGPT, Sora, V0, Claude UI, etc.) with ONE element
+   circled in red marker + 2-3 word annotation. Slight 3D tilt. Bottom
+   ≤5-word headline. USE WHEN: story is a feature / UI / release.
+
+▶️ "versus" — Two logos / products / faces face off, split by a glowing
+   diagonal. Center "VS" in gold or coral. ≤5-word headline framing the
+   matchup. USE WHEN: story is a direct comparison / launch-vs-incumbent.
+
+▶️ "identity_target" — Calls out viewer identity in the headline itself
+   ("FOR INDIAN DEVS", "STARTUP CTOs READ THIS"). One faint background
+   object. Headline IS the design. USE WHEN: story has a "for YOU if…"
+   angle.
+
+▶️ "question_hook" — Massive provocative question, minimal everything
+   else ("AI BY 2027?", "OPEN-SOURCE WINS?"). One subtle accent shape.
+   No face. USE WHEN: story poses a debate / forecast / open question.
+
+▶️ "visual_metaphor" — One striking prop tells the story — broken
+   padlock (security breach), open cage (open-source), cracked screen
+   (failure), stack of cash (revenue). Dramatic single-source lighting.
+   ≤4-word headline. USE WHEN: story visualizes well in one symbol.
+
+▶️ "bold_text" — Pure typography. The headline IS the design (60% of
+   frame). One word colored in cyan or gold. Avatar absent or tiny.
+   USE WHEN: the headline itself is the hook (a quote, a punchline).
+
+▶️ "shocked_reaction" — Classic MrBeast face. Use SPARINGLY — at most
+   1 of 3, and only when the news is a genuine "wait, what?" moment
+   (scandal, sudden reversal, dramatic launch).
+
+STYLE HEURISTIC:
+- NEWS / launch          → data_reveal + product_screenshot + question_hook
+- COMPARISON / war       → versus + data_reveal + bold_text
+- OPINION / forecast     → question_hook + bold_text + visual_metaphor
+- POLICY / society       → identity_target + question_hook + visual_metaphor
+- GENUINE SHOCK / scandal → shocked_reaction + data_reveal + question_hook
+
+PALETTE: Dark navy #0A0E27 base (60%+ frame) + 1-2 accents from
+{cyan #00D4FF, gold #FFD700, coral red #FF6B6B}. Plus the vertical
+hint passed in the user prompt.
+
+HEADLINE: ≤6 words, ALL CAPS, specific > generic. Numbers + brand
+names beat adjectives. ("OPENAI LOST ₹300 CRORE" > "BIG AI NEWS").
 
 Output STRICT JSON:
 {
   "variations": [
-    {"style":"shocked_reaction","headline":"...","prompt":"...","source_badge":"via {SOURCE_NAME}"},
-    {"style":"bold_text",       "headline":"...","prompt":"...","source_badge":"via {SOURCE_NAME}"},
-    {"style":"visual_metaphor", "headline":"...","prompt":"...","source_badge":"via {SOURCE_NAME}"}
+    {"style":"<one of menu>","headline":"...","prompt":"<100-150 word EN prompt>","source_badge":"via {SOURCE_NAME}"},
+    {"style":"<one of menu>","headline":"...","prompt":"...","source_badge":"via {SOURCE_NAME}"},
+    {"style":"<one of menu>","headline":"...","prompt":"...","source_badge":"via {SOURCE_NAME}"}
   ]
 }
+All 3 styles MUST be distinct. At most 1 may be "shocked_reaction".
 `.trim();
 
 @Injectable()
@@ -67,11 +125,15 @@ export class AiPulseThumbnailService {
 
     const user =
       `VERTICAL: ${script.vertical}\n` +
-      `STYLE HINT: ${styleHint}\n` +
+      `VERTICAL STYLE HINT: ${styleHint}\n` +
       `SOURCE NAME (use VERBATIM in source_badge — replace the {SOURCE_NAME} placeholder): ${item.source_name}\n\n` +
       `SCRIPT HOOK: ${script.english_hook ?? ''}\n` +
       `SCRIPT TITLE: ${script.english_title ?? ''}\n\n` +
-      `Generate 3 thumbnail prompts. Every source_badge field MUST read EXACTLY:\n` +
+      `Pick 3 DISTINCT styles from the menu that genuinely fit THIS story ` +
+      `(use the heuristic). At most 1 may be "shocked_reaction" and only ` +
+      `if the news truly warrants it. Lead with the strongest specific-number ` +
+      `/ screenshot / question / identity angle the topic offers.\n` +
+      `Every source_badge field MUST read EXACTLY:\n` +
       `  via ${item.source_name}\n`;
 
     const completion = await this.openai.chat.completions.create({
@@ -81,8 +143,8 @@ export class AiPulseThumbnailService {
         { role: 'user',   content: user },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.7,
-      max_tokens: 1200,
+      temperature: 0.8,
+      max_tokens: 2400,
     });
     const parsed = JSON.parse(completion.choices[0]?.message?.content ?? '{}') as {
       variations?: AiPulseThumbnailPrompt[];

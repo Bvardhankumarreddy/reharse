@@ -69,8 +69,17 @@ export const DISTRIBUTION_PLATFORM_LABELS: Record<DistributionPlatform, string> 
 };
 
 export type ThumbnailStyle =
-  | 'shocked_reaction' | 'bold_text' | 'visual_metaphor'
-  | 'brand_signature'; // the previous detailed AetherStackAI futuristic look
+  // NEW (Jun-26 creative rethink — tuned for educated Indian tech viewers)
+  | 'data_reveal'        // hero number / stat dominates ($300B, 10×, 94%)
+  | 'product_screenshot' // real annotated screenshot, one element circled in red
+  | 'versus'             // two logos / products face off (ChatGPT vs Claude)
+  | 'identity_target'    // calls out viewer identity ("For BTech CSE")
+  | 'question_hook'      // massive provocative question, minimal visual
+  // EXISTING (retained for variety + back-compat with old rows)
+  | 'visual_metaphor'    // one strong prop tells the story
+  | 'bold_text'          // pure typography, headline IS the design
+  | 'shocked_reaction'   // classic MrBeast face — used sparingly now
+  | 'brand_signature';   // the richer futuristic AetherStackAI house look
 
 export interface ThumbnailVariation {
   style: ThumbnailStyle;
@@ -82,5 +91,5 @@ export interface ThumbnailVariation {
 }
 
 export interface ThumbnailPromptResult {
-  variations: ThumbnailVariation[]; // 3: shocked_reaction, bold_text, visual_metaphor
+  variations: ThumbnailVariation[]; // 4-5 distinct styles, story-type-aware
 }

@@ -58,8 +58,12 @@ export interface ShortScript {
 }
 
 export type ThumbnailStyle =
-  | "shocked_reaction" | "bold_text" | "visual_metaphor"
-  | "brand_signature";
+  // NEW creative menu (Jun-26 rethink)
+  | "data_reveal" | "product_screenshot" | "versus"
+  | "identity_target" | "question_hook"
+  // EXISTING (retained for back-compat with already-generated rows)
+  | "visual_metaphor" | "bold_text"
+  | "shocked_reaction" | "brand_signature";
 
 export interface AqbMemoryRow {
   id: string;

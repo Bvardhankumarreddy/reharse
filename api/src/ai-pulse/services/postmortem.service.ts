@@ -20,7 +20,7 @@ Output STRICT JSON ONLY:
   "didntWork": ["1-3 things that fell flat"],
   "next": ["1-2 concrete things to try next"],
   "reusableHookPattern": "<1 sentence — a hook pattern worth repeating, or empty>",
-  "winningThumbnailStyle": "<one of: shocked_reaction | bold_text | visual_metaphor | none>",
+  "winningThumbnailStyle": "<one of: data_reveal | product_screenshot | versus | identity_target | question_hook | visual_metaphor | bold_text | shocked_reaction | none>",
   "topicSignal": "<short phrase, e.g. 'AI funding round', or empty>",
   "winningHashtags": ["#tag1","#tag2"]    // empty array if not significant
 }

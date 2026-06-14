@@ -1080,10 +1080,17 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 }
 
 const THUMB_STYLE_LABEL: Record<string, string> = {
-  shocked_reaction: "😱 Shocked reaction",
-  bold_text: "🔠 Bold text",
+  // NEW creative menu
+  data_reveal: "🔢 Data reveal (big number)",
+  product_screenshot: "🖥️ Product screenshot (annotated)",
+  versus: "⚔️ Versus (face-off)",
+  identity_target: "🎯 Identity callout",
+  question_hook: "❓ Question hook",
+  // EXISTING
   visual_metaphor: "🎭 Visual metaphor",
-  brand_signature: "✨ Brand signature (previous style)",
+  bold_text: "🔠 Bold text",
+  shocked_reaction: "😱 Shocked reaction (use sparingly)",
+  brand_signature: "✨ Brand signature",
 };
 
 function ThumbnailVariations({ variations }: { variations: ThumbnailVariation[] }) {

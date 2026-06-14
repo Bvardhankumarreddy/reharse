@@ -19,7 +19,7 @@ Output STRICT JSON ONLY:
   "didntWork": ["<1-3 things that fell flat>"],
   "next": ["<1-2 concrete things to try next>"],
   "reusableHookPattern": "<1 sentence — a hook pattern worth repeating, or empty>",
-  "winningThumbnailStyle": "<one of: shocked_reaction | clean | bold_text | visual_metaphor | brand_signature | none>",
+  "winningThumbnailStyle": "<one of: data_reveal | product_screenshot | versus | identity_target | question_hook | visual_metaphor | bold_text | shocked_reaction | brand_signature | none>",
   "topicSignal": "<short phrase describing the topic angle, e.g. 'OpenAI model release' — or empty>"
 }
 Be specific (real numbers, real topic), not generic. Skip a field with "" / [] if you can't be honest about it.
