@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AnthropicClientService } from './anthropic-client.service';
 import { AqbMemoryService } from './aqb-memory.service';
@@ -193,16 +193,40 @@ export class DistributionPackageService {
     const userPrompt = [baseUserPrompt, scopeBlock, memoryBlock]
       .filter(Boolean).join('\n\n');
 
+    // Output tokens scale ~linearly with platform count. Telugu hashtags +
+    // copy are written in Devanagari/Telugu script which encodes to
+    // ~2-3× more tokens than English, so the per-platform budget is
+    // doubled for 'te' — otherwise the response truncates mid-string and
+    // JSON.parse throws "Unterminated string".
+    const perPlatformTokens = language === 'te' ? 1200 : 600;
+    const maxTokens = Math.max(1200, platforms.length * perPlatformTokens);
+
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
       system: language === 'te' ? DISTRIBUTION_SYSTEM_PROMPT_TE : DISTRIBUTION_SYSTEM_PROMPT,
       user: userPrompt,
       temperature: 0.7,
-      // Output tokens scale roughly linearly with platform count — give
-      // every platform ~600 tokens of headroom; 5 = 3000 (original cap).
-      maxTokens: Math.max(800, platforms.length * 600),
+      maxTokens,
     });
 
-    const parsed = JSON.parse(raw || '{}') as DistributionLlmResponse;
+    let parsed: DistributionLlmResponse;
+    try {
+      parsed = JSON.parse(raw || '{}') as DistributionLlmResponse;
+    } catch (e) {
+      // Log the head of the raw response so the next deploy can tell at a
+      // glance whether the LLM truncated (no closing brace) or returned
+      // surrounding prose. Surfaced to the caller as a 400, not a 500.
+      const head = (raw || '').slice(0, 400).replace(/\s+/g, ' ');
+      const tail = (raw || '').slice(-200).replace(/\s+/g, ' ');
+      this.logger.error(
+        `Distribution LLM returned non-JSON (lang=${language}, platforms=${platforms.length}, ` +
+        `maxTokens=${maxTokens}, rawLen=${(raw ?? '').length}). ` +
+        `head="${head}" tail="${tail}"`,
+      );
+      throw new BadRequestException(
+        `LLM returned malformed JSON (likely truncated — retry, and if it persists ` +
+        `regenerate fewer platforms per call). Parser error: ${(e as Error).message}`,
+      );
+    }
     const cost = this.calcCost(model, usage);
 
     const sourceReference: SourceReference = {
