@@ -302,30 +302,73 @@ function NewsPanel({ token, onToast }: { token: string; onToast: (m: string) => 
   );
 }
 
-// ── Queue tab — pending scripts + per-script detail ────────────────────
+// ── Queue tab — scripts per status filter + per-script detail ──────────
+type QueueStatus = "pending_review" | "approved" | "published" | "rejected" | "all";
+const QUEUE_STATUS_LABEL: Record<QueueStatus, string> = {
+  pending_review: "Pending review",
+  approved: "Approved · awaiting publish",
+  published: "Published",
+  rejected: "Rejected",
+  all: "All",
+};
+const QUEUE_STATUS_EMPTY: Record<QueueStatus, string> = {
+  pending_review: "No scripts pending approval. Use Verticals → ⚡ Generate to create one.",
+  approved: "No approved scripts waiting to publish.",
+  published: "No published scripts yet. Mark one as published after uploading to YouTube.",
+  rejected: "No rejected scripts.",
+  all: "No scripts at all yet.",
+};
+
 function QueuePanel({ token, onToast }: { token: string; onToast: (m: string) => void }) {
   const [scripts, setScripts] = useState<Script[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<QueueStatus>("pending_review");
 
   const load = useCallback(async () => {
     try {
-      setScripts(await api<Script[]>(token, "/approval/queue"));
+      const qs = statusFilter === "all" ? "" : `?status=${statusFilter}`;
+      setScripts(await api<Script[]>(token, `/approval/queue${qs}`));
     } catch (e) { onToast(`⚠ ${(e as Error).message}`); }
-  }, [token, onToast]);
+  }, [token, statusFilter, onToast]);
 
   useEffect(() => { void load(); }, [load]);
 
-  if (!scripts) return <Loading />;
+  const statusTabs: QueueStatus[] = ["pending_review", "approved", "published", "rejected", "all"];
+
+  const filterBar = (
+    <div className="flex flex-wrap gap-2 mb-3">
+      {statusTabs.map((s) => (
+        <button
+          key={s}
+          onClick={() => { setOpenId(null); setStatusFilter(s); }}
+          className={
+            "px-3 py-1.5 rounded-full text-xs font-medium transition " +
+            (statusFilter === s
+              ? "bg-[#00D4FF] text-[#0A0E27]"
+              : "bg-white/5 text-[#B8C5E0] hover:bg-white/10")
+          }
+        >
+          {QUEUE_STATUS_LABEL[s]}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (!scripts) return <>{filterBar}<Loading /></>;
   if (scripts.length === 0) {
     return (
-      <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-8 text-center text-[#6B7799] text-sm">
-        No scripts pending approval. Use the Verticals tab → ⚡ Generate to create one.
-      </div>
+      <>
+        {filterBar}
+        <div className="bg-[#151B3D] border border-white/10 rounded-2xl p-8 text-center text-[#6B7799] text-sm">
+          {QUEUE_STATUS_EMPTY[statusFilter]}
+        </div>
+      </>
     );
   }
 
   return (
     <div className="space-y-3">
+      {filterBar}
       {scripts.map((s) => (
         <div key={s.id} className="bg-[#151B3D] border border-white/5 rounded-2xl overflow-hidden">
           <button

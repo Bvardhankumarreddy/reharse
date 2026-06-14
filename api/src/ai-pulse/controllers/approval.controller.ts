@@ -22,15 +22,33 @@ export class AiPulseApprovalController {
     private readonly distribution: AiPulseDistributionService,
   ) {}
 
-  /** Pending-review queue, newest first; optional vertical filter. */
+  /**
+   * Scripts queue with optional status + vertical filters.
+   * Default status = 'pending_review' (back-compat with old callers).
+   * Pass `status=all` to skip the status filter entirely, or one of
+   * pending_review | approved | published | rejected.
+   */
   @Get('queue')
-  async queue(@Query('vertical') vertical?: string) {
+  async queue(
+    @Query('vertical') vertical?: string,
+    @Query('status') status?: string,
+  ) {
     const qb = this.scripts
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.news_item', 'n')
-      .where('s.approval_status = :st', { st: 'pending_review' })
       .orderBy('s.created_at', 'DESC')
       .limit(50);
+
+    const effectiveStatus = (status ?? 'pending_review').toLowerCase();
+    const ALLOWED = ['pending_review', 'approved', 'published', 'rejected'];
+    if (effectiveStatus !== 'all') {
+      if (!ALLOWED.includes(effectiveStatus)) {
+        // Unknown status → fall back to pending_review rather than 500ing.
+        qb.where('s.approval_status = :st', { st: 'pending_review' });
+      } else {
+        qb.where('s.approval_status = :st', { st: effectiveStatus });
+      }
+    }
     if (vertical) qb.andWhere('s.vertical = :v', { v: vertical });
     return qb.getMany();
   }
