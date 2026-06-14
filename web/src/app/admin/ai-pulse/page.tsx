@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   api, fetchToken,
   type AiPulseVertical, type NewsItem, type Script, type VerticalRow,
-  type Memory, type MemoryType, type Postmortem,
+  type Memory, type MemoryType, type Postmortem, type DistributionPackage,
   VERTICAL_LABELS, VERTICAL_DOW, MEMORY_TYPE_LABELS, MEMORY_TYPE_EMOJI,
 } from "./_helpers";
 
@@ -436,6 +436,58 @@ function ScriptDetail({
   if (!script) return <div className="px-4 py-6 text-center text-[#6B7799] text-xs">Loading…</div>;
 
   const dist = script.distribution_package;
+  const distTe = script.telugu_distribution_package;
+
+  const renderDistribution = (
+    pkg: DistributionPackage | null,
+    sectionTitle: string,
+    accent: string,
+  ) => {
+    if (!pkg) {
+      return (
+        <Section title={sectionTitle}>
+          <div className={`text-[11px] text-[#6B7799] border border-dashed ${accent} rounded-lg p-3`}>
+            Not generated yet. Use the regen button above to create it.
+          </div>
+        </Section>
+      );
+    }
+    return (
+      <Section title={sectionTitle}>
+        <div className="space-y-3">
+          {pkg.youtube && (
+            <PlatformBlock title="▶️ YouTube" onCopy={(v) => copyToClipboard(v, "YouTube")}>
+              <Field label="Title" value={pkg.youtube.title} />
+              <Field label="Description" value={pkg.youtube.description} multiline />
+              <Field label="Tags" value={pkg.youtube.tags.join(", ")} />
+              <Field label="Pinned comment" value={pkg.youtube.pinned_comment} multiline />
+            </PlatformBlock>
+          )}
+          {pkg.instagram && (
+            <PlatformBlock title="📸 Instagram">
+              <Field label="Full text" value={pkg.instagram.full_text} multiline />
+              <Field label="Pinned comment" value={pkg.instagram.pinned_comment} multiline />
+            </PlatformBlock>
+          )}
+          {pkg.linkedin && (
+            <PlatformBlock title="💼 LinkedIn">
+              <Field label="Post" value={pkg.linkedin.full_text} multiline />
+            </PlatformBlock>
+          )}
+          {pkg.whatsapp_channel && (
+            <PlatformBlock title="💬 WhatsApp Channel">
+              <Field label="Message" value={pkg.whatsapp_channel.full_text} multiline />
+            </PlatformBlock>
+          )}
+          {pkg.whatsapp_status && (
+            <PlatformBlock title="📱 WhatsApp Status">
+              <Field label="Status" value={pkg.whatsapp_status.full_text} multiline />
+            </PlatformBlock>
+          )}
+        </div>
+      </Section>
+    );
+  };
 
   return (
     <div className="border-t border-white/5 px-4 py-4 space-y-5 bg-[#0F1330]">
@@ -480,12 +532,21 @@ function ScriptDetail({
           🔁 Regen thumbnails
         </button>
         <button
-          onClick={() => action("Regenerated distribution",
+          onClick={() => action("Regenerated EN distribution",
             () => api(token, `/approval/${scriptId}/regenerate-distribution`, { method: "POST" }))}
           disabled={!!busy}
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-white/10 text-white hover:bg-white/5 disabled:opacity-40"
         >
-          🔁 Regen distribution
+          🔁 Regen EN distribution
+        </button>
+        <button
+          onClick={() => action("Regenerated TE distribution",
+            () => api(token, `/approval/${scriptId}/regenerate-distribution?lang=te`, { method: "POST" }))}
+          disabled={!!busy || !script.telugu_full_script}
+          title={script.telugu_full_script ? "Generate Telugu distribution" : "Needs Telugu script first"}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#FFB020]/30 text-[#FFB020] hover:bg-[#FFB020]/10 disabled:opacity-40"
+        >
+          🔁 Regen TE distribution
         </button>
         <button
           onClick={() => {
@@ -572,42 +633,13 @@ function ScriptDetail({
         </div>
       </Section>
 
-      {/* Distribution */}
-      {dist && (
-        <Section title="📦 Distribution package">
-          <div className="space-y-3">
-            {dist.youtube && (
-              <PlatformBlock title="▶️ YouTube" onCopy={(v) => copyToClipboard(v, "YouTube")}>
-                <Field label="Title" value={dist.youtube.title} />
-                <Field label="Description" value={dist.youtube.description} multiline />
-                <Field label="Tags" value={dist.youtube.tags.join(", ")} />
-                <Field label="Pinned comment" value={dist.youtube.pinned_comment} multiline />
-              </PlatformBlock>
-            )}
-            {dist.instagram && (
-              <PlatformBlock title="📸 Instagram">
-                <Field label="Full text" value={dist.instagram.full_text} multiline />
-                <Field label="Pinned comment" value={dist.instagram.pinned_comment} multiline />
-              </PlatformBlock>
-            )}
-            {dist.linkedin && (
-              <PlatformBlock title="💼 LinkedIn">
-                <Field label="Post" value={dist.linkedin.full_text} multiline />
-              </PlatformBlock>
-            )}
-            {dist.whatsapp_channel && (
-              <PlatformBlock title="💬 WhatsApp Channel">
-                <Field label="Message" value={dist.whatsapp_channel.full_text} multiline />
-              </PlatformBlock>
-            )}
-            {dist.whatsapp_status && (
-              <PlatformBlock title="📱 WhatsApp Status">
-                <Field label="Status" value={dist.whatsapp_status.full_text} multiline />
-              </PlatformBlock>
-            )}
-          </div>
-        </Section>
-      )}
+      {/* Distribution — English */}
+      {renderDistribution(dist, "📦 English distribution", "border-white/10")}
+
+      {/* Distribution — Telugu (only show empty state if a Telugu script
+          exists; otherwise the slot is irrelevant). */}
+      {(script.telugu_full_script || distTe) &&
+        renderDistribution(distTe, "📦 Telugu distribution", "border-[#FFB020]/30")}
 
       {script.approval_status === "rejected" && script.rejection_reason && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-[12px] text-red-300">

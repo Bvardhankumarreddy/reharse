@@ -98,9 +98,19 @@ export class AiPulseApprovalController {
     return this.thumbnails.generatePrompts(id);
   }
 
+  /**
+   * Regenerate the distribution package. Defaults to English for
+   * back-compat; pass ?lang=te to generate / refresh the Telugu mirror.
+   * Telugu requires the script's telugu_full_script to be present
+   * (service throws otherwise).
+   */
   @Post(':id/regenerate-distribution')
-  async regenerateDistribution(@Param('id') id: string) {
-    return this.distribution.generatePackage(id);
+  async regenerateDistribution(
+    @Param('id') id: string,
+    @Query('lang') lang?: string,
+  ) {
+    const language = (lang ?? 'en').toLowerCase() === 'te' ? 'te' : 'en';
+    return this.distribution.generatePackage(id, language);
   }
 
   /**

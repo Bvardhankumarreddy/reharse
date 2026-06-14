@@ -154,6 +154,12 @@ export class AiPulseScript {
   @Column({ type: 'jsonb', nullable: true })
   distribution_package: AiPulseDistributionPackage | null;
 
+  // Telugu mirror of distribution_package — YouTube title in Telugu code-mix
+  // style + Telugu description + Telugu hashtags etc. Populated by the
+  // distribution generator when called with language='te'.
+  @Column({ type: 'jsonb', nullable: true })
+  telugu_distribution_package: AiPulseDistributionPackage | null;
+
   @Index()
   @Column({ type: 'varchar', length: 50, default: 'pending_review' })
   approval_status: AiPulseApprovalStatus;

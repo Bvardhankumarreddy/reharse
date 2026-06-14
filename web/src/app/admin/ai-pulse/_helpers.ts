@@ -126,6 +126,7 @@ export interface Script {
   llm_cost_usd: number | string;
   thumbnail_prompts: ThumbnailPrompt[];
   distribution_package: DistributionPackage | null;
+  telugu_distribution_package: DistributionPackage | null;
   approval_status: 'pending_review' | 'approved' | 'rejected' | 'published';
   approved_by: string | null;
   approved_at: string | null;
