@@ -52,6 +52,15 @@ class GenerateQuestionsRequest(BaseModel):
     )
 
 
+class CodingExample(BaseModel):
+    """A worked Input/Output pair for a coding question. The LLM should
+    populate at least two — one minimal happy-path case and one edge case —
+    so the candidate understands the expected I/O contract."""
+    input:       str = Field(description="Concrete sample input (a literal value or short stringified form, ready to read)")
+    output:      str = Field(description="Expected output for the given input")
+    explanation: str | None = Field(default=None, description="One-sentence reasoning the candidate can verify against")
+
+
 class GeneratedQuestion(BaseModel):
     id:           str
     question:     str
@@ -60,6 +69,9 @@ class GeneratedQuestion(BaseModel):
     tags:         list[str] = []
     follow_ups:   list[str] = []
     hints:        list[str] = []
+    # Coding-only — non-coding types leave these empty.
+    examples:     list[CodingExample] = []
+    constraints:  list[str] = []
     time_estimate_seconds: int = 120
 
 

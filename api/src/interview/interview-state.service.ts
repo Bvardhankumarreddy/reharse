@@ -2,12 +2,22 @@ import { Injectable, Logger } from '@nestjs/common';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface CodingExample {
+  input:       string;
+  output:      string;
+  explanation: string | null;
+}
+
 export interface InterviewQuestion {
   id:           string;
   question:     string;
   type:         string;
   hints:        string[];
   followUps:    string[];
+  /** Coding-only — empty for behavioral / system-design / hr / case-study. */
+  examples:     CodingExample[];
+  /** Coding-only — input bounds, value ranges, time limits etc. */
+  constraints:  string[];
   timeEstimateSec: number;
 }
 

@@ -286,6 +286,65 @@ function CodingInterviewPageInner() {
               {question.question}
             </p>
 
+            {/* Examples — Input / Output / Explanation (coding only) */}
+            {question.examples && question.examples.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="label text-text-sec" style={{ fontSize: 10 }}>EXAMPLES</h3>
+                <div className="space-y-3">
+                  {question.examples.map((ex, i) => (
+                    <div
+                      key={i}
+                      className="bg-bg-app border border-border rounded-xl p-3 space-y-2"
+                    >
+                      <div className="text-[11px] font-semibold text-text-muted">
+                        Example {i + 1}
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wide text-text-muted mb-1">
+                          Input
+                        </div>
+                        <pre className="text-[12px] font-mono text-text-pri whitespace-pre-wrap bg-surface border border-border rounded-md p-2">
+                          {ex.input}
+                        </pre>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wide text-text-muted mb-1">
+                          Output
+                        </div>
+                        <pre className="text-[12px] font-mono text-text-pri whitespace-pre-wrap bg-surface border border-border rounded-md p-2">
+                          {ex.output}
+                        </pre>
+                      </div>
+                      {ex.explanation && (
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-text-muted mb-1">
+                            Explanation
+                          </div>
+                          <p className="text-small text-text-sec leading-relaxed">
+                            {ex.explanation}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Constraints (coding only) */}
+            {question.constraints && question.constraints.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="label text-text-sec" style={{ fontSize: 10 }}>CONSTRAINTS</h3>
+                <ul className="bg-bg-app border border-border rounded-xl p-3 space-y-1">
+                  {question.constraints.map((c, i) => (
+                    <li key={i} className="text-[12px] font-mono text-text-pri">
+                      • {c}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Hints */}
             <div>
               <button

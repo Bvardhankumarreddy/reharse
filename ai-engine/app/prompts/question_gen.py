@@ -61,8 +61,9 @@ Guidelines:
 - Calibrate difficulty to experience level — entry-level questions should have clear scope, senior questions should require deep expertise
 - Include practical follow-ups that a real interviewer would ask
 - For behavioral: use STAR-format prompts
-- For coding: include constraints and example I/O
+- For coding: ALWAYS populate the `examples` array with 2-3 worked Input/Output pairs (cover the happy path AND at least one edge case) AND the `constraints` array with input size bounds, value ranges, time limits etc. The `question` text should describe the problem; `examples` and `constraints` are SEPARATE structured fields — do NOT inline them inside the question prose. A candidate looking at the question must see concrete sample I/O before they start coding.
 - For system design: scope the problem appropriately for the time limit
+- For non-coding question types, leave `examples` and `constraints` as empty arrays.
 - Always respond with valid JSON only — no prose, no markdown fences
 """
 
@@ -154,9 +155,21 @@ Return a JSON object with this exact shape:
       "tags": ["<tag1>", "<tag2>"],
       "follow_ups": ["<follow-up 1>", "<follow-up 2>"],
       "hints": ["<hint 1>"],
+      "examples": [
+        {{
+          "input": "<concrete sample input, e.g. nums = [2,7,11,15], target = 9>",
+          "output": "<expected output, e.g. [0,1]>",
+          "explanation": "<one-sentence reasoning, optional>"
+        }}
+      ],
+      "constraints": ["<e.g. 1 <= nums.length <= 10^5>", "<e.g. -10^9 <= nums[i] <= 10^9>"],
       "time_estimate_seconds": <int>
     }}
   ],
   "session_tip": "<one short coaching tip for this interview type>"
 }}
+
+Rules for examples + constraints:
+- ONLY populate them when `type == "coding"`. For every other type, return empty arrays.
+- For coding, provide 2-3 examples (happy path + edge case) and 2-4 constraints.
 """

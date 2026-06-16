@@ -192,6 +192,8 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
           type:            q.type,
           hints:           [],
           followUps:       [],
+          examples:        [],
+          constraints:     [],
           timeEstimateSec: 180,
         }));
 
@@ -658,6 +660,8 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
         type:                  string;
         hints:                 string[];
         follow_ups:            string[];
+        examples?:             Array<{ input: string; output: string; explanation?: string | null }>;
+        constraints?:          string[];
         time_estimate_seconds: number;
       }>;
     };
@@ -671,6 +675,12 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
       type:            q.type,
       hints:           q.hints      ?? [],
       followUps:       q.follow_ups ?? [],
+      examples:        (q.examples ?? []).map((ex) => ({
+        input:       String(ex.input ?? ''),
+        output:      String(ex.output ?? ''),
+        explanation: ex.explanation ?? null,
+      })),
+      constraints:     q.constraints ?? [],
       timeEstimateSec: q.time_estimate_seconds ?? 180,
     };
   }
@@ -689,6 +699,8 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
       hints:           q.hints,
       hasHints:        q.hints.length > 0,
       followUps:       q.followUps,
+      examples:        q.examples,
+      constraints:     q.constraints,
       timeEstimateSec: q.timeEstimateSec,
     };
   }

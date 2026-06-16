@@ -3,6 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 
+export interface CodingExample {
+  input:       string;
+  output:      string;
+  explanation: string | null;
+}
+
 export interface QuestionData {
   questionId: string;
   question:   string;
@@ -10,6 +16,10 @@ export interface QuestionData {
   index:      number;
   total:      number;
   hints:      string[];
+  /** Coding-only: worked Input/Output pairs. Empty for non-coding types. */
+  examples?:    CodingExample[];
+  /** Coding-only: input bounds / value ranges / time limits. */
+  constraints?: string[];
 }
 
 export interface CoachMessage {
