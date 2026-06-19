@@ -188,6 +188,76 @@ export class QuoteBankService {
     return this.markUsed(picked);
   }
 
+  /**
+   * Compose the spoken closing line for THIS specific story + quote — a
+   * 1-sentence transition written by the LLM so the framing feels natural
+   * and varies day to day. Includes the quote verbatim, the author
+   * attribution, and a trailing pause marker, ready to splice into
+   * fullScript.
+   *
+   * On any LLM failure we fall back to a minimal default — better to
+   * lose the framing than to lose the quote.
+   */
+  async composeClosingLine(
+    quote: AqbQuote,
+    ctx: PickContext,
+  ): Promise<string> {
+    const fallback =
+      `"${stripWrappingQuotes(quote.text)}." — ${quote.author}. [1 sec pause]`;
+
+    try {
+      const system =
+        `You write the closing line of a 45-second AI Quick Bytes Short. ` +
+        `Just before the host's subscribe CTA, you bridge into a ` +
+        `motivational quote that's been picked for THIS story. ` +
+        `\n\nRules (all non-negotiable):\n` +
+        `- Output ONE spoken sentence that introduces the quote, then ` +
+        `  the quote in double quotes, then "— <Author>." on the same line.\n` +
+        `- The transition sentence is ≤8 words. Conversational. Tonally ` +
+        `  matched to the story (curious, sober, hopeful, blunt — never ` +
+        `  cheesy).\n` +
+        `- Quote the quote VERBATIM — never paraphrase, never re-attribute, ` +
+        `  never translate.\n` +
+        `- End the whole line with " [1 sec pause]" literally.\n` +
+        `- No emojis, no hashtags, no markdown, no preamble.\n` +
+        `\nResponse format: a single plain-text line. Nothing else.`;
+      const user =
+        `STORY\nHeadline: ${ctx.title}\n` +
+        (ctx.hook ? `Hook: ${ctx.hook}\n` : '') +
+        `\nQUOTE TO INTRODUCE\n` +
+        `Text:   ${stripWrappingQuotes(quote.text)}\n` +
+        `Author: ${quote.author}\n` +
+        (quote.themes.length ? `Themes: ${quote.themes.join(', ')}\n` : '') +
+        `\nWrite the one closing line now.`;
+
+      const { content: raw } = await this.anthropic.completeJSON({
+        system,
+        user,
+        temperature: 0.7,
+        maxTokens:   220,
+      });
+
+      const line = (raw ?? '').trim().replace(/^["'`]+|["'`]+$/g, '').trim();
+      // Sanity-check what came back: must contain the quote AND the author
+      // AND the pause marker. If any guarantee is missing, drop back to the
+      // deterministic fallback so the video never ships a half-broken line.
+      const okQuote  = line.includes(stripWrappingQuotes(quote.text));
+      const okAuthor = line.includes(quote.author);
+      const okPause  = /\[1 sec pause\]\s*$/.test(line);
+      if (!okQuote || !okAuthor || !okPause) {
+        this.logger.warn(
+          `Closing-line LLM dropped a guarantee ` +
+          `(quote=${okQuote} author=${okAuthor} pause=${okPause}) — using fallback`,
+        );
+        return fallback;
+      }
+      return line;
+    } catch (e) {
+      this.logger.warn(`Closing-line LLM failed: ${(e as Error).message} — using fallback`);
+      return fallback;
+    }
+  }
+
   private async markUsed(q: AqbQuote): Promise<AqbQuote> {
     q.timesUsed  = (q.timesUsed ?? 0) + 1;
     q.lastUsedAt = new Date();
@@ -343,6 +413,10 @@ function extractJSONOrThrow<T>(raw: string, language: string): T {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
+
+function stripWrappingQuotes(s: string): string {
+  return (s ?? '').replace(/^["'""'']+|["'""'']+$/g, '').trim();
+}
 
 function sampleN<T>(arr: T[], n: number): T[] {
   if (arr.length <= n) return [...arr];

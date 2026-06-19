@@ -180,13 +180,17 @@ export class ScriptGeneratorService {
     // translator (below) runs AFTER this so the Telugu video gets the
     // same closing automatically.
     try {
-      const picked = await this.quotes.pickFor('en', {
+      const pickCtx = {
         title: item.title,
         hook:  script.hook,
         body:  script.body,
-      });
+      };
+      const picked = await this.quotes.pickFor('en', pickCtx);
       if (picked) {
-        const closingLine = formatClosingLine(picked.text, picked.author);
+        // LLM writes a 1-sentence transition tailored to THIS story + quote,
+        // so the framing doesn't sound templated day-to-day. The compose
+        // method falls back to a deterministic line on any LLM failure.
+        const closingLine = await this.quotes.composeClosingLine(picked, pickCtx);
         const newFull = injectQuoteIntoFull(script.fullScript, script.cta, closingLine);
         script.closingQuoteId     = picked.id;
         script.closingQuoteText   = picked.text;
@@ -379,12 +383,6 @@ Set "day_number" to exactly ${dayNumber} in your JSON response.`;
 }
 
 // ── Closing-quote helpers (module-private) ────────────────────────────
-
-/** Build the spoken closing line: "And to leave you with this — '<quote>'. — <author>." */
-function formatClosingLine(text: string, author: string): string {
-  const trimmed = text.replace(/^["']|["']$/g, '').trim();
-  return `And to leave you with this — "${trimmed}." — ${author}. [1 sec pause]`;
-}
 
 /**
  * Splice the closing line between body and CTA in the assembled fullScript.
