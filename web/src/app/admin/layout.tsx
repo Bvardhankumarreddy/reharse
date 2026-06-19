@@ -23,6 +23,7 @@ const NAV = [
   { href: "/admin/post-generator", label: "Post Generator", icon: "campaign" },
   { href: "/admin/social-agent", label: "Social Agent", icon: "smart_toy" },
   { href: "/admin/ai-quick-bytes", label: "AI Quick Bytes", icon: "bolt" },
+  { href: "/admin/ai-quick-bytes/quotes", label: "AQB Quote Bank", icon: "format_quote" },
   { href: "/admin/ai-pulse", label: "AI Pulse", icon: "radar" },
   { href: "/admin/ai-squad", label: "AI Squad", icon: "groups" },
   { href: "/admin/content-studio", label: "Content Studio", icon: "auto_awesome_motion" },

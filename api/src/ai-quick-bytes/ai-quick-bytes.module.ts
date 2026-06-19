@@ -11,6 +11,7 @@ import { PublishingLog } from './entities/publishing-log.entity';
 import { AqbShortMetric } from './entities/short-metric.entity';
 import { AqbShortPostmortem } from './entities/short-postmortem.entity';
 import { AqbMemory } from './entities/aqb-memory.entity';
+import { AqbQuote } from './entities/aqb-quote.entity';
 import { AdminModule } from '../admin/admin.module';
 
 import { OpenAIClientService } from './services/openai-client.service';
@@ -50,6 +51,8 @@ import { ScriptsController } from './controllers/scripts.controller';
 import { ApprovalController } from './controllers/approval.controller';
 import { WebhooksController } from './controllers/webhooks.controller';
 import { AqbIntelligenceController } from './controllers/intelligence.controller';
+import { AqbQuotesController } from './controllers/quotes.controller';
+import { QuoteBankService } from './services/quote-bank.service';
 
 /**
  * AI Quick Bytes — fetches AI news from 8 sources, dedups, LLM-scores,
@@ -61,7 +64,7 @@ import { AqbIntelligenceController } from './controllers/intelligence.controller
     ConfigModule.forFeature(aiQuickBytesConfig),
     TypeOrmModule.forFeature([
       NewsSource, NewsItem, NewsScore, ShortScript, PublishingLog,
-      AqbShortMetric, AqbShortPostmortem, AqbMemory,
+      AqbShortMetric, AqbShortPostmortem, AqbMemory, AqbQuote,
     ]),
     BullModule.registerQueue(
       { name: AQB_INGESTION_QUEUE },
@@ -77,6 +80,7 @@ import { AqbIntelligenceController } from './controllers/intelligence.controller
     ApprovalController,
     WebhooksController,
     AqbIntelligenceController,
+    AqbQuotesController,
   ],
   providers: [
     OpenAIClientService,
@@ -101,6 +105,7 @@ import { AqbIntelligenceController } from './controllers/intelligence.controller
     HackerNewsAdapter,
     // Learning loop (additive — no behaviour change until memories exist)
     AqbMemoryService,
+    QuoteBankService,
     AqbMetricsFetcherService,
     AqbPostmortemAgent,
     AqbImprovementAgent,

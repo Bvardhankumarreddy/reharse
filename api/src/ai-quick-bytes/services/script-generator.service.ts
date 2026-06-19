@@ -10,6 +10,7 @@ import { ThumbnailPromptService } from './thumbnail-prompt.service';
 import { DistributionPackageService } from './distribution-package.service';
 import { AqbMemoryService } from './aqb-memory.service';
 import { TranslationService } from './translation.service';
+import { QuoteBankService } from './quote-bank.service';
 
 const SCRIPT_SYSTEM_PROMPT = `
 You write YouTube Shorts scripts for AetherStackAI — an Indian AI
@@ -119,6 +120,7 @@ export class ScriptGeneratorService {
     private readonly distribution: DistributionPackageService,
     private readonly memory: AqbMemoryService,
     private readonly translation: TranslationService,
+    private readonly quotes: QuoteBankService,
   ) {}
 
   async generateScript(itemId: string): Promise<ShortScript> {
@@ -171,6 +173,30 @@ export class ScriptGeneratorService {
     }));
 
     await this.itemRepo.update(itemId, { status: 'scripted' });
+
+    // ── Closing motivational quote (non-fatal) ─────────────────────────
+    // Pick one from the curated bank that fits this story's theme,
+    // inject as a 3-4 second line between body and CTA. Telugu
+    // translator (below) runs AFTER this so the Telugu video gets the
+    // same closing automatically.
+    try {
+      const picked = await this.quotes.pickFor('en', {
+        title: item.title,
+        hook:  script.hook,
+        body:  script.body,
+      });
+      if (picked) {
+        const closingLine = formatClosingLine(picked.text, picked.author);
+        const newFull = injectQuoteIntoFull(script.fullScript, script.cta, closingLine);
+        script.closingQuoteId     = picked.id;
+        script.closingQuoteText   = picked.text;
+        script.closingQuoteAuthor = picked.author;
+        script.fullScript         = newFull;
+        await this.scriptRepo.save(script);
+      }
+    } catch (e) {
+      this.logger.error(`Closing-quote pick failed for ${script.id}: ${(e as Error).message}`);
+    }
 
     // ── Thumbnail prompt (non-fatal) ───────────────────────────────────
     try {
@@ -350,4 +376,38 @@ Set "day_number" to exactly ${dayNumber} in your JSON response.`;
     const [inRate, outRate] = rates[model] ?? rates['claude-sonnet-4-6'];
     return (inTok / 1_000_000) * inRate + (outTok / 1_000_000) * outRate;
   }
+}
+
+// ── Closing-quote helpers (module-private) ────────────────────────────
+
+/** Build the spoken closing line: "And to leave you with this — '<quote>'. — <author>." */
+function formatClosingLine(text: string, author: string): string {
+  const trimmed = text.replace(/^["']|["']$/g, '').trim();
+  return `And to leave you with this — "${trimmed}." — ${author}. [1 sec pause]`;
+}
+
+/**
+ * Splice the closing line between body and CTA in the assembled fullScript.
+ * Strategy:
+ *   1. Try to find the exact CTA block as a substring and insert before it.
+ *   2. If the CTA wasn't found verbatim (LLM rewrote it inline), append
+ *      the closing line just before the LAST paragraph (the CTA tends to
+ *      be the last block).
+ *   3. If the script is one long blob with no paragraph breaks, append
+ *      the closing line at the very end — better to have it land slightly
+ *      misplaced than not at all.
+ */
+function injectQuoteIntoFull(fullScript: string, cta: string, closingLine: string): string {
+  const fs = fullScript.trim();
+  if (!fs) return closingLine;
+
+  if (cta && fs.includes(cta)) {
+    return fs.replace(cta, `${closingLine}\n\n${cta}`);
+  }
+  const parts = fs.split(/\n\s*\n/);
+  if (parts.length >= 2) {
+    parts.splice(parts.length - 1, 0, closingLine);
+    return parts.join('\n\n');
+  }
+  return `${fs}\n\n${closingLine}`;
 }

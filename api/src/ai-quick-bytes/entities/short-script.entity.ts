@@ -175,6 +175,19 @@ export class ShortScript {
   @Column({ type: 'jsonb', nullable: true })
   teluguDistributionPackage: Record<string, unknown> | null;
 
+  // ── Closing motivational quote (picked from aqb_quotes bank) ───────
+  // Persisted ON the script so the admin can see / swap / edit from the
+  // approval UI without re-running the picker. Nullable — picker may
+  // skip if the bank is empty or the LLM call fails (non-fatal).
+  @Column({ type: 'uuid', nullable: true })
+  closingQuoteId: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  closingQuoteText: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  closingQuoteAuthor: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
