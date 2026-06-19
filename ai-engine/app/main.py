@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import questions, evaluate, coach, resume, voice, jd_match, jd_interview_prep, social_post, social_insights
+from .routers import questions, evaluate, coach, resume, voice, jd_match, jd_interview_prep, social_post, social_insights, code_run
 
 app = FastAPI(
     title="Rehearse AI Engine",
@@ -25,6 +25,7 @@ app.include_router(jd_match.router,  prefix="/jd-match",  tags=["JD Match"])
 app.include_router(jd_interview_prep.router, prefix="/jd-interview-prep", tags=["JD Interview Prep"])
 app.include_router(social_post.router, prefix="/social-post", tags=["Social Post"])
 app.include_router(social_insights.router, prefix="/social-insights", tags=["Social Insights"])
+app.include_router(code_run.router,        prefix="/code/run-tests",  tags=["Code Test Runner"])
 
 
 @app.get("/health", tags=["Health"])

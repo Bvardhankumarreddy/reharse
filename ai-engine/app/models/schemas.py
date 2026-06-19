@@ -146,6 +146,42 @@ class CoachMessage(BaseModel):
     content: str
 
 
+# ── Code Test Runner (AI-judged dry run) ──────────────────────────────────────
+
+class CodeRunExample(BaseModel):
+    """One example I/O pair from the question, fed back in for dry-run judging."""
+    input:       str
+    output:      str
+    explanation: str | None = None
+
+
+class CodeRunRequest(BaseModel):
+    language: str = Field(description="python | javascript | java (matches the editor)")
+    code:     str = Field(description="The candidate's current solution code")
+    question: str = Field(description="The problem statement so the LLM has full context")
+    examples: list[CodeRunExample] = Field(default_factory=list, description="The example cases to dry-run")
+    constraints: list[str] = Field(default_factory=list, description="Constraints to factor into edge-case checks")
+
+
+class CodeRunCaseResult(BaseModel):
+    example_index:    int
+    passed:           bool
+    expected_output:  str
+    actual_output:    str = Field(description="What the LLM thinks the code would produce")
+    explanation:      str = Field(description="One-sentence trace through the code on this input")
+    error:            str | None = Field(default=None, description="Compile / runtime / logic error spotted, if any")
+
+
+class CodeRunResponse(BaseModel):
+    passed_count:  int
+    total_count:   int
+    overall_pass:  bool
+    summary:       str = Field(description="2-3 sentence verdict on the solution")
+    results:       list[CodeRunCaseResult]
+    model_used:    str
+    disclaimer:    str = "AI-judged dry run. Validate against real interpreter for final correctness."
+
+
 class CoachRequest(BaseModel):
     messages:         list[CoachMessage]
     user_context: dict[str, Any] = Field(

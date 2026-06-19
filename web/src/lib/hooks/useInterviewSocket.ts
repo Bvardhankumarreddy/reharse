@@ -33,6 +33,26 @@ export interface PhaseTransition {
   questionN: number;  // question index where transition happened
 }
 
+export interface TestCaseResult {
+  example_index:    number;
+  passed:           boolean;
+  expected_output:  string;
+  actual_output:    string;
+  explanation:      string;
+  error:            string | null;
+}
+
+export interface TestResults {
+  ok:           boolean;
+  message?:     string;        // populated when ok=false
+  passed_count?: number;
+  total_count?:  number;
+  overall_pass?: boolean;
+  summary?:     string;
+  results?:     TestCaseResult[];
+  disclaimer?:  string;
+}
+
 export function useInterviewSocket(
   sessionId: string | null,
   getToken:  () => Promise<string | null>,
@@ -71,6 +91,10 @@ export function useInterviewSocket(
   // Full-loop phase transitions
   const [phaseTransition,  setPhaseTransition]  = useState<PhaseTransition | null>(null);
 
+  // Code test runner (AI-judged dry run)
+  const [testResults,      setTestResults]      = useState<TestResults | null>(null);
+  const [testRunning,      setTestRunning]      = useState(false);
+
   useEffect(() => {
     if (!sessionId) return;
     let mounted = true;
@@ -101,8 +125,16 @@ export function useInterviewSocket(
         setQuestionIndex(data.index);
         setTotalQuestions(data.total);
         setCurrentHint(null); // clear hint on new question
+        setTestResults(null); // clear stale test results from the previous question
         hintsUsedRef.current = 0;
         answerStart.current  = Date.now();
+      });
+
+      // ── AI-judged test runner results ────────────────────────────────────
+      socket.on("interview:test_results", (data: TestResults) => {
+        if (!mounted) return;
+        setTestRunning(false);
+        setTestResults(data);
       });
 
       // ── Hint response ────────────────────────────────────────────────────
@@ -211,6 +243,15 @@ export function useInterviewSocket(
     socketRef.current?.emit("interview:voice_end");
   }, []);
 
+  const runTests = useCallback((code: string, language: string) => {
+    if (!socketRef.current) return;
+    setTestRunning(true);
+    setTestResults(null);
+    socketRef.current.emit("interview:run_tests", { code, language });
+  }, []);
+
+  const clearTestResults = useCallback(() => setTestResults(null), []);
+
   const sendCoachMessage = useCallback((message: string) => {
     const userMsg: CoachMessage = { role: "user", text: message };
     coachHistoryRef.current = [...coachHistoryRef.current, { role: "user", content: message }];
@@ -236,6 +277,7 @@ export function useInterviewSocket(
     phaseTransition, clearPhaseTransition,
     submitAnswer, passQuestion, requestHint, endSession,
     sendVoiceChunk, sendVoiceEnd,
+    testResults, testRunning, runTests, clearTestResults,
   };
 }
 

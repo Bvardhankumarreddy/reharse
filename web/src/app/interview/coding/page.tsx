@@ -156,6 +156,7 @@ function CodingInterviewPageInner() {
     elapsed, remaining, ended, aiTyping, wsError, sessionError,
     submitAnswer, passQuestion, requestHint, endSession, clearSessionError,
     coachMessages, coachTyping, sendCoachMessage,
+    testResults, testRunning, runTests,
   } = useInterviewSocket(sessionId, getToken, handleFeedbackReady);
 
   // Voice — interim shows in placeholder, final is committed to chatInput
@@ -204,6 +205,16 @@ function CodingInterviewPageInner() {
     setSubmitted(true);
   }
 
+  // Switch to the Test Cases tab so the candidate sees the results as
+  // they arrive — pointless to run tests if they're hidden behind another tab.
+  function handleRunTests() {
+    runTests(code, lang);
+    setActiveTab("cases");
+  }
+
+  const canRunTests =
+    !!question?.examples && question.examples.length > 0 && !testRunning && !submitted;
+
   function handleHint() {
     setHintOpen((o) => !o);
     if (!hintOpen) requestHint();
@@ -239,6 +250,20 @@ function CodingInterviewPageInner() {
           <span className="text-small text-text-sec hidden sm:block">
             Q {questionIndex + 1}/{totalQuestions}
           </span>
+          <button
+            onClick={handleRunTests}
+            disabled={!canRunTests}
+            title={
+              !question?.examples?.length
+                ? "No test cases for this question"
+                : testRunning
+                  ? "Running tests…"
+                  : "Dry-run your code against the example test cases"
+            }
+            className="px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors border border-[#0EA5E9]/40 text-[#0EA5E9] hover:bg-[#0EA5E9]/10 disabled:opacity-50"
+          >
+            {testRunning ? "Running…" : "▶ Run Test"}
+          </button>
           <button
             onClick={handleSubmitCode}
             disabled={submitted || aiTyping}
@@ -499,9 +524,93 @@ function CodingInterviewPageInner() {
                 </button>
               ))}
             </div>
-            <div className="px-4 py-3">
+            <div className="px-4 py-3 max-h-[18rem] overflow-y-auto">
               {activeTab === "cases" ? (
-                submitted ? (
+                testRunning ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 border border-[#0EA5E9] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    <p className="text-[#0EA5E9] text-[12px] font-mono">Dry-running your code against {question?.examples?.length ?? 0} test case(s)…</p>
+                  </div>
+                ) : testResults ? (
+                  testResults.ok ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className={clsx(
+                            "px-2 py-0.5 rounded-full text-[11px] font-bold",
+                            testResults.overall_pass
+                              ? "bg-[#22C55E]/15 text-[#22C55E]"
+                              : "bg-[#EF4444]/15 text-[#EF4444]",
+                          )}>
+                            {testResults.overall_pass ? "✓ All passed" : "✕ Some failed"}
+                          </span>
+                          <span className="text-[11px] font-mono text-white/60">
+                            {testResults.passed_count}/{testResults.total_count}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-white/40 italic">
+                          AI-judged dry run
+                        </span>
+                      </div>
+                      {testResults.summary && (
+                        <p className="text-[12px] text-white/80 leading-relaxed">
+                          {testResults.summary}
+                        </p>
+                      )}
+                      <div className="space-y-2">
+                        {(testResults.results ?? []).map((r, i) => (
+                          <div
+                            key={i}
+                            className={clsx(
+                              "rounded-lg border p-2.5 space-y-1.5",
+                              r.passed
+                                ? "border-[#22C55E]/30 bg-[#22C55E]/5"
+                                : "border-[#EF4444]/30 bg-[#EF4444]/5",
+                            )}
+                          >
+                            <div className="flex items-center gap-2 text-[11px] font-semibold">
+                              <span className={clsx(r.passed ? "text-[#22C55E]" : "text-[#EF4444]")}>
+                                {r.passed ? "✓" : "✕"} Test {(r.example_index ?? i) + 1}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+                              <div>
+                                <div className="text-white/40 mb-0.5">Expected</div>
+                                <pre className="text-white/90 whitespace-pre-wrap bg-black/30 rounded px-2 py-1">{r.expected_output}</pre>
+                              </div>
+                              <div>
+                                <div className="text-white/40 mb-0.5">Actual</div>
+                                <pre className={clsx(
+                                  "whitespace-pre-wrap rounded px-2 py-1",
+                                  r.passed ? "text-white/90 bg-black/30" : "text-[#FCA5A5] bg-[#EF4444]/10",
+                                )}>{r.actual_output || "—"}</pre>
+                              </div>
+                            </div>
+                            {r.error && (
+                              <p className="text-[11px] text-[#FCA5A5] font-mono">
+                                Error: {r.error}
+                              </p>
+                            )}
+                            {r.explanation && (
+                              <p className="text-[11px] text-white/70 leading-snug">
+                                {r.explanation}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {testResults.disclaimer && (
+                        <p className="text-[10px] text-white/40 italic leading-snug">
+                          {testResults.disclaimer}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[#EF4444] text-[12px] font-mono">
+                      {testResults.message ?? "Test runner failed."}
+                    </p>
+                  )
+                ) : submitted ? (
                   aiTyping ? (
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 border border-[#0EA5E9] border-t-transparent rounded-full animate-spin flex-shrink-0" />
@@ -510,8 +619,10 @@ function CodingInterviewPageInner() {
                   ) : (
                     <p className="text-[#22C55E] text-[12px] font-mono">Solution submitted — awaiting AI evaluation…</p>
                   )
+                ) : question?.examples?.length ? (
+                  <p className="text-white/40 text-[12px] font-mono">Click ▶ Run Test to dry-run your code against the example cases.</p>
                 ) : (
-                  <p className="text-white/40 text-[12px] font-mono">Submit your solution to run test cases.</p>
+                  <p className="text-white/40 text-[12px] font-mono">No example test cases for this question.</p>
                 )
               ) : (
                 <p className="text-white/40 text-[12px] font-mono">Run your code to see output here.</p>
@@ -522,19 +633,26 @@ function CodingInterviewPageInner() {
       </div>
 
       {/* ── Footer ── */}
-      <footer className="bg-surface border-t border-border px-4 lg:px-6 py-3 flex items-center justify-between gap-4 flex-shrink-0 lg:hidden">
+      <footer className="bg-surface border-t border-border px-4 lg:px-6 py-3 flex items-center justify-between gap-3 flex-shrink-0 lg:hidden">
         <button
           onClick={endSession}
-          className="px-4 py-2 border border-red/40 text-red rounded-btn text-[13px] font-semibold hover:bg-red-50 transition-colors"
+          className="px-3 py-2 border border-red/40 text-red rounded-btn text-[12px] font-semibold hover:bg-red-50 transition-colors"
         >
-          End Interview
+          End
+        </button>
+        <button
+          onClick={handleRunTests}
+          disabled={!canRunTests}
+          className="px-3 py-2 border border-[#0EA5E9]/40 text-[#0EA5E9] rounded-btn text-[12px] font-semibold hover:bg-[#0EA5E9]/10 disabled:opacity-50"
+        >
+          {testRunning ? "Running…" : "▶ Run Test"}
         </button>
         <button
           onClick={handleSubmitCode}
           disabled={submitted || aiTyping}
           className="flex-1 py-2.5 btn-gradient text-white rounded-btn font-bold text-[14px] shadow-blue-glow disabled:opacity-60"
         >
-          {aiTyping ? "Generating…" : submitted ? "Submitted ✓" : "Submit Solution"}
+          {aiTyping ? "Generating…" : submitted ? "Submitted ✓" : "Submit"}
         </button>
       </footer>
 

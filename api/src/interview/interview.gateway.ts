@@ -47,6 +47,7 @@ export const EVENTS = {
   FEEDBACK_READY:    'interview:feedback_ready',
   VOICE_TRANSCRIPT:  'interview:voice_transcript',
   PHASE_TRANSITION:  'interview:phase_transition',
+  TEST_RESULTS:      'interview:test_results',
   ERROR:             'interview:error',
 
   // ── Client → Server ───────────────────────────────────────────────────────
@@ -61,6 +62,7 @@ export const EVENTS = {
   VOICE_CHUNK:      'interview:voice_chunk',
   VOICE_END:        'interview:voice_end',
   COACH_MESSAGE:    'interview:coach_message',
+  RUN_TESTS:        'interview:run_tests',
 } as const;
 
 // ── Gateway ───────────────────────────────────────────────────────────────────
@@ -281,6 +283,74 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
     const { sessionId } = client;
     await this.recordAndAdvance(sessionId, data.answer, data.timeSpentMs);
     return { ok: true };
+  }
+
+  /**
+   * RUN_TESTS — AI-judged dry run of the candidate's current code against
+   * the question's example I/O. Doesn't advance the interview state; the
+   * candidate can re-run as many times as they want before submitting.
+   * Falls back gracefully (empty results + error message) when:
+   *  - There's no current question (race after end of session)
+   *  - The question is non-coding (no examples to check against)
+   *  - The AI engine call fails / times out
+   */
+  @SubscribeMessage(EVENTS.RUN_TESTS)
+  async handleRunTests(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { code: string; language: string },
+  ) {
+    const { sessionId } = client;
+    const q = this.state.currentQuestion(sessionId);
+    if (!q) {
+      client.emit(EVENTS.TEST_RESULTS, {
+        ok: false, message: 'No active question to run tests against.',
+      });
+      return { ok: false };
+    }
+    if (!q.examples || q.examples.length === 0) {
+      client.emit(EVENTS.TEST_RESULTS, {
+        ok: false,
+        message: 'This question has no example test cases to dry-run.',
+      });
+      return { ok: false };
+    }
+    if (!data?.code?.trim()) {
+      client.emit(EVENTS.TEST_RESULTS, {
+        ok: false, message: 'No code submitted.',
+      });
+      return { ok: false };
+    }
+
+    const aiUrl = this.config.get<string>('AI_ENGINE_URL') ?? 'http://localhost:8000';
+    try {
+      const res = await fetch(`${aiUrl}/code/run-tests`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language:    String(data.language ?? 'python'),
+          code:        String(data.code),
+          question:    q.question,
+          examples:    q.examples,
+          constraints: q.constraints ?? [],
+        }),
+        // Test-run prompts are smaller than question-gen — 30s is plenty,
+        // matches the question-gen timeout pattern.
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) {
+        throw new Error(`AI engine /code/run-tests returned HTTP ${res.status}`);
+      }
+      const result = await res.json();
+      client.emit(EVENTS.TEST_RESULTS, { ok: true, ...result });
+      return { ok: true };
+    } catch (e) {
+      this.logger.warn(`run_tests failed for session ${sessionId}: ${(e as Error).message}`);
+      client.emit(EVENTS.TEST_RESULTS, {
+        ok: false,
+        message: `Test runner failed: ${(e as Error).message}`,
+      });
+      return { ok: false };
+    }
   }
 
   /** PASS_QUESTION — skip without answering, then adaptively generate the next question */
