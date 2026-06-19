@@ -205,6 +205,19 @@ export class QuoteBankService {
     const fallback =
       `"${stripWrappingQuotes(quote.text)}." — ${quote.author}. [1 sec pause]`;
 
+    const isTe = quote.language === 'te';
+    const languageRule = isTe
+      ? `- Write the transition sentence in PURE Telugu script (తెలుగు). ` +
+        `It may code-mix tech terms (AI, ChatGPT, OpenAI) only if the ` +
+        `story is about them.\n` +
+        `- The quote text is ALREADY Telugu — paste it VERBATIM, do not ` +
+        `re-translate, do not re-transliterate.\n` +
+        `- The author name stays as stored (may be English or Telugu — ` +
+        `keep it exactly as given).\n`
+      : `- Write the transition sentence in conversational English.\n` +
+        `- Quote the quote VERBATIM in English — never paraphrase, ` +
+        `never re-attribute, never translate.\n`;
+
     try {
       const system =
         `You write the closing line of a 45-second AI Quick Bytes Short. ` +
@@ -216,15 +229,14 @@ export class QuoteBankService {
         `- The transition sentence is ≤8 words. Conversational. Tonally ` +
         `  matched to the story (curious, sober, hopeful, blunt — never ` +
         `  cheesy).\n` +
-        `- Quote the quote VERBATIM — never paraphrase, never re-attribute, ` +
-        `  never translate.\n` +
+        languageRule +
         `- End the whole line with " [1 sec pause]" literally.\n` +
         `- No emojis, no hashtags, no markdown, no preamble.\n` +
         `\nResponse format: a single plain-text line. Nothing else.`;
       const user =
         `STORY\nHeadline: ${ctx.title}\n` +
         (ctx.hook ? `Hook: ${ctx.hook}\n` : '') +
-        `\nQUOTE TO INTRODUCE\n` +
+        `\nQUOTE TO INTRODUCE (${quote.language})\n` +
         `Text:   ${stripWrappingQuotes(quote.text)}\n` +
         `Author: ${quote.author}\n` +
         (quote.themes.length ? `Themes: ${quote.themes.join(', ')}\n` : '') +
@@ -234,7 +246,10 @@ export class QuoteBankService {
         system,
         user,
         temperature: 0.7,
-        maxTokens:   220,
+        // Telugu encodes to ~2-3× more tokens than English — give the
+        // composer enough headroom that a transition + quote + author
+        // + pause marker never truncates mid-sentence.
+        maxTokens: isTe ? 600 : 220,
       });
 
       const line = (raw ?? '').trim().replace(/^["'`]+|["'`]+$/g, '').trim();
@@ -246,8 +261,8 @@ export class QuoteBankService {
       const okPause  = /\[1 sec pause\]\s*$/.test(line);
       if (!okQuote || !okAuthor || !okPause) {
         this.logger.warn(
-          `Closing-line LLM dropped a guarantee ` +
-          `(quote=${okQuote} author=${okAuthor} pause=${okPause}) — using fallback`,
+          `Closing-line LLM dropped a guarantee (lang=${quote.language} ` +
+          `quote=${okQuote} author=${okAuthor} pause=${okPause}) — using fallback`,
         );
         return fallback;
       }

@@ -188,6 +188,19 @@ export class ShortScript {
   @Column({ type: 'varchar', length: 255, nullable: true })
   closingQuoteAuthor: string | null;
 
+  // ── Telugu closing quote (picked independently from the te bank) ──
+  // Separate from the English fields so the Telugu video gets a quote
+  // by Vemana / Sumati / Annamayya / Sri Sri / Kalam / etc. — NOT a
+  // translated English quote. Nullable when the Telugu bank is empty.
+  @Column({ type: 'uuid', nullable: true })
+  teluguClosingQuoteId: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  teluguClosingQuoteText: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  teluguClosingQuoteAuthor: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

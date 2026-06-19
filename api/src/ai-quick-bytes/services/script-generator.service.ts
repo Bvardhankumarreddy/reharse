@@ -174,33 +174,11 @@ export class ScriptGeneratorService {
 
     await this.itemRepo.update(itemId, { status: 'scripted' });
 
-    // ── Closing motivational quote (non-fatal) ─────────────────────────
-    // Pick one from the curated bank that fits this story's theme,
-    // inject as a 3-4 second line between body and CTA. Telugu
-    // translator (below) runs AFTER this so the Telugu video gets the
-    // same closing automatically.
-    try {
-      const pickCtx = {
-        title: item.title,
-        hook:  script.hook,
-        body:  script.body,
-      };
-      const picked = await this.quotes.pickFor('en', pickCtx);
-      if (picked) {
-        // LLM writes a 1-sentence transition tailored to THIS story + quote,
-        // so the framing doesn't sound templated day-to-day. The compose
-        // method falls back to a deterministic line on any LLM failure.
-        const closingLine = await this.quotes.composeClosingLine(picked, pickCtx);
-        const newFull = injectQuoteIntoFull(script.fullScript, script.cta, closingLine);
-        script.closingQuoteId     = picked.id;
-        script.closingQuoteText   = picked.text;
-        script.closingQuoteAuthor = picked.author;
-        script.fullScript         = newFull;
-        await this.scriptRepo.save(script);
-      }
-    } catch (e) {
-      this.logger.error(`Closing-quote pick failed for ${script.id}: ${(e as Error).message}`);
-    }
+    const pickCtx = {
+      title: item.title,
+      hook:  script.hook,
+      body:  script.body,
+    };
 
     // ── Thumbnail prompt (non-fatal) ───────────────────────────────────
     try {
@@ -244,6 +222,35 @@ export class ScriptGeneratorService {
         script.teluguTranslatedAt = new Date();
         await this.scriptRepo.save(script);
 
+        // ── Telugu closing quote (NATIVE — from te bank) ──────────────
+        // The Telugu translator above ran over a clean English script
+        // (no quote yet — we inject English last on purpose), so the
+        // Telugu output has no translated-English-quote line to strip.
+        // Pick a native Telugu quote (Vemana / Sumati / Annamayya / Sri Sri /
+        // Kalam / etc.) and splice a Telugu framing line in. Non-fatal —
+        // an empty Telugu bank just means the Telugu video ships without
+        // a closing quote.
+        try {
+          const tePicked = await this.quotes.pickFor('te', pickCtx);
+          if (tePicked) {
+            const teClosingLine = await this.quotes.composeClosingLine(tePicked, pickCtx);
+            const newTeFull = injectQuoteIntoFull(
+              script.teluguFullScript ?? '',
+              script.teluguCta ?? '',
+              teClosingLine,
+            );
+            script.teluguClosingQuoteId     = tePicked.id;
+            script.teluguClosingQuoteText   = tePicked.text;
+            script.teluguClosingQuoteAuthor = tePicked.author;
+            script.teluguFullScript         = newTeFull;
+            await this.scriptRepo.save(script);
+          }
+        } catch (e) {
+          this.logger.error(
+            `Telugu closing-quote pick failed for ${script.id}: ${(e as Error).message}`,
+          );
+        }
+
         // Telugu distribution package — only when AQB_TELUGU_FULL_TRACK is
         // on. Default is OFF so the host only gets the translated script
         // (recorded manually); the 5 Telugu social posts are an opt-in
@@ -268,6 +275,27 @@ export class ScriptGeneratorService {
       } catch (e) {
         this.logger.error(`Telugu translation failed for ${script.id}: ${(e as Error).message}`);
       }
+    }
+
+    // ── English closing quote (NATIVE — from en bank) ──────────────────
+    // Done LAST so the Telugu translator never sees the English quote
+    // line — otherwise Telugu inherits a translated English quote, which
+    // defeats the whole point of having a native Telugu poet's quote on
+    // the Telugu video. Non-fatal — an empty English bank means the
+    // English video ships without a closing quote.
+    try {
+      const enPicked = await this.quotes.pickFor('en', pickCtx);
+      if (enPicked) {
+        const enClosingLine = await this.quotes.composeClosingLine(enPicked, pickCtx);
+        const newFull = injectQuoteIntoFull(script.fullScript, script.cta, enClosingLine);
+        script.closingQuoteId     = enPicked.id;
+        script.closingQuoteText   = enPicked.text;
+        script.closingQuoteAuthor = enPicked.author;
+        script.fullScript         = newFull;
+        await this.scriptRepo.save(script);
+      }
+    } catch (e) {
+      this.logger.error(`English closing-quote pick failed for ${script.id}: ${(e as Error).message}`);
     }
 
     return script;
