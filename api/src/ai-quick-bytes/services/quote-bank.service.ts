@@ -264,9 +264,12 @@ export class QuoteBankService {
       `EVERY quote you propose MUST be a real attribution — never invent ` +
       `or paraphrase. If you are not certain of the exact wording and ` +
       `attribution, omit it. ` +
-      `Output strict JSON: {"quotes": [{"text":"...", "author":"...", "source":"<book/speech/film or null>", "themes":["..."]}]}`;
+      `Your response MUST start with "{" and contain ONLY a JSON object ` +
+      `with this exact shape — no preamble, no explanation, no commentary, ` +
+      `no markdown fences:\n` +
+      `{"quotes": [{"text":"...", "author":"...", "source":"<book/speech/film or null>", "themes":["..."]}]}`;
     const user =
-      `Propose ${count} short, screenshot-shareable quotes in ${language === 'te' ? 'Telugu (పూర్తి తెలుగు script with author Romanized if needed)' : 'English'}. ` +
+      `Propose ${count} short, screenshot-shareable quotes in ${language === 'te' ? 'Telugu (పూర్తి తెలుగు script — author name may stay in English)' : 'English'}. ` +
       `Targeted at engineers / founders / students. Mix sources: ` +
       `tech leaders, writers, thinkers, philosophers. Avoid clichés ` +
       `("be yourself", "follow your passion") and avoid any quote ` +
@@ -275,15 +278,21 @@ export class QuoteBankService {
       `Tag 1-3 themes per quote from: perseverance, learning, change, ` +
       `innovation, ethics, courage, ambition, focus, simplicity, ` +
       `humility, ownership, curiosity, resilience, craftsmanship.` +
-      `${themeBlock}${existingBlock}\n\nReturn the JSON object only.`;
+      `${themeBlock}${existingBlock}\n\n` +
+      `Reply with the JSON object only. Start with "{". No preamble.`;
+
+    // Telugu encodes to ~2-3× more tokens than English — bump the budget
+    // so the LLM has room for ${count} Telugu-script quotes without truncating.
+    const maxTokens = language === 'te' ? 6000 : 3000;
 
     const { content: raw } = await this.anthropic.completeJSON({
       system,
       user,
-      temperature: 0.9,
-      maxTokens:   3000,
+      temperature: 0.7,
+      maxTokens,
     });
-    const parsed = JSON.parse(raw || '{}') as { quotes?: QuoteSuggestion[] };
+
+    const parsed = extractJSONOrThrow<{ quotes?: QuoteSuggestion[] }>(raw, language);
     const cleaned = (parsed.quotes ?? [])
       .map((q): QuoteSuggestion => ({
         text:   String(q.text   ?? '').trim(),
@@ -292,8 +301,45 @@ export class QuoteBankService {
         themes: (q.themes ?? []).map((t) => String(t).trim().toLowerCase()).filter(Boolean),
       }))
       .filter((q) => q.text && q.author);
+    if (cleaned.length === 0) {
+      throw new BadRequestException(
+        `Claude returned 0 valid quote candidates for language=${language}. ` +
+        `Try again, or lower the count. Head of response: "${(raw ?? '').slice(0, 200)}"`,
+      );
+    }
     return cleaned;
   }
+}
+
+/**
+ * Robust JSON extractor — Claude occasionally returns a prose preamble
+ * ("I need to be careful here…") before the JSON, or trailing prose.
+ * Strategy:
+ *   1. Try parsing the whole response as JSON (the happy path).
+ *   2. If that fails, extract the FIRST balanced {...} object and parse it.
+ *   3. If that also fails, throw a BadRequestException with the head of
+ *      the raw response so the admin sees WHY and can retry — not a 500.
+ */
+function extractJSONOrThrow<T>(raw: string, language: string): T {
+  const trimmed = (raw ?? '').trim();
+  try {
+    return JSON.parse(trimmed || '{}') as T;
+  } catch {
+    // Fall through to balanced-brace extraction.
+  }
+  const match = trimmed.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      return JSON.parse(match[0]) as T;
+    } catch {
+      // Fall through.
+    }
+  }
+  const head = trimmed.slice(0, 240).replace(/\s+/g, ' ');
+  throw new BadRequestException(
+    `Claude returned non-JSON (language=${language}). Retry usually fixes this. ` +
+    `Head: "${head}"`,
+  );
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
