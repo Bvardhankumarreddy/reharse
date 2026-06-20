@@ -155,18 +155,44 @@ export interface DailyStats {
   llmCostToday: number;
 }
 
-// ── Scenes (cinematic image prompts, story mode) ───────────────────────
+// ── Scenes (blueprint-aligned: structured JSON per scene + audio block) ──
+// Per-scene JSON prompt — every consistency marker (style, character_dna,
+// reference image) lives INLINE in every scene so each scene is self-
+// contained and paste-ready for VEO 3.1 / Sora / Gemini / ChatGPT.
 export interface AqbScene {
-  scene:        string;   // "01"
-  duration:     string;   // "3s"
-  spoken_text:  string;
-  prompt:       string;
+  scene_id:             string;   // "01"
+  duration_seconds:     number;   // 3
+  spoken_text:          string;   // exact line voiced during this scene
+  setting:              string;   // location + time-of-day + atmosphere
+  subject:              string;   // who/what + action + position in frame
+  shot:                 string;   // shot type + lens + DoF + camera movement
+  lighting:             string;   // key + fill + mood
+  mood:                 string;   // emotional tone
+  style:                string;   // aesthetic + colour grade + film stock + aspect ratio
+  character_dna:        string;   // persistent character descriptions (repeated every scene)
+  reference_image_url?: string | null;  // only on scenes that show the host
 }
+
+export interface AqbVoiceoverSpec {
+  full_text:    string;
+  voice_style:  string;
+  pacing_notes: string;
+}
+
+export interface AqbMusicSpec {
+  style:           string;
+  tempo:           string;
+  mood:            string;
+  minimax_prompt:  string;     // ready-to-paste prompt for MiniMax / Lyria / Suno
+}
+
 export interface ScenesResp {
   scenes: {
     scenes:             AqbScene[];
     scene_count:        number;
     total_duration_sec: number;
+    voiceover:          AqbVoiceoverSpec;
+    music:              AqbMusicSpec;
   } | null;
   scenesGeneratedAt:  string | null;
   scenesCostUsd:      number | string;

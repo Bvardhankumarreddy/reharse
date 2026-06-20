@@ -7,32 +7,60 @@ import { ConfigService } from '@nestjs/config';
 import { ShortScript } from '../entities/short-script.entity';
 import { AnthropicClientService } from './anthropic-client.service';
 
+// ── Types ─────────────────────────────────────────────────────────────
+
 export interface AqbScene {
-  scene:       string;   // "01" zero-padded
-  duration:    string;   // "3s"
-  spoken_text: string;   // exact words spoken during this scene
-  prompt:      string;   // full cinematic prompt, ready to paste into ChatGPT
+  scene_id:             string;
+  duration_seconds:     number;
+  spoken_text:          string;
+  setting:              string;
+  subject:              string;
+  shot:                 string;
+  lighting:             string;
+  mood:                 string;
+  style:                string;
+  character_dna:        string;
+  reference_image_url?: string | null;
+}
+
+export interface AqbVoiceoverSpec {
+  full_text:    string;
+  voice_style:  string;
+  pacing_notes: string;
+}
+
+export interface AqbMusicSpec {
+  style:          string;
+  tempo:          string;
+  mood:           string;
+  minimax_prompt: string;
 }
 
 export interface AqbScenesPayload {
   scenes:             AqbScene[];
   scene_count:        number;
   total_duration_sec: number;
+  voiceover:          AqbVoiceoverSpec;
+  music:              AqbMusicSpec;
 }
 
 /**
- * Breaks a story-mode AQB script into 12-18 cinematic image prompts —
- * one per scene of 2-4 seconds. Designed for ChatGPT (DALL·E / GPT
- * Image 1) where the host pastes one prompt at a time, with the
- * configured reference image attached when the host appears in the
- * frame.
+ * AQB scene generator — adapted to the "AI Filmmaker Blueprint" format.
  *
- * Architectural insight (the bit that makes this work):
- * We separate WHAT each scene shows (subject + emotion + composition —
- * the LLM varies these per scene) from HOW each scene is shot (lens,
- * grade, aspect ratio — fixed across all scenes, appended automatically).
- * The LLM doesn't have to remember the brand cinematography on every
- * scene; we guarantee consistency by post-processing.
+ * Per-scene output is a STRUCTURED JSON OBJECT (not prose). Every
+ * consistency marker — style, character DNA, reference image URL — is
+ * repeated INLINE in every scene so each scene is fully self-contained
+ * and paste-ready into VEO 3.1 / Sora / Gemini / ChatGPT without a
+ * separate "master prompt" coordinating them.
+ *
+ * The script-level payload also includes a `voiceover` + `music` block
+ * that the host pastes into MiniMax / Lyria / Suno to generate audio.
+ *
+ * Architectural insight that makes it not-cheesy: the SHOOTING DISCIPLINE
+ * (lens, grade, aspect ratio, brand colour palette, host appearance) is
+ * the SAME across every scene — controlled in this service from a single
+ * source of truth (env-driven) — but inlined into every scene's JSON so
+ * each scene "carries its own film inside it" per the blueprint.
  */
 @Injectable()
 export class SceneGeneratorService {
@@ -61,13 +89,15 @@ export class SceneGeneratorService {
       this.config.get<string | null>('aiQuickBytes.scenes.hostReferenceUrl') ?? null;
 
     const system = this.buildSystemPrompt(brandStyle, hostRef);
-    const user = this.buildUserPrompt(script);
+    const user   = this.buildUserPrompt(script);
 
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
       system,
       user,
-      temperature: 0.8,    // high — we want creative scene variety
-      maxTokens:   4000,   // ~20 scenes × ~80 words/prompt fits comfortably
+      temperature: 0.8,
+      // Per-scene JSON + voiceover + music + 10-20 scenes — give plenty
+      // of headroom; truncated JSON throws below with a clear error.
+      maxTokens:   6000,
     });
 
     let parsed: AqbScenesPayload;
@@ -102,198 +132,220 @@ export class SceneGeneratorService {
 
   private buildSystemPrompt(brandStyle: string, hostRef: string | null): string {
     const hostBlock = hostRef
-      ? `When the HOST appears in frame, end that scene's prompt with this ` +
-        `EXACT line on its own:\n` +
-        `  Reference image (use this person's face and build for likeness): ${hostRef}\n` +
-        `Use this ONLY for scenes 01 (cold open if the host appears) and ` +
-        `the final CTA scene. Most scenes have NO host — they show the ` +
-        `story's protagonist or environmental detail.`
-      : `(No host reference image is configured. When the host appears, ` +
-        `describe him generically: "young Indian male, late 20s, glasses, ` +
-        `navy hoodie or blazer, calm direct gaze". Use this ONLY for the ` +
-        `final CTA scene.)`;
+      ? `When the HOST (Vardhan) appears in a scene, set the scene's ` +
+        `"reference_image_url" to EXACTLY: ${hostRef}\n` +
+        `Use ONLY for the final CTA scene (and optionally the cold open ` +
+        `if the host narrates on-camera). For ALL other scenes, set ` +
+        `"reference_image_url" to null.`
+      : `(No host reference image configured. For host scenes, set ` +
+        `"reference_image_url" to null; describe the host generically in ` +
+        `"subject" as "young Indian male, late 20s, glasses, navy hoodie".)`;
 
     return `
-You break a 30-45 second AI Quick Bytes story script into a sequence
-of cinematic IMAGE prompts (not video clips — still frames). Each
-scene = one frozen moment. A scrolling viewer must stop on ANY single
-frame as if it were a magazine cover.
+You convert a 30-45 second AI Quick Bytes story script into a SHOT-BY-
+SHOT scene plan in the format used by AI filmmakers shipping to VEO 3.1
+/ Sora / Gemini / ChatGPT. Each scene is a STRUCTURED JSON OBJECT —
+NOT prose — and every consistency marker is repeated INLINE in every
+scene so each scene is fully self-contained and paste-ready.
 
 ═══════════════════════════════════════
-THE CORE DISCIPLINE
+GOAL
 ═══════════════════════════════════════
-Every scene prompt is a CINEMATIC POSTER:
-- ONE subject (a person OR hands OR object OR environment — never crowded)
-- ONE emotion / atmosphere (frustration, awe, hope, fear, curiosity)
-- ONE light source (key light direction + colour)
-- ONE focal point (where the eye lands in 0.3 sec)
-
-You describe WHAT the scene shows — we automatically append the HOW
-(lens, grade, aspect ratio, aesthetic). Don't repeat the cinematography
-block in your prompts; just describe the moment in vivid prose.
+A scrolling viewer must stop on ANY single frame as if it were a
+magazine cover. Each scene = one frozen cinematic moment. Cut between
+shot scales. Never two adjacent same-frame scenes.
 
 ═══════════════════════════════════════
-SHOT VARIETY (USE A MIX — DON'T REPEAT)
+THE NON-NEGOTIABLE: INLINE EVERYTHING
 ═══════════════════════════════════════
-- Wide establishing shot (a room, a city window, a workspace at dusk)
-- Medium shot of the protagonist (back-three-quarter, side profile)
-- Close-up on hands (typing, holding a notebook, gripping a coffee cup)
-- Over-the-shoulder of a screen (code, a chat window, a dashboard)
-- Environmental detail (a desk lamp, rain on the window, an empty chair)
-- Reaction shot (eyes lit by monitor glow, a sigh, a small smile)
-- Symbolic still life (a clock at 2 a.m., a stack of paper, a closed door)
+The blueprint we are following explicitly says:
+  "Do not give me a separate master prompt for consistency — include
+   that inside all of the prompts already."
 
-Aim for variety — never two adjacent scenes of "protagonist sitting
-at desk staring at screen". Cut between scales (wide → close-up →
-detail → reaction).
+Therefore EVERY scene's JSON MUST include, repeated verbatim across
+scenes:
+  - "style"          — the SAME cinematography line in every scene
+  - "character_dna"  — every recurring character described the SAME WAY
+                       in every scene they could plausibly appear in
+
+THE BRAND STYLE (paste verbatim into every scene's "style" field):
+${brandStyle || '(no brand style configured — invent a coherent cinematic look and reuse it verbatim)'}
 
 ═══════════════════════════════════════
-CHARACTER RULES (NON-NEGOTIABLE)
+CHARACTER RULES (LIKENESS-SAFE)
 ═══════════════════════════════════════
-- The script's "protagonist" field tells you the role (e.g. "an
-  engineer at Anthropic"). Describe them by ARCHETYPE + age range +
-  attire — NEVER as a named or recognisable person.
-- The same archetype is described the SAME WAY in every scene that
-  shows them (continuity). Pick once at scene 02 and reuse: e.g.,
-  "the engineer (early thirties, dark hair, wire-rimmed glasses,
-  charcoal sweater)".
-- The HOST is a SEPARATE character from the story protagonist.
+- The script's protagonist is a generic ROLE (e.g. "an engineer at
+  Anthropic"). Pick the description ONCE — age, build, hair, attire —
+  and repeat it verbatim in every scene's "character_dna" field.
+  Example: "the engineer (early thirties, dark hair, wire-rimmed
+  glasses, charcoal sweater)"
+- NEVER use a real person's name or recognisable likeness.
 ${hostBlock}
+- For the quote scene (see below), set character_dna to "(no human
+  characters in this scene)".
 
 ═══════════════════════════════════════
-QUOTE SCENE (SPECIAL — IT WILL BE IN THE SCRIPT)
-═══════════════════════════════════════
-The script's penultimate beat contains a closing motivational quote
-("And to leave you with this — '…' — Author."). Generate ONE scene
-for this — but the visual rules are different:
-- NO host in the frame
-- NO story protagonist in the frame
-- It is a STILL-LIFE or ABSTRACT METAPHOR shot — let the words breathe
-- Match the quote's TONE (stoic / hopeful / hungry / quiet) to the
-  visual: e.g., a single lamp in a dark room, a doorway opening to
-  sunrise, ink drying on paper, an empty stage with light spilling in
-- Pure environment / object. No people.
-
-═══════════════════════════════════════
-CTA SCENE (FINAL)
-═══════════════════════════════════════
-The very last scene shows the HOST in a direct-address moment:
-warm natural light, subtle smile, looking just past camera or
-straight to lens. Include the host reference image line if configured.
-
-═══════════════════════════════════════
-DURATION DISCIPLINE
-═══════════════════════════════════════
-- Use 10-20 scenes total. Most should be 2-4 seconds.
-- Total duration of all scenes ≈ script's spoken duration (±3 sec OK).
-- Match scene boundaries to natural sentence / clause breaks in the
-  script — every word of the script must appear in some scene's
-  "spoken_text", in order, with NO words skipped and NO words
-  duplicated across scenes.
-
-═══════════════════════════════════════
-WRITING THE PROMPT (60-110 words per scene)
-═══════════════════════════════════════
-Start with the SETTING (where + when + light), then the SUBJECT (who
-or what), then the ACTION FROZEN (one specific moment), then the
-EMOTION conveyed. Use concrete sensory detail — never adjectives like
-"beautiful" or "amazing". Specifics over abstractions.
-
-Example of GOOD (note: no cinematography descriptors — those auto-append):
-  "Interior of a quiet open-plan office in San Francisco, 9:47 p.m.
-  Most desks empty, half the overhead lights off. A single workstation
-  glows blue with a code editor open on a vertical monitor. The
-  engineer (early thirties, dark hair, wire-rimmed glasses, charcoal
-  sweater) is seated three-quarter back to camera, head bowed,
-  fingers paused mid-type. Quiet fatigue."
-
-Example of BAD:
-  "An engineer working hard on a problem. Looks frustrated. Modern
-  office. Dramatic." (vague, no sensory detail, no specific moment)
-
-═══════════════════════════════════════
-OUTPUT (STRICT JSON ONLY — no preamble, no markdown fences)
+SCENE SCHEMA (every scene — same shape)
 ═══════════════════════════════════════
 {
-  "scenes": [
-    {
-      "scene": "01",
-      "duration": "3s",
-      "spoken_text": "<exact words from the script, in order>",
-      "prompt": "<60-110 word cinematic description per the rules above; for host scenes only, end with the reference image line>"
-    },
-    …
-  ],
-  "scene_count": <int>,
-  "total_duration_sec": <int>
+  "scene_id":            "<zero-padded 01, 02, …>",
+  "duration_seconds":    <int 2-4>,
+  "spoken_text":         "<exact words from the script during this scene; '' for silent scenes>",
+  "setting":             "<location + time-of-day + atmosphere>",
+  "subject":             "<who/what is the focal subject + action + position in frame>",
+  "shot":                "<shot type + lens + aperture/DoF + camera movement>",
+  "lighting":            "<key + fill + colour temperature + mood>",
+  "mood":                "<one emotional word: frustration | awe | hope | fear | curiosity | quiet>",
+  "style":               "<PASTE THE BRAND STYLE VERBATIM>",
+  "character_dna":       "<persistent character descriptions, same string every scene>",
+  "reference_image_url": "<URL string or null per host rules>"
+}
+
+═══════════════════════════════════════
+DURATION + COVERAGE DISCIPLINE
+═══════════════════════════════════════
+- 10-20 scenes total. Most 2-4 seconds.
+- The script's full spoken text MUST be split across scenes in order,
+  with no words skipped and no words duplicated. Concatenated
+  "spoken_text" fields = original script (ignoring pause markers).
+- Total of all "duration_seconds" ≈ script's spoken duration (±3s OK).
+
+═══════════════════════════════════════
+SHOT VARIETY (USE A MIX)
+═══════════════════════════════════════
+- Wide establishing (office at dusk, city window, workspace overhead)
+- Medium / three-quarter back of protagonist
+- Close-up on hands (typing, holding paper, pouring coffee)
+- Over-the-shoulder of a screen (code, chat window, dashboard)
+- Environmental detail (lamp, rain on window, empty chair)
+- Reaction shot (eyes lit by monitor glow, small smile, sigh)
+- Symbolic still life (clock at 2 a.m., closed door, stacked notebooks)
+
+═══════════════════════════════════════
+SPECIAL SCENES (REQUIRED)
+═══════════════════════════════════════
+- QUOTE SCENE: the penultimate beat where the closing motivational
+  quote is voiced. Set subject = pure still-life or abstract metaphor
+  matched to the quote's tone (single lamp in dark, doorway opening
+  to sunrise, ink drying on paper). character_dna = "(no human
+  characters in this scene)". reference_image_url = null.
+- CTA SCENE: the final scene, host direct-address. Warm natural light,
+  subtle smile. Use reference_image_url per host rules above.
+
+═══════════════════════════════════════
+VOICEOVER + MUSIC (ONE BLOCK AT END)
+═══════════════════════════════════════
+After all scenes, emit a single "voiceover" + "music" block so the
+host can paste straight into MiniMax / Lyria / Suno.
+
+"voiceover":
+  - "full_text": the full spoken script in order, with pause markers
+    preserved as " [1 sec pause] " / " [2 sec pause] "
+  - "voice_style": e.g. "Calm Indian-English male narrator, mid-30s,
+    contemplative pace, warm low chest voice, soft consonants"
+  - "pacing_notes": e.g. "1s pause after cold open; 2s pause before
+    payoff line; slow down on the quote"
+
+"music":
+  - "style": e.g. "Cinematic ambient, minimal piano + sub bass, slow
+    build to soft drop at payoff"
+  - "tempo": e.g. "60 BPM, slow"
+  - "mood": match the script's emotional anchor
+  - "minimax_prompt": one ready-to-paste prompt string combining style
+    + tempo + mood + structural beats (intro, build, drop, outro)
+
+═══════════════════════════════════════
+OUTPUT (STRICT JSON — NO PREAMBLE, NO MARKDOWN FENCES)
+═══════════════════════════════════════
+Your response MUST start with "{" and contain ONLY:
+{
+  "scenes": [ <one object per scene, in order> ],
+  "scene_count":        <int>,
+  "total_duration_sec": <int>,
+  "voiceover": { "full_text": "…", "voice_style": "…", "pacing_notes": "…" },
+  "music":     { "style": "…", "tempo": "…", "mood": "…", "minimax_prompt": "…" }
 }
 `.trim();
   }
 
   private buildUserPrompt(script: ShortScript): string {
     return [
-      `STORY SCRIPT (45 sec, story mode)`,
-      `Protagonist: (extract from script, e.g. "an engineer at Anthropic")`,
+      `STORY SCRIPT (30-45 sec, AQB story mode)`,
+      `Day: ${script.dayNumber ?? '?'}`,
+      `Avatar slot: ${script.avatarId ?? 'vardhan'}`,
       ``,
-      `Full script (preserve every word in your scenes' spoken_text fields):`,
+      `Full script (preserve EVERY word in your scenes' "spoken_text" fields, in order):`,
       script.fullScript,
       ``,
-      `Generate the scene JSON now. Distribute the words across 10-20 scenes; ` +
-      `each scene 2-4 seconds. Cut between shot scales. Reserve one scene for ` +
-      `the closing quote (no people) and the final scene for the host CTA.`,
+      `Closing motivational quote already inlined above as part of the script — ` +
+      `match its tone in the QUOTE scene.`,
+      ``,
+      `Now emit the JSON object per the system prompt. Start with "{". ` +
+      `No preamble. Style + character_dna repeat verbatim in every scene.`,
     ].join('\n');
   }
 
-  // ── Normalisation: append brand cinematography to every prompt ─────
+  // ── Normalisation: clamp / repair / enforce inline consistency ─────
 
   private normalize(
     parsed: AqbScenesPayload,
     brandStyle: string,
     hostRef: string | null,
   ): AqbScenesPayload {
-    const scenes = (parsed.scenes ?? [])
-      .filter((s) => s && s.prompt?.trim())
+    const rawScenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
+
+    // Discover canonical character_dna — first scene that has one. We
+    // repaste it into any later scene that drifted off (Claude does this
+    // sometimes after 10+ outputs).
+    const canonicalDna =
+      rawScenes.find((s) => s?.character_dna?.trim())?.character_dna?.trim() ?? '';
+
+    const scenes: AqbScene[] = rawScenes
+      .filter((s) => s && (s.subject ?? '').toString().trim())
       .map((s, i): AqbScene => {
-        const sceneNum = String(s.scene ?? String(i + 1).padStart(2, '0'));
-        const duration = String(s.duration ?? '3s');
-        const spokenText = String(s.spoken_text ?? '').trim();
-        const promptCore = String(s.prompt ?? '').trim();
-
-        // Append the brand cinematography block ONCE — single source of
-        // truth, so changing AQB_BRAND_VISUAL_STYLE in env updates every
-        // future scene without re-prompting the LLM.
-        const promptWithStyle = brandStyle
-          ? `${promptCore}\n\n${brandStyle}`
-          : promptCore;
-
-        // Safety net: if the LLM mentioned the host but forgot the
-        // reference-image line, append it. (Detected via keywords —
-        // imperfect but better than silently dropping it.)
-        const mentionsHost = /\b(host|vardhan)\b/i.test(promptCore);
-        const refLine = hostRef
-          ? `\n\nReference image (use this person's face and build for likeness): ${hostRef}`
-          : '';
-        const finalPrompt =
-          mentionsHost && refLine && !promptCore.includes(hostRef ?? '___')
-            ? `${promptWithStyle}${refLine}`
-            : promptWithStyle;
-
+        const dur = Number(s.duration_seconds);
+        const showsHost = isHostScene(s);
         return {
-          scene:       sceneNum,
-          duration,
-          spoken_text: spokenText,
-          prompt:      finalPrompt,
+          scene_id:         String(s.scene_id ?? String(i + 1).padStart(2, '0')),
+          duration_seconds: Number.isFinite(dur) && dur > 0 ? Math.round(dur) : 3,
+          spoken_text:      String(s.spoken_text ?? '').trim(),
+          setting:          String(s.setting ?? '').trim(),
+          subject:          String(s.subject ?? '').trim(),
+          shot:             String(s.shot ?? '').trim(),
+          lighting:         String(s.lighting ?? '').trim(),
+          mood:             String(s.mood ?? '').trim(),
+          // Enforce the inline-style rule: every scene gets the brand
+          // style verbatim even if the LLM trimmed it on later scenes.
+          style:            brandStyle || String(s.style ?? '').trim(),
+          // Same enforcement for character_dna — use the first scene's
+          // dna if a later scene dropped it.
+          character_dna:    String(s.character_dna ?? canonicalDna).trim(),
+          // Host scenes get the reference URL; non-host scenes are
+          // forced to null even if the LLM put a URL on them by mistake.
+          reference_image_url: showsHost ? hostRef : null,
         };
       });
 
-    const totalDur = scenes.reduce(
-      (sum, s) => sum + (parseInt(s.duration, 10) || 3),
-      0,
-    );
+    const totalDur = scenes.reduce((sum, s) => sum + s.duration_seconds, 0);
+
+    const voiceover: AqbVoiceoverSpec = {
+      full_text:    String(parsed.voiceover?.full_text    ?? '').trim(),
+      voice_style:  String(parsed.voiceover?.voice_style  ?? '').trim(),
+      pacing_notes: String(parsed.voiceover?.pacing_notes ?? '').trim(),
+    };
+    const music: AqbMusicSpec = {
+      style:          String(parsed.music?.style          ?? '').trim(),
+      tempo:          String(parsed.music?.tempo          ?? '').trim(),
+      mood:           String(parsed.music?.mood           ?? '').trim(),
+      minimax_prompt: String(parsed.music?.minimax_prompt ?? '').trim(),
+    };
+
     return {
       scenes,
       scene_count:        scenes.length,
       total_duration_sec: totalDur,
+      voiceover,
+      music,
     };
   }
 
@@ -311,4 +363,21 @@ OUTPUT (STRICT JSON ONLY — no preamble, no markdown fences)
     const [inRate, outRate] = rates[model] ?? rates['claude-sonnet-4-6'];
     return (inTok / 1_000_000) * inRate + (outTok / 1_000_000) * outRate;
   }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Heuristic: a scene "shows the host" when its subject or
+ * character_dna mentions the host by name OR when the LLM tagged
+ * reference_image_url. Cheap string check — false positives only
+ * inflate the count of scenes that get the reference URL, which is
+ * harmless (the image-gen tool only honours it when the prompt
+ * actually asks for the host).
+ */
+function isHostScene(s: Partial<AqbScene>): boolean {
+  const blob = [
+    s.subject, s.character_dna, s.reference_image_url,
+  ].filter(Boolean).join(' ').toLowerCase();
+  return /\b(host|vardhan)\b/.test(blob);
 }

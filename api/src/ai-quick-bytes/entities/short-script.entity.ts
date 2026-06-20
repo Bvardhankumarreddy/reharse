@@ -199,13 +199,31 @@ export class ShortScript {
   @Column({ type: 'jsonb', nullable: true })
   scenes: {
     scenes: Array<{
-      scene:        string;   // "01", "02", …
-      duration:     string;   // "3s"
-      spoken_text:  string;   // exact words spoken during this scene
-      prompt:       string;   // cinematic image prompt for ChatGPT
+      scene_id:             string;
+      duration_seconds:     number;
+      spoken_text:          string;
+      setting:              string;
+      subject:              string;
+      shot:                 string;
+      lighting:             string;
+      mood:                 string;
+      style:                string;       // INLINE in every scene per blueprint
+      character_dna:        string;       // INLINE in every scene per blueprint
+      reference_image_url?: string | null;
     }>;
-    scene_count:         number;
-    total_duration_sec:  number;
+    scene_count:        number;
+    total_duration_sec: number;
+    voiceover: {
+      full_text:    string;
+      voice_style:  string;
+      pacing_notes: string;
+    };
+    music: {
+      style:          string;
+      tempo:          string;
+      mood:           string;
+      minimax_prompt: string;
+    };
   } | null;
 
   @Column({ type: 'timestamp', nullable: true })
