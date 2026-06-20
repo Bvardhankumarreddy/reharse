@@ -53,6 +53,7 @@ import { WebhooksController } from './controllers/webhooks.controller';
 import { AqbIntelligenceController } from './controllers/intelligence.controller';
 import { AqbQuotesController } from './controllers/quotes.controller';
 import { QuoteBankService } from './services/quote-bank.service';
+import { SceneGeneratorService } from './services/scene-generator.service';
 
 /**
  * AI Quick Bytes — fetches AI news from 8 sources, dedups, LLM-scores,
@@ -106,6 +107,7 @@ import { QuoteBankService } from './services/quote-bank.service';
     // Learning loop (additive — no behaviour change until memories exist)
     AqbMemoryService,
     QuoteBankService,
+    SceneGeneratorService,
     AqbMetricsFetcherService,
     AqbPostmortemAgent,
     AqbImprovementAgent,

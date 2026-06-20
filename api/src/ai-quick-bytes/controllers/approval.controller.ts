@@ -17,6 +17,7 @@ import {
 } from '../dto/distribution-package.dto';
 import { ThumbnailPromptService } from '../services/thumbnail-prompt.service';
 import { TranslationService } from '../services/translation.service';
+import { SceneGeneratorService } from '../services/scene-generator.service';
 import { PublishPlatform } from '../entities/publishing-log.entity';
 
 @Controller('admin/ai-quick-bytes/approval')
@@ -30,6 +31,7 @@ export class ApprovalController {
     private readonly distribution: DistributionPackageService,
     private readonly thumbnail: ThumbnailPromptService,
     private readonly translation: TranslationService,
+    private readonly scenes: SceneGeneratorService,
     private readonly config: ConfigService,
   ) {}
 
@@ -203,6 +205,28 @@ export class ApprovalController {
     }
     const log = await this.publishing.markAsPublished(id, body.platform, body.url);
     return { success: true, logId: log.id };
+  }
+
+  /**
+   * 🎬 Scene generator — story-mode feature. Breaks the assembled
+   * fullScript into 10-20 cinematic image prompts for ChatGPT (one per
+   * 2-4 sec of spoken script). Doesn't touch HeyGen / publish flow —
+   * pure host-facing asset. Re-runnable; overwrites previous scenes.
+   */
+  @Post(':id/scenes/generate')
+  async generateScenes(@Param('id') id: string) {
+    return this.scenes.generateFor(id);
+  }
+
+  @Get(':id/scenes')
+  async getScenes(@Param('id') id: string) {
+    const script = await this.scriptRepo.findOne({ where: { id } });
+    if (!script) throw new NotFoundException('Script not found');
+    return {
+      scenes:             script.scenes ?? null,
+      scenesGeneratedAt:  script.scenesGeneratedAt,
+      scenesCostUsd:      script.scenesCostUsd,
+    };
   }
 
   @Get('stats/daily')

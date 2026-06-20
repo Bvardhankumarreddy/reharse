@@ -72,6 +72,40 @@ export default registerAs('aiQuickBytes', () => ({
 
   appUrl: process.env.APP_URL ?? 'https://reharse.inferix.in',
 
+  // Script writing style.
+  //   'story'   — narrative arc (cold open → setup → tension → payoff). No
+  //               Day-N opener. The default since we're framing news as stories.
+  //   'newsbyte' — legacy anchor format (Day N welcome + bullet news). Fallback
+  //               if story-mode feels off; flip via env var without a code change.
+  scriptStyle:
+    ((process.env.AQB_SCRIPT_STYLE ?? 'story').toLowerCase() === 'newsbyte'
+      ? 'newsbyte'
+      : 'story') as 'story' | 'newsbyte',
+
+  // Scene generator (story-mode only). Reads the assembled fullScript and
+  // emits a JSON array of cinematic image prompts the host pastes into
+  // ChatGPT one scene at a time.
+  scenes: {
+    // Single URL pointing to the host's reference photo. Inlined verbatim
+    // in scene prompts when the LLM decides the host appears (intro / CTA
+    // frames). Null = scene prompts that would show the host fall back to
+    // generic-host language ("a young Indian male with glasses, navy
+    // hoodie") with no reference link.
+    hostReferenceUrl: process.env.AQB_HOST_REFERENCE_URL ?? null,
+
+    // The shared cinematography block we automatically append to EVERY
+    // scene prompt. The LLM owns subject + emotion + composition; we own
+    // the look-and-feel discipline so all scenes feel like one film.
+    // Override per brand/season via env without code changes.
+    brandVisualStyle:
+      process.env.AQB_BRAND_VISUAL_STYLE ??
+      'Apple keynote film aesthetic. Documentary realism. ARRI Alexa 65. ' +
+      '85mm lens. Extremely shallow depth of field. Rich shadows. Premium ' +
+      'architectural interior or environmental setting. Cinematic colour ' +
+      'grade with deep teal-and-warm-amber palette. 9:16 vertical, 1080x1920. ' +
+      'Award-winning still photograph quality — every frame a magazine cover.',
+  },
+
   limits: {
     maxStoriesPerDay: Number(process.env.AQB_MAX_STORIES_PER_DAY ?? 50),
     maxScriptsPerDay: Number(process.env.AQB_MAX_SCRIPTS_PER_DAY ?? 10),

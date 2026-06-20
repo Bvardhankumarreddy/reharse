@@ -192,6 +192,28 @@ export class ShortScript {
   // Separate from the English fields so the Telugu video gets a quote
   // by Vemana / Sumati / Annamayya / Sri Sri / Kalam / etc. — NOT a
   // translated English quote. Nullable when the Telugu bank is empty.
+  // ── Cinematic scene breakdown (story-mode feature) ───────────────────
+  // Populated by SceneGeneratorService on demand from the admin "🎬 Scenes"
+  // tab. Doesn't affect the HeyGen / publish flow — purely a host-facing
+  // asset the host pastes into ChatGPT image gen, one scene at a time.
+  @Column({ type: 'jsonb', nullable: true })
+  scenes: {
+    scenes: Array<{
+      scene:        string;   // "01", "02", …
+      duration:     string;   // "3s"
+      spoken_text:  string;   // exact words spoken during this scene
+      prompt:       string;   // cinematic image prompt for ChatGPT
+    }>;
+    scene_count:         number;
+    total_duration_sec:  number;
+  } | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  scenesGeneratedAt: Date | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 6, default: 0 })
+  scenesCostUsd: number;
+
   @Column({ type: 'uuid', nullable: true })
   teluguClosingQuoteId: string | null;
 

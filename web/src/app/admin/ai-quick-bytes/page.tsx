@@ -9,6 +9,7 @@ import {
   type NewsItem, type ShortScript, type NewsSourceRow, type DailyStats,
   type DistributionResp, type ThumbnailPromptResp, type ThumbnailVariation,
   type TeluguResp,
+  type ScenesResp, type AqbScene,
   type AqbMemoryRow, type AqbPostmortemRow,
 } from "./_helpers";
 
@@ -425,6 +426,9 @@ function ScriptCard({ script, onAct }: {
   const [showTelugu, setShowTelugu] = useState(false);
   const [telugu, setTelugu] = useState<TeluguResp | null>(null);
   const [teluguBusy, setTeluguBusy] = useState(false);
+  const [showScenes, setShowScenes] = useState(false);
+  const [scenes, setScenes] = useState<ScenesResp | null>(null);
+  const [scenesBusy, setScenesBusy] = useState(false);
   // Default to all platforms selected — preserves the old "🔄 Regenerate all" behavior.
   const [enPlatforms, setEnPlatforms] = useState<DistPlatform[]>(
     DISTRIBUTION_PLATFORMS.map((p) => p.key),
@@ -553,6 +557,33 @@ function ScriptCard({ script, onAct }: {
     }
   }
 
+  // ── Scenes (cinematic image prompts for ChatGPT) ──────────────────
+  async function loadScenes() {
+    setScenesBusy(true);
+    const token = await fetchToken();
+    if (!token) { setScenesBusy(false); return; }
+    try {
+      const r = await api<ScenesResp>(token, `/approval/${script.id}/scenes`);
+      setScenes(r);
+    } finally { setScenesBusy(false); }
+  }
+  function toggleScenes() {
+    const next = !showScenes;
+    setShowScenes(next);
+    if (next && !scenes) void loadScenes();
+  }
+  async function generateScenes() {
+    setScenesBusy(true);
+    const token = await fetchToken();
+    if (!token) { setScenesBusy(false); return; }
+    try {
+      await api(token, `/approval/${script.id}/scenes/generate`, { method: "POST" });
+      await loadScenes();
+    } catch (e) {
+      alert(`⚠ ${(e as Error).message}`);
+    } finally { setScenesBusy(false); }
+  }
+
   return (
     <div className="bg-[#151B3D] border border-white/10 rounded-2xl overflow-hidden">
       <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
@@ -662,6 +693,11 @@ function ScriptCard({ script, onAct }: {
               label={showTelugu ? "🇮🇳 Hide Telugu" : "🇮🇳 Telugu"}
               accent="#FF6B6B"
               onClick={toggleTelugu}
+            />
+            <Btn
+              label={showScenes ? "🎬 Hide Scenes" : "🎬 Scenes"}
+              accent="#9D7DFF"
+              onClick={toggleScenes}
             />
           </>
         )}
@@ -947,6 +983,88 @@ function ScriptCard({ script, onAct }: {
           )}
         </div>
       )}
+
+      {showScenes && (
+        <div className="px-4 py-4 border-t border-white/5 space-y-4 bg-[#0F1330]">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[#B8C5E0] text-xs font-semibold uppercase tracking-wide">
+                🎬 Scenes · paste each into ChatGPT image gen
+              </span>
+              <span className="text-[10px] text-[#6B7799]">
+                {scenes?.scenes
+                  ? `${scenes.scenes.scene_count} scenes · ~${scenes.scenes.total_duration_sec}s` +
+                    (scenes.scenesGeneratedAt
+                      ? ` · generated ${new Date(scenes.scenesGeneratedAt).toLocaleString()}`
+                      : "")
+                  : "No scenes yet"}
+              </span>
+            </div>
+            <button
+              onClick={generateScenes}
+              disabled={scenesBusy}
+              className="px-3 py-1 text-xs font-semibold rounded-lg border border-[#9D7DFF]/40 text-[#9D7DFF] hover:bg-[#9D7DFF]/10 disabled:opacity-50 whitespace-nowrap"
+            >
+              {scenesBusy
+                ? "Working…"
+                : scenes?.scenes
+                  ? "🔄 Regenerate scenes"
+                  : "✨ Generate scenes"}
+            </button>
+          </div>
+
+          {scenesBusy && !scenes?.scenes ? (
+            <p className="text-[#6B7799] text-sm">Loading scenes…</p>
+          ) : scenes?.scenes?.scenes?.length ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {scenes.scenes.scenes.map((s: AqbScene) => (
+                <SceneTile key={s.scene} s={s} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-[#6B7799] text-xs">
+              No scenes yet — click ✨ Generate scenes. Works best on story-mode
+              scripts (set AQB_SCRIPT_STYLE=story).
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One scene card — number, duration, spoken line, the cinematic prompt, copy buttons.
+function SceneTile({ s }: { s: AqbScene }) {
+  const [copied, setCopied] = useState<"none" | "prompt">("none");
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(s.prompt);
+      setCopied("prompt");
+      setTimeout(() => setCopied("none"), 1200);
+    } catch {/* ignore */}
+  }
+  return (
+    <div className="bg-[#0A0E27] border border-white/10 rounded-xl overflow-hidden">
+      <div className="px-3 py-2 border-b border-white/5 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-[#9D7DFF] tracking-wide">
+          Scene {s.scene} · {s.duration}
+        </span>
+        <button
+          onClick={copyPrompt}
+          className="text-[10px] px-2 py-0.5 rounded-md border border-white/10 text-[#B8C5E0] hover:bg-white/5"
+        >
+          {copied === "prompt" ? "✓ Copied" : "📋 Copy prompt"}
+        </button>
+      </div>
+      {s.spoken_text && (
+        <div className="px-3 py-2 border-b border-white/5">
+          <span className="text-[10px] text-[#6B7799] uppercase tracking-wide">Spoken</span>
+          <p className="text-[12px] text-[#B8C5E0] mt-0.5 italic">“{s.spoken_text}”</p>
+        </div>
+      )}
+      <pre className="px-3 py-2 text-[11px] text-[#B8C5E0] whitespace-pre-wrap font-mono leading-relaxed max-h-[14rem] overflow-y-auto">
+        {s.prompt}
+      </pre>
     </div>
   );
 }

@@ -155,6 +155,23 @@ export interface DailyStats {
   llmCostToday: number;
 }
 
+// ── Scenes (cinematic image prompts, story mode) ───────────────────────
+export interface AqbScene {
+  scene:        string;   // "01"
+  duration:     string;   // "3s"
+  spoken_text:  string;
+  prompt:       string;
+}
+export interface ScenesResp {
+  scenes: {
+    scenes:             AqbScene[];
+    scene_count:        number;
+    total_duration_sec: number;
+  } | null;
+  scenesGeneratedAt:  string | null;
+  scenesCostUsd:      number | string;
+}
+
 export async function fetchToken(): Promise<string | null> {
   try {
     const res = await fetch("/api/auth/token");
