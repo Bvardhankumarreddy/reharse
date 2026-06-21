@@ -10,6 +10,23 @@ export interface AqbPostmortemContent {
   reusableHookPattern?: string;
   winningThumbnailStyle?: string;
   topicSignal?: string;
+
+  // ── Scene-aware postmortem fields (only populated when the script had
+  // scenes generated; null/omitted otherwise) ───────────────────────────
+  /** Total scenes in the video — surfaces "tight 12-scene cuts beat
+   *  sprawling 18-scene cuts" patterns when aggregated across winners. */
+  sceneCount?: number;
+  /** The shot type of the first scene — e.g. "close-up" / "wide establishing"
+   *  / "over-shoulder". Strong correlate of stop-the-scroll. */
+  openingShotType?: string;
+  /** Comma-separated distinct moods used across scenes (e.g.
+   *  "curiosity, awe, hope"). Detects which emotional arcs land. */
+  moodArc?: string;
+  /** Number of distinct named characters that appeared across scenes. */
+  characterCount?: number;
+  /** Free-text 1-sentence observation about what scene choice clearly
+   *  worked or didn't — feeds straight into the scene-gen memory. */
+  scenePattern?: string;
 }
 
 /** One LLM-analyzed postmortem per published AQB short. */

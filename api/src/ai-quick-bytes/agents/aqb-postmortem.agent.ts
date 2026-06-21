@@ -13,6 +13,11 @@ You write a brief, candid postmortem for one published AI Quick Bytes short.
 You compare it against the channel rolling mean and extract reusable signals
 for future content.
 
+If the script INCLUDED scenes (a per-scene cinematic breakdown), also reason
+about which scene choices likely worked. The scenes JSON will be in the user
+prompt when available — when ABSENT, leave the scene-related fields out
+(null/empty/omitted).
+
 Output STRICT JSON ONLY:
 {
   "worked": ["<1-3 things that worked, concrete>"],
@@ -20,9 +25,17 @@ Output STRICT JSON ONLY:
   "next": ["<1-2 concrete things to try next>"],
   "reusableHookPattern": "<1 sentence — a hook pattern worth repeating, or empty>",
   "winningThumbnailStyle": "<one of: data_reveal | product_screenshot | versus | identity_target | question_hook | visual_metaphor | bold_text | shocked_reaction | brand_signature | none>",
-  "topicSignal": "<short phrase describing the topic angle, e.g. 'OpenAI model release' — or empty>"
+  "topicSignal": "<short phrase describing the topic angle, e.g. 'OpenAI model release' — or empty>",
+
+  // Scene-aware fields — ONLY populate when the user prompt included a SCENES BLOCK.
+  // Set to null / 0 / empty if the script had no scenes (most pre-cinematic videos).
+  "sceneCount":       <int — total scenes in the video, or 0/null if no scenes>,
+  "openingShotType":  "<the shot type of scene 01 — e.g. 'close-up', 'wide establishing', 'over-shoulder', 'detail'; empty if no scenes>",
+  "moodArc":          "<comma-separated distinct moods across scenes — e.g. 'curiosity, awe, hope'; empty if no scenes>",
+  "characterCount":   <int — number of distinct named characters across scenes, or 0/null if no scenes>,
+  "scenePattern":     "<ONE specific 1-sentence observation about what scene choice clearly worked or fell flat for THIS video; empty if no scenes or no clear signal>"
 }
-Be specific (real numbers, real topic), not generic. Skip a field with "" / [] if you can't be honest about it.
+Be specific (real numbers, real topic), not generic. Skip a field with "" / [] / null / 0 if you can't be honest about it.
 `.trim();
 
 @Injectable()
@@ -137,8 +150,9 @@ export class AqbPostmortemAgent {
       teluguLine +
       `BODY: ${script.body.slice(0, 1500)}\n` +
       `STATUS: published, ${views} views — ${liftLabel}\n` +
-      `THUMBNAIL PROMPT (most recent): ${stringifyThumbnail(script.thumbnailPrompt)}\n\n` +
-      `Write the postmortem JSON now.`;
+      `THUMBNAIL PROMPT (most recent): ${stringifyThumbnail(script.thumbnailPrompt)}\n` +
+      stringifyScenesForPostmortem(script.scenes) +
+      `\nWrite the postmortem JSON now.`;
 
     const r = await this.anthropic.completeJSON({
       system: SYSTEM,
@@ -169,6 +183,54 @@ export class AqbPostmortemAgent {
   async latestFor(scriptId: string): Promise<AqbShortPostmortem | null> {
     return this.postmortems.findOne({ where: { scriptId } });
   }
+}
+
+/**
+ * Render the scenes payload as a compact block for the postmortem
+ * prompt — gives the LLM enough signal to reason about scene patterns
+ * (count, opening shot, mood arc, character count) without dumping the
+ * full 14×JSON cluster into the prompt.
+ *
+ * Returns '' when the script had no scenes (most pre-cinematic videos)
+ * so the postmortem just skips the scene-aware fields.
+ */
+function stringifyScenesForPostmortem(scenes: unknown): string {
+  if (!scenes || typeof scenes !== 'object') return '';
+  const s = scenes as {
+    scenes?: Array<{ shot?: string; mood?: string; subject?: string; character_dna?: string }>;
+    scene_count?: number;
+  };
+  const arr = Array.isArray(s.scenes) ? s.scenes : [];
+  if (arr.length === 0) return '';
+
+  const sceneCount = s.scene_count ?? arr.length;
+  const openingShot = (arr[0]?.shot ?? '').toString().slice(0, 120);
+  const moods = Array.from(new Set(
+    arr.map((sc) => (sc.mood ?? '').toString().trim()).filter(Boolean),
+  )).slice(0, 6).join(', ');
+  // Approximate distinct character count by inspecting character_dna
+  // strings — counts the number of distinct ALLCAPS or Capitalised role
+  // labels (ENGINEER, the founder, the researcher, etc.). Cheap heuristic.
+  const characterTokens = new Set<string>();
+  for (const sc of arr) {
+    const dna = (sc.character_dna ?? '').toString();
+    const matches = dna.match(/\b(?:[A-Z][A-Z_]{2,}|the [a-z]+)\b/g) ?? [];
+    for (const m of matches) characterTokens.add(m.toLowerCase());
+  }
+
+  const lines = [
+    '',
+    'SCENES BLOCK (this video had cinematic scenes — reason about them):',
+    `  scene_count: ${sceneCount}`,
+    `  opening_shot: ${openingShot || '(unknown)'}`,
+    `  distinct_moods: ${moods || '(none)'}`,
+    `  approx_character_count: ${characterTokens.size}`,
+    `  first_3_scenes_subjects:`,
+    ...arr.slice(0, 3).map((sc, i) =>
+      `    ${i + 1}. ${(sc.subject ?? '').toString().slice(0, 140)}`,
+    ),
+  ];
+  return lines.join('\n') + '\n';
 }
 
 function stringifyThumbnail(tp: unknown): string {

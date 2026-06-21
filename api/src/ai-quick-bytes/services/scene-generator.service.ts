@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { ShortScript } from '../entities/short-script.entity';
 import { AnthropicClientService } from './anthropic-client.service';
+import { AqbMemoryService } from './aqb-memory.service';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -71,6 +72,7 @@ export class SceneGeneratorService {
     private readonly scriptRepo: Repository<ShortScript>,
     private readonly anthropic: AnthropicClientService,
     private readonly config: ConfigService,
+    private readonly memory: AqbMemoryService,
   ) {}
 
   async generateFor(scriptId: string): Promise<AqbScenesPayload> {
@@ -88,7 +90,15 @@ export class SceneGeneratorService {
     const hostRef =
       this.config.get<string | null>('aiQuickBytes.scenes.hostReferenceUrl') ?? null;
 
-    const system = this.buildSystemPrompt(brandStyle, hostRef);
+    // Pull scene patterns mined from past winners (empty until the
+    // improvement agent has run on ≥3 scene-enabled winning videos).
+    // Self-improvement: each round of scene generation reads what worked
+    // before and biases towards it.
+    const memoryBlock = this.memory.format(
+      await this.memory.relevantFor('scene', 8),
+    );
+
+    const system = this.buildSystemPrompt(brandStyle, hostRef, memoryBlock);
     const user   = this.buildUserPrompt(script);
 
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
@@ -130,7 +140,11 @@ export class SceneGeneratorService {
 
   // ── Prompts ────────────────────────────────────────────────────────
 
-  private buildSystemPrompt(brandStyle: string, hostRef: string | null): string {
+  private buildSystemPrompt(
+    brandStyle: string,
+    hostRef: string | null,
+    memoryBlock: string,
+  ): string {
     const hostBlock = hostRef
       ? `When the HOST (Vardhan) appears in a scene, set the scene's ` +
         `"reference_image_url" to EXACTLY: ${hostRef}\n` +
@@ -254,7 +268,12 @@ host can paste straight into MiniMax / Lyria / Suno.
   - "minimax_prompt": one ready-to-paste prompt string combining style
     + tempo + mood + structural beats (intro, build, drop, outro)
 
+${memoryBlock ? `═══════════════════════════════════════
+WHAT'S WORKED ON THIS CHANNEL (from past winners — bias toward these)
 ═══════════════════════════════════════
+${memoryBlock}
+
+` : ''}═══════════════════════════════════════
 OUTPUT (STRICT JSON — NO PREAMBLE, NO MARKDOWN FENCES)
 ═══════════════════════════════════════
 Your response MUST start with "{" and contain ONLY:

@@ -4,10 +4,17 @@ import {
 } from 'typeorm';
 
 export type AqbMemoryType =
-  | 'hook' | 'style' | 'thumbnail_style' | 'topic' | 'hashtag' | 'do' | 'dont';
+  | 'hook' | 'style' | 'thumbnail_style' | 'topic' | 'hashtag' | 'do' | 'dont'
+  // Scene-generator patterns mined from postmortems of videos that included
+  // cinematic scenes — e.g. "opening close-up beats wide establishing",
+  // "12-14 scenes wins", "multi-character (2-3) beats single-character".
+  | 'scene_pattern';
 
 export type AqbMemoryTask =
-  | 'scoring' | 'script' | 'thumbnail' | 'distribution';
+  | 'scoring' | 'script' | 'thumbnail' | 'distribution'
+  // Scene generator reads memories tagged with 'scene' before emitting
+  // the per-scene JSON payload.
+  | 'scene';
 
 /**
  * Learned patterns promoted from postmortems / improvement sweeps. Each
