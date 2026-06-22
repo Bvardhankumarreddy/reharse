@@ -5,6 +5,7 @@ import {
   api, fetchToken,
   type AiPulseVertical, type NewsItem, type Script, type VerticalRow,
   type Memory, type MemoryType, type Postmortem, type DistributionPackage,
+  type AiPulseScene, type AiPulseVoiceoverSpec, type AiPulseMusicSpec,
   VERTICAL_LABELS, VERTICAL_DOW, MEMORY_TYPE_LABELS, MEMORY_TYPE_EMOJI,
 } from "./_helpers";
 
@@ -549,6 +550,15 @@ function ScriptDetail({
           🔁 Regen TE distribution
         </button>
         <button
+          onClick={() => action("Generated scenes",
+            () => api(token, `/approval/${scriptId}/scenes/generate`, { method: "POST" }))}
+          disabled={!!busy || !script.english_full_script}
+          title={script.english_full_script ? "Break the English script into cinematic scenes" : "Needs an English script first"}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#9D7DFF]/40 text-[#9D7DFF] hover:bg-[#9D7DFF]/10 disabled:opacity-40"
+        >
+          {script.scenes ? "🔄 Regen scenes" : "✨ Generate scenes"}
+        </button>
+        <button
           onClick={() => {
             const en = prompt("English YouTube URL (leave blank to skip):") ?? "";
             const te = prompt("Telugu YouTube URL (leave blank to skip):") ?? "";
@@ -640,6 +650,34 @@ function ScriptDetail({
           exists; otherwise the slot is irrelevant). */}
       {(script.telugu_full_script || distTe) &&
         renderDistribution(distTe, "📦 Telugu distribution", "border-[#FFB020]/30")}
+
+      {/* 🎬 Scenes — cinematic per-scene image prompts (paste into ChatGPT) */}
+      <Section title="🎬 Scenes">
+        {script.scenes && script.scenes.scenes?.length ? (
+          <div className="space-y-3">
+            <div className="text-[10px] text-[#6B7799]">
+              {script.scenes.scene_count} scenes · ~{script.scenes.total_duration_sec}s
+              {script.scenes_generated_at && (
+                <> · generated {new Date(script.scenes_generated_at).toLocaleString()}</>
+              )}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {script.scenes.scenes.map((s) => (
+                <SceneTile key={s.scene_id} s={s} />
+              ))}
+            </div>
+            <VoiceoverMusicBlock
+              voiceover={script.scenes.voiceover}
+              music={script.scenes.music}
+            />
+          </div>
+        ) : (
+          <div className="text-[11px] text-[#6B7799] border border-dashed border-[#9D7DFF]/30 rounded-lg p-3">
+            No scenes yet — click <span className="text-[#9D7DFF] font-semibold">✨ Generate scenes</span> in the toolbar above.
+            Per-vertical visual accent ({script.vertical}) is baked into every scene.
+          </div>
+        )}
+      </Section>
 
       {script.approval_status === "rejected" && script.rejection_reason && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-[12px] text-red-300">
@@ -940,6 +978,144 @@ function Loading() {
   return (
     <div className="flex justify-center py-10">
       <div className="w-6 h-6 rounded-full border-2 border-[#00D4FF] border-t-transparent animate-spin" />
+    </div>
+  );
+}
+
+// ── Scene UI (parallel to AQB; blueprint format) ──────────────────────────
+
+function SceneTile({ s }: { s: AiPulseScene }) {
+  const [copied, setCopied] = useState<"none" | "json">("none");
+  async function copyJson() {
+    const obj = {
+      scene_id:            s.scene_id,
+      duration_seconds:    s.duration_seconds,
+      spoken_text:         s.spoken_text,
+      setting:             s.setting,
+      subject:             s.subject,
+      shot:                s.shot,
+      lighting:            s.lighting,
+      mood:                s.mood,
+      style:               s.style,
+      character_dna:       s.character_dna,
+      reference_image_url: s.reference_image_url ?? null,
+    };
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
+      setCopied("json");
+      setTimeout(() => setCopied("none"), 1200);
+    } catch {/* ignore */}
+  }
+
+  return (
+    <div className="bg-[#0A0E27] border border-white/10 rounded-xl overflow-hidden">
+      <div className="px-3 py-2 border-b border-white/5 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-[#9D7DFF] tracking-wide">
+          Scene {s.scene_id} · {s.duration_seconds}s · {s.mood || "—"}
+        </span>
+        <button
+          onClick={copyJson}
+          className="text-[10px] px-2 py-0.5 rounded-md border border-white/10 text-[#B8C5E0] hover:bg-white/5"
+        >
+          {copied === "json" ? "✓ Copied JSON" : "📋 Copy JSON"}
+        </button>
+      </div>
+
+      {s.spoken_text && (
+        <div className="px-3 py-2 border-b border-white/5 bg-[#0F1330]">
+          <span className="text-[9px] text-[#6B7799] uppercase tracking-wide">Spoken</span>
+          <p className="text-[12px] text-white mt-0.5 italic">&ldquo;{s.spoken_text}&rdquo;</p>
+        </div>
+      )}
+
+      <div className="px-3 py-2 space-y-1.5 text-[11px] text-[#B8C5E0]">
+        <SceneField label="Setting"  value={s.setting} />
+        <SceneField label="Subject"  value={s.subject} />
+        <SceneField label="Shot"     value={s.shot} />
+        <SceneField label="Lighting" value={s.lighting} />
+        {s.reference_image_url && (
+          <SceneField label="Reference image" value={s.reference_image_url} mono />
+        )}
+      </div>
+
+      <details className="px-3 py-2 border-t border-white/5 text-[10px] text-[#6B7799]">
+        <summary className="cursor-pointer hover:text-[#B8C5E0]">Style + character DNA (inlined every scene)</summary>
+        <div className="mt-1.5 space-y-1.5">
+          <SceneField label="Style"         value={s.style} />
+          <SceneField label="Character DNA" value={s.character_dna} />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function SceneField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  if (!value) return null;
+  return (
+    <div className="flex gap-2">
+      <span className="text-[9px] text-[#6B7799] uppercase tracking-wide shrink-0 w-[78px] pt-[2px]">
+        {label}
+      </span>
+      <span className={"flex-1 break-words " + (mono ? "font-mono text-[10px] text-[#9D7DFF]" : "")}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function VoiceoverMusicBlock({
+  voiceover, music,
+}: { voiceover: AiPulseVoiceoverSpec; music: AiPulseMusicSpec }) {
+  const [copied, setCopied] = useState<"none" | "vo" | "music">("none");
+  async function copy(kind: "vo" | "music", text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(kind);
+      setTimeout(() => setCopied("none"), 1200);
+    } catch {/* ignore */}
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-white/5">
+      <div className="bg-[#0A0E27] border border-[#FFB020]/20 rounded-xl p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-semibold text-[#FFB020] uppercase tracking-wide">
+            🎙️ Voiceover · paste into MiniMax / ElevenLabs
+          </span>
+          <button
+            onClick={() => copy("vo", voiceover?.full_text ?? "")}
+            disabled={!voiceover?.full_text}
+            className="text-[10px] px-2 py-0.5 rounded-md border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-40"
+          >
+            {copied === "vo" ? "✓ Copied" : "📋 Copy VO"}
+          </button>
+        </div>
+        <SceneField label="Voice"  value={voiceover?.voice_style ?? ""} />
+        <SceneField label="Pacing" value={voiceover?.pacing_notes ?? ""} />
+        <pre className="text-[11px] text-[#B8C5E0] whitespace-pre-wrap font-mono leading-relaxed bg-[#0F1330] rounded-md p-2 max-h-[10rem] overflow-y-auto">
+          {voiceover?.full_text ?? "(no voiceover generated)"}
+        </pre>
+      </div>
+
+      <div className="bg-[#0A0E27] border border-[#9D7DFF]/20 rounded-xl p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-semibold text-[#9D7DFF] uppercase tracking-wide">
+            🎵 Music · paste into Lyria / Suno / MiniMax
+          </span>
+          <button
+            onClick={() => copy("music", music?.minimax_prompt ?? "")}
+            disabled={!music?.minimax_prompt}
+            className="text-[10px] px-2 py-0.5 rounded-md border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-40"
+          >
+            {copied === "music" ? "✓ Copied" : "📋 Copy music prompt"}
+          </button>
+        </div>
+        <SceneField label="Style" value={music?.style ?? ""} />
+        <SceneField label="Tempo" value={music?.tempo ?? ""} />
+        <SceneField label="Mood"  value={music?.mood ?? ""} />
+        <pre className="text-[11px] text-[#B8C5E0] whitespace-pre-wrap font-mono leading-relaxed bg-[#0F1330] rounded-md p-2 max-h-[10rem] overflow-y-auto">
+          {music?.minimax_prompt ?? "(no music prompt generated)"}
+        </pre>
+      </div>
     </div>
   );
 }

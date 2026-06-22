@@ -8,9 +8,14 @@ export type AiPulseMemoryType =
   | 'topic_signal'
   | 'hashtag'
   | 'thumbnail_style'
-  | 'dont';
+  | 'dont'
+  // Scene generator patterns mined from postmortems of videos that included
+  // cinematic scenes — e.g. "opening close-up beats wide", "10-13 scenes win
+  // for this vertical", "2-3 characters beats 1". Per-vertical (memories are
+  // scoped to a vertical row).
+  | 'scene_pattern';
 
-export type AiPulseMemoryScope = 'script' | 'thumbnail' | 'distribution';
+export type AiPulseMemoryScope = 'script' | 'thumbnail' | 'distribution' | 'scene';
 
 @Entity('ai_pulse_memories')
 @Index('idx_pulse_memory_vertical_type', ['vertical', 'memory_type', 'is_active'])

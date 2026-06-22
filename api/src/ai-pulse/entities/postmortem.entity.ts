@@ -12,6 +12,16 @@ export interface AiPulsePostmortemContent {
   winningThumbnailStyle?: string;
   topicSignal?: string;
   winningHashtags?: string[];
+
+  // ── Scene-aware fields (populated only when the script had scenes) ──
+  // Parallel to AQB's scene postmortem fields. Mined per-vertical by the
+  // improvement service and promoted into ai_pulse_memories scoped to
+  // the same vertical.
+  sceneCount?:       number;
+  openingShotType?:  string;
+  moodArc?:          string;
+  characterCount?:   number;
+  scenePattern?:     string;
 }
 
 @Entity('ai_pulse_postmortems')

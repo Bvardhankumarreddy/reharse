@@ -146,8 +146,142 @@ export class AiPulseImprovementService {
       if (m) promoted++;
     }
 
+    // 5) Scene patterns (per vertical) — only winners with scenes contribute.
+    //    Requires ≥3 such winners in this vertical to fire (signal floor).
+    const sceneWinners = postmortems.filter(
+      (p) => Number(p.content?.sceneCount ?? 0) > 0,
+    );
+    if (sceneWinners.length >= 3) {
+      promoted += await this.promoteScenePatterns(v, sceneWinners, evidence);
+    } else if (sceneWinners.length > 0) {
+      this.logger.log(
+        `Scene-pattern mining for ${v} skipped — only ${sceneWinners.length} ` +
+        `scene-enabled winner(s) (need ≥3)`,
+      );
+    }
+
     return promoted;
   }
+
+  /**
+   * Mine scene patterns per vertical from postmortems' scene-aware fields.
+   * Same buckets as AQB (count band, opening shot, mood tokens, character
+   * count) plus distinct 1-line scenePattern observations. Each pattern
+   * only promotes when seen in ≥2 winners of THIS vertical.
+   */
+  private async promoteScenePatterns(
+    v: AiPulseVertical,
+    sceneWinners: AiPulsePostmortem[],
+    evidence: string[],
+  ): Promise<number> {
+    const contents = sceneWinners.map((p) => p.content ?? {});
+    let promoted = 0;
+
+    // a) Scene count bucket
+    const buckets = tally(
+      contents
+        .map((c) => sceneBucket(Number(c.sceneCount ?? 0)))
+        .filter((b): b is string => !!b),
+    );
+    const topBucket = sortedTopKey(buckets);
+    if (topBucket && buckets[topBucket] >= 2) {
+      const m = await this.memorySvc.promoteUnique(
+        v, 'scene_pattern',
+        `Scene count that wins in ${v}: ${topBucket} scenes ` +
+        `(${buckets[topBucket]} of ${sceneWinners.length} winners).`,
+        ['scene'], evidence,
+      );
+      if (m) promoted++;
+    }
+
+    // b) Opening shot type
+    const openings = tally(
+      contents
+        .map((c) => (c.openingShotType ?? '').trim().toLowerCase())
+        .filter((s): s is string => !!s && s.length > 2),
+    );
+    const topOpening = sortedTopKey(openings);
+    if (topOpening && openings[topOpening] >= 2) {
+      const m = await this.memorySvc.promoteUnique(
+        v, 'scene_pattern',
+        `Opening shot that wins in ${v}: "${topOpening}" ` +
+        `(${openings[topOpening]} of ${sceneWinners.length} winners). ` +
+        `Lead the cold open with this shot type.`,
+        ['scene'], evidence,
+      );
+      if (m) promoted++;
+    }
+
+    // c) Mood arc tokens
+    const allMoods = contents
+      .flatMap((c) => (c.moodArc ?? '').split(',').map((m) => m.trim().toLowerCase()))
+      .filter((m) => m && m.length > 2);
+    const moodCounts = tally(allMoods);
+    const topMoods = Object.entries(moodCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .filter(([, n]) => n >= 2)
+      .map(([t, n]) => `${t} (${n}×)`);
+    if (topMoods.length > 0) {
+      const m = await this.memorySvc.promoteUnique(
+        v, 'scene_pattern',
+        `Mood tokens correlated with wins in ${v}: ${topMoods.join(', ')}.`,
+        ['scene'], evidence,
+      );
+      if (m) promoted++;
+    }
+
+    // d) Character count bucket
+    const charBuckets = tally(
+      contents
+        .map((c) => characterBucket(Number(c.characterCount ?? 0)))
+        .filter((b): b is string => !!b),
+    );
+    const topChar = sortedTopKey(charBuckets);
+    if (topChar && charBuckets[topChar] >= 2) {
+      const m = await this.memorySvc.promoteUnique(
+        v, 'scene_pattern',
+        `Character count that wins in ${v}: ${topChar} characters ` +
+        `(${charBuckets[topChar]} of ${sceneWinners.length} winners).`,
+        ['scene'], evidence,
+      );
+      if (m) promoted++;
+    }
+
+    // e) Individual scenePattern notes — distinct 1-liners from winners
+    const notes = Array.from(new Set(
+      contents
+        .map((c) => (c.scenePattern ?? '').trim())
+        .filter((s): s is string => !!s && s.length > 12),
+    )).slice(0, 5);
+    for (const n of notes) {
+      const m = await this.memorySvc.promoteUnique(
+        v, 'scene_pattern',
+        `Scene observation from a ${v} winner: ${n}`,
+        ['scene'], evidence,
+      );
+      if (m) promoted++;
+    }
+
+    return promoted;
+  }
+}
+
+/** Group scene counts into bands so we promote signal not noise. */
+function sceneBucket(n: number): string | null {
+  if (n <= 0) return null;
+  if (n <= 9)  return '6-9';
+  if (n <= 13) return '10-13';
+  if (n <= 18) return '14-18';
+  return '19+';
+}
+
+/** Same for character count — 1 vs ensemble vs crowd. */
+function characterBucket(n: number): string | null {
+  if (n <= 0) return null;
+  if (n === 1) return '1';
+  if (n <= 3)  return '2-3';
+  return '4+';
 }
 
 // ── small utils ────────────────────────────────────────────────────────

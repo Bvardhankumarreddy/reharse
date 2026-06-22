@@ -23,6 +23,7 @@ import { AiPulseMemoryService } from './services/memory.service';
 import { AiPulseMetricsFetcherService } from './services/metrics-fetcher.service';
 import { AiPulsePostmortemService } from './services/postmortem.service';
 import { AiPulseImprovementService } from './services/improvement.service';
+import { AiPulseSceneGeneratorService } from './services/scene-generator.service';
 
 import { AiPulseIngestionController } from './controllers/ingestion.controller';
 import { AiPulseApprovalController } from './controllers/approval.controller';
@@ -57,6 +58,7 @@ import { AiPulseApprovalController } from './controllers/approval.controller';
     AiPulseDistributionService,
     AiPulseSchedulerService,
     AiPulseMemoryService,
+    AiPulseSceneGeneratorService,
     AiPulseMetricsFetcherService,
     AiPulsePostmortemService,
     AiPulseImprovementService,

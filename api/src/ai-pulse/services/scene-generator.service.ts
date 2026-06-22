@@ -1,0 +1,395 @@
+import {
+  BadRequestException, Injectable, Logger, NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import OpenAI from 'openai';
+import { AiPulseScript } from '../entities/news-script.entity';
+import { AiPulseVertical } from '../entities/news-item.entity';
+import {
+  VERTICAL_SCENE_ACCENTS, VERTICALS, VerticalSceneAccent,
+} from '../config/verticals.config';
+import { AiPulseMemoryService } from './memory.service';
+
+// ── Types (parallel to AQB scenes; same blueprint shape) ────────────────
+
+export interface AiPulseScene {
+  scene_id:             string;
+  duration_seconds:     number;
+  spoken_text:          string;
+  setting:              string;
+  subject:              string;
+  shot:                 string;
+  lighting:             string;
+  mood:                 string;
+  style:                string;       // INLINE per blueprint
+  character_dna:        string;       // INLINE per blueprint
+  reference_image_url?: string | null;
+}
+
+export interface AiPulseVoiceoverSpec {
+  full_text:    string;
+  voice_style:  string;
+  pacing_notes: string;
+}
+
+export interface AiPulseMusicSpec {
+  style:          string;
+  tempo:          string;
+  mood:           string;
+  minimax_prompt: string;
+}
+
+export interface AiPulseScenesPayload {
+  scenes:             AiPulseScene[];
+  scene_count:        number;
+  total_duration_sec: number;
+  voiceover:          AiPulseVoiceoverSpec;
+  music:              AiPulseMusicSpec;
+}
+
+/**
+ * AI Pulse scene generator — mirrors AQB SceneGeneratorService but with
+ * a per-vertical visual accent overlay so ai_business / tech_industry /
+ * ai_science / ai_education / ai_society scenes feel like distinct
+ * "studio sets" under one channel.
+ *
+ * Same blueprint discipline: per-scene structured JSON, style +
+ * character_dna inlined in every scene, voiceover + music block for
+ * MiniMax / Lyria / Suno paste.
+ */
+@Injectable()
+export class AiPulseSceneGeneratorService {
+  private readonly logger = new Logger(AiPulseSceneGeneratorService.name);
+  private readonly openai: OpenAI | null;
+
+  constructor(
+    @InjectRepository(AiPulseScript)
+    private readonly scripts: Repository<AiPulseScript>,
+    private readonly config: ConfigService,
+    private readonly memory: AiPulseMemoryService,
+  ) {
+    const apiKey = this.config.get<string>('OPENAI_API_KEY');
+    this.openai = apiKey ? new OpenAI({ apiKey }) : null;
+  }
+
+  async generateFor(scriptId: string): Promise<AiPulseScenesPayload> {
+    if (!this.openai) throw new Error('OPENAI_API_KEY not configured');
+
+    const script = await this.scripts.findOne({ where: { id: scriptId } });
+    if (!script) throw new NotFoundException('script not found');
+    if (!script.english_full_script?.trim()) {
+      throw new BadRequestException('script has no english_full_script to break into scenes');
+    }
+
+    const vertical = script.vertical;
+    const accent   = VERTICAL_SCENE_ACCENTS[vertical];
+    const verticalLabel = VERTICALS[vertical]?.display_name ?? vertical;
+
+    const baseStyle =
+      this.config.get<string>('AI_PULSE_BRAND_VISUAL_STYLE') ??
+      'Documentary realism. Cinematic editorial film aesthetic. ARRI Alexa 65. ' +
+      '85mm lens. Extremely shallow depth of field. Rich shadows. Premium ' +
+      'architectural interior or environmental setting. 9:16 vertical, 1080x1920. ' +
+      'Award-winning still photograph quality — every frame a magazine cover.';
+
+    const hostRef = this.config.get<string>('AI_PULSE_HOST_REFERENCE_URL') ?? null;
+
+    // Per-vertical scene memory — empty until improvement service has
+    // mined ≥3 scene-enabled winners in this vertical.
+    const memoryBlock = this.memory.format(
+      await this.memory.relevantFor(vertical, 'scene', 8),
+    );
+
+    const system = this.buildSystemPrompt(
+      vertical, verticalLabel, accent, baseStyle, hostRef, memoryBlock,
+    );
+    const user = this.buildUserPrompt(script, verticalLabel);
+
+    const completion = await this.openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user',   content: user },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.8,
+      // Per-scene JSON + voiceover + music + 10-20 scenes — give plenty
+      // of headroom so the response never truncates mid-string.
+      max_tokens: 6000,
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? '{}';
+    let parsed: AiPulseScenesPayload;
+    try {
+      parsed = JSON.parse(raw) as AiPulseScenesPayload;
+    } catch (e) {
+      this.logger.error(
+        `Scene-gen LLM returned non-JSON for script ${scriptId}: ` +
+        `head="${(raw ?? '').slice(0, 200)}"`,
+      );
+      throw new BadRequestException(
+        `Scene generator returned malformed JSON. Retry usually fixes it. ${(e as Error).message}`,
+      );
+    }
+
+    // Combined style string (base + per-vertical accent) — pasted into
+    // every scene's "style" field by normalize().
+    const combinedStyle =
+      `${baseStyle} Per-vertical accent: palette = ${accent.palette}; ` +
+      `props = ${accent.props}; settings = ${accent.settings}.`;
+
+    const normalized = this.normalize(parsed, combinedStyle, hostRef);
+    const cost = this.calcCost(completion.usage);
+
+    script.scenes = normalized;
+    script.scenes_generated_at = new Date();
+    script.scenes_cost_usd = Number(script.scenes_cost_usd ?? 0) + cost;
+    await this.scripts.save(script);
+
+    this.logger.log(
+      `AI Pulse scenes for ${scriptId} (${vertical}) — ` +
+      `${normalized.scene_count} scenes / ${normalized.total_duration_sec}s · ` +
+      `$${cost.toFixed(4)}`,
+    );
+    return normalized;
+  }
+
+  // ── Prompts ────────────────────────────────────────────────────────
+
+  private buildSystemPrompt(
+    vertical: AiPulseVertical,
+    verticalLabel: string,
+    accent: VerticalSceneAccent,
+    baseStyle: string,
+    hostRef: string | null,
+    memoryBlock: string,
+  ): string {
+    const hostBlock = hostRef
+      ? `When the HOST (Vardhan) appears in a scene, set the scene's ` +
+        `"reference_image_url" to EXACTLY: ${hostRef}\n` +
+        `Use ONLY for the final CTA scene (and optionally the cold open ` +
+        `if the host narrates on-camera). For ALL other scenes, set ` +
+        `"reference_image_url" to null.`
+      : `(No host reference image configured. For host scenes, set ` +
+        `"reference_image_url" to null; describe the host generically in ` +
+        `"subject" as "young Indian male, late 20s, glasses, navy hoodie".)`;
+
+    return `
+You convert a 30-45 second AI Pulse story script (vertical: ${verticalLabel})
+into a SHOT-BY-SHOT scene plan in the format used by AI filmmakers shipping
+to VEO 3.1 / Sora / Gemini / ChatGPT. Each scene is a STRUCTURED JSON OBJECT
+— NOT prose — and every consistency marker is repeated INLINE in every
+scene so each scene is paste-ready.
+
+═══════════════════════════════════════
+GOAL
+═══════════════════════════════════════
+A scrolling viewer must stop on ANY single frame as if it were a magazine
+cover. Each scene = one frozen cinematic moment. Cut between shot scales.
+Never two adjacent same-frame scenes.
+
+═══════════════════════════════════════
+THE NON-NEGOTIABLE: INLINE EVERYTHING
+═══════════════════════════════════════
+Per the AI filmmaker blueprint:
+  "Do not give me a separate master prompt for consistency — include
+   that inside all of the prompts already."
+
+EVERY scene's JSON MUST include, verbatim across scenes:
+  - "style"          — the SAME cinematography + accent line in every scene
+  - "character_dna"  — every recurring character described the SAME WAY
+
+THE STYLE TO PASTE VERBATIM into every scene's "style" field:
+${baseStyle}
+Per-vertical accent (${verticalLabel}): palette = ${accent.palette};
+props = ${accent.props}; settings = ${accent.settings}.
+
+═══════════════════════════════════════
+THIS VERTICAL'S VISUAL IDENTITY (${verticalLabel})
+═══════════════════════════════════════
+Palette:       ${accent.palette}
+Settings:      ${accent.settings}
+Props:         ${accent.props}
+Archetypes:    ${accent.character_archetypes}
+Default mood:  ${accent.mood_default}
+
+Lean into these. Different verticals look DIFFERENT. An ai_business scene
+should not look like an ai_science scene.
+
+═══════════════════════════════════════
+CHARACTER RULES (LIKENESS-SAFE)
+═══════════════════════════════════════
+- Pick the protagonist's role + age range + attire ONCE — from the
+  archetypes above, matched to what the script implies — and repeat the
+  SAME description in every scene's "character_dna" field.
+  Example for ai_business: "THE FOUNDER (late 30s, sharp casual blazer,
+  intense direct gaze, dark hair, well-trimmed beard)".
+- NEVER use a real person's name or recognisable likeness.
+${hostBlock}
+- For the source-citation closing scene (the "Source: X. Link in
+  description." line), use a still-life or environmental shot (the
+  source's office building exterior, a newspaper detail, a screen
+  showing the source URL). No people. character_dna = "(no human
+  characters in this scene)".
+
+═══════════════════════════════════════
+SCENE SCHEMA (every scene — same shape)
+═══════════════════════════════════════
+{
+  "scene_id":            "<zero-padded 01, 02, …>",
+  "duration_seconds":    <int 2-4>,
+  "spoken_text":         "<exact words from the script during this scene; '' for silent scenes>",
+  "setting":             "<location + time-of-day + atmosphere matching the vertical>",
+  "subject":             "<who/what is the focal subject + action + position in frame>",
+  "shot":                "<shot type + lens + aperture/DoF + camera movement>",
+  "lighting":            "<key + fill + colour temperature + mood>",
+  "mood":                "<one emotional word>",
+  "style":               "<PASTE THE STYLE STRING ABOVE VERBATIM, with the per-vertical accent>",
+  "character_dna":       "<persistent character descriptions, identical every scene>",
+  "reference_image_url": "<URL string or null per host rules>"
+}
+
+═══════════════════════════════════════
+DURATION + COVERAGE DISCIPLINE
+═══════════════════════════════════════
+- 10-18 scenes total. Most 2-4 seconds.
+- The script's full spoken text MUST be split across scenes in order,
+  no words skipped, no duplicates. Concatenated "spoken_text" fields =
+  original script (ignoring pause markers).
+- Total of all "duration_seconds" ≈ script's spoken duration (±3s OK).
+
+═══════════════════════════════════════
+SHOT VARIETY (USE A MIX)
+═══════════════════════════════════════
+- Wide establishing (office at dusk, city window, lab corridor)
+- Medium / three-quarter back of protagonist
+- Close-up on hands (typing, holding paper, pouring tea)
+- Over-the-shoulder of a screen (code, dashboard, news article)
+- Environmental detail (specific to the vertical's props above)
+- Reaction shot (eyes lit by monitor glow, small smile, sigh)
+- Symbolic still life (clock at 2 a.m., closed door, stacked notebooks)
+
+═══════════════════════════════════════
+VOICEOVER + MUSIC (ONE BLOCK AT END)
+═══════════════════════════════════════
+After all scenes, emit a single "voiceover" + "music" block so the host
+can paste straight into MiniMax / Lyria / Suno.
+
+"voiceover":
+  - "full_text": the full spoken script in order, pause markers preserved
+  - "voice_style": e.g. "Calm Indian-English male narrator, mid-30s,
+    contemplative pace, warm low chest voice, soft consonants"
+  - "pacing_notes": when to slow down, breathe, emphasise
+
+"music":
+  - "style": ONE line matched to vertical's mood (see default above)
+  - "tempo": e.g. "60 BPM, slow build"
+  - "mood": ${accent.mood_default}
+  - "minimax_prompt": one ready-to-paste prompt for MiniMax / Lyria
+
+${memoryBlock ? `═══════════════════════════════════════
+WHAT'S WORKED ON THIS VERTICAL (from past winners — bias toward these)
+═══════════════════════════════════════
+${memoryBlock}
+
+` : ''}═══════════════════════════════════════
+OUTPUT (STRICT JSON — NO PREAMBLE, NO MARKDOWN FENCES)
+═══════════════════════════════════════
+Your response MUST start with "{" and contain ONLY:
+{
+  "scenes": [ <one object per scene, in order> ],
+  "scene_count":        <int>,
+  "total_duration_sec": <int>,
+  "voiceover": { "full_text": "…", "voice_style": "…", "pacing_notes": "…" },
+  "music":     { "style": "…", "tempo": "…", "mood": "…", "minimax_prompt": "…" }
+}
+`.trim();
+  }
+
+  private buildUserPrompt(script: AiPulseScript, verticalLabel: string): string {
+    return [
+      `AI PULSE STORY SCRIPT — vertical: ${verticalLabel}`,
+      `Title: ${script.english_title ?? '(untitled)'}`,
+      `Hook:  ${script.english_hook ?? ''}`,
+      ``,
+      `Full script (preserve EVERY word across scenes' "spoken_text" fields, in order):`,
+      script.english_full_script,
+      ``,
+      `Emit the JSON object per the system prompt. Start with "{". ` +
+      `No preamble. Style + character_dna repeat verbatim in every scene.`,
+    ].join('\n');
+  }
+
+  // ── Normalisation: clamp / repair / enforce inline consistency ─────
+
+  private normalize(
+    parsed: AiPulseScenesPayload,
+    combinedStyle: string,
+    hostRef: string | null,
+  ): AiPulseScenesPayload {
+    const rawScenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
+
+    // Canonical character_dna = first scene that supplies one.
+    const canonicalDna =
+      rawScenes.find((s) => s?.character_dna?.trim())?.character_dna?.trim() ?? '';
+
+    const scenes: AiPulseScene[] = rawScenes
+      .filter((s) => s && (s.subject ?? '').toString().trim())
+      .map((s, i): AiPulseScene => {
+        const dur = Number(s.duration_seconds);
+        const showsHost = isHostScene(s);
+        return {
+          scene_id:         String(s.scene_id ?? String(i + 1).padStart(2, '0')),
+          duration_seconds: Number.isFinite(dur) && dur > 0 ? Math.round(dur) : 3,
+          spoken_text:      String(s.spoken_text ?? '').trim(),
+          setting:          String(s.setting ?? '').trim(),
+          subject:          String(s.subject ?? '').trim(),
+          shot:             String(s.shot ?? '').trim(),
+          lighting:         String(s.lighting ?? '').trim(),
+          mood:             String(s.mood ?? '').trim(),
+          style:            combinedStyle,
+          character_dna:    String(s.character_dna ?? canonicalDna).trim(),
+          reference_image_url: showsHost ? hostRef : null,
+        };
+      });
+
+    const totalDur = scenes.reduce((sum, s) => sum + s.duration_seconds, 0);
+
+    const voiceover: AiPulseVoiceoverSpec = {
+      full_text:    String(parsed.voiceover?.full_text    ?? '').trim(),
+      voice_style:  String(parsed.voiceover?.voice_style  ?? '').trim(),
+      pacing_notes: String(parsed.voiceover?.pacing_notes ?? '').trim(),
+    };
+    const music: AiPulseMusicSpec = {
+      style:          String(parsed.music?.style          ?? '').trim(),
+      tempo:          String(parsed.music?.tempo          ?? '').trim(),
+      mood:           String(parsed.music?.mood           ?? '').trim(),
+      minimax_prompt: String(parsed.music?.minimax_prompt ?? '').trim(),
+    };
+
+    return {
+      scenes,
+      scene_count:        scenes.length,
+      total_duration_sec: totalDur,
+      voiceover,
+      music,
+    };
+  }
+
+  private calcCost(usage?: { prompt_tokens?: number; completion_tokens?: number }): number {
+    // gpt-4o: $2.50/M input, $10/M output
+    return ((usage?.prompt_tokens ?? 0) / 1_000_000) * 2.5
+         + ((usage?.completion_tokens ?? 0) / 1_000_000) * 10;
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function isHostScene(s: Partial<AiPulseScene>): boolean {
+  const blob = [
+    s.subject, s.character_dna, s.reference_image_url,
+  ].filter(Boolean).join(' ').toLowerCase();
+  return /\b(host|vardhan)\b/.test(blob);
+}

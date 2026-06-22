@@ -10,6 +10,7 @@ import { AiPulseScript } from '../entities/news-script.entity';
 import { AiPulseScriptGeneratorService } from '../services/script-generator.service';
 import { AiPulseThumbnailService } from '../services/thumbnail.service';
 import { AiPulseDistributionService } from '../services/distribution.service';
+import { AiPulseSceneGeneratorService } from '../services/scene-generator.service';
 
 @Controller('admin/ai-pulse/approval')
 @UseGuards(AdminGuard)
@@ -20,6 +21,7 @@ export class AiPulseApprovalController {
     private readonly scriptGen: AiPulseScriptGeneratorService,
     private readonly thumbnails: AiPulseThumbnailService,
     private readonly distribution: AiPulseDistributionService,
+    private readonly scenes: AiPulseSceneGeneratorService,
   ) {}
 
   /**
@@ -111,6 +113,27 @@ export class AiPulseApprovalController {
   ) {
     const language = (lang ?? 'en').toLowerCase() === 'te' ? 'te' : 'en';
     return this.distribution.generatePackage(id, language);
+  }
+
+  /**
+   * 🎬 Scene generator — breaks the English script into 10-18 cinematic
+   * image prompts with per-vertical visual accents. Doesn't touch HeyGen
+   * / publish flow. Re-runnable; overwrites previous scenes.
+   */
+  @Post(':id/scenes/generate')
+  async generateScenes(@Param('id') id: string) {
+    return this.scenes.generateFor(id);
+  }
+
+  @Get(':id/scenes')
+  async getScenes(@Param('id') id: string) {
+    const script = await this.scripts.findOne({ where: { id } });
+    if (!script) throw new NotFoundException('Script not found');
+    return {
+      scenes:             script.scenes ?? null,
+      scenesGeneratedAt:  script.scenes_generated_at,
+      scenesCostUsd:      script.scenes_cost_usd,
+    };
   }
 
   /**

@@ -160,6 +160,47 @@ export class AiPulseScript {
   @Column({ type: 'jsonb', nullable: true })
   telugu_distribution_package: AiPulseDistributionPackage | null;
 
+  // ── Cinematic scene breakdown (parallel to AQB scenes) ──────────────
+  // Populated on demand from the admin "🎬 Scenes" panel. Per-scene
+  // structured JSON prompts, blueprint-aligned: style + character_dna
+  // inlined in every scene; per-vertical visual accents baked into style.
+  // Includes a voiceover + music block for MiniMax / Lyria / Suno.
+  @Column({ type: 'jsonb', nullable: true, name: 'scenes' })
+  scenes: {
+    scenes: Array<{
+      scene_id:             string;
+      duration_seconds:     number;
+      spoken_text:          string;
+      setting:              string;
+      subject:              string;
+      shot:                 string;
+      lighting:             string;
+      mood:                 string;
+      style:                string;
+      character_dna:        string;
+      reference_image_url?: string | null;
+    }>;
+    scene_count:        number;
+    total_duration_sec: number;
+    voiceover: {
+      full_text:    string;
+      voice_style:  string;
+      pacing_notes: string;
+    };
+    music: {
+      style:          string;
+      tempo:          string;
+      mood:           string;
+      minimax_prompt: string;
+    };
+  } | null;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'scenes_generated_at' })
+  scenes_generated_at: Date | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 6, default: 0, name: 'scenes_cost_usd' })
+  scenes_cost_usd: number;
+
   @Index()
   @Column({ type: 'varchar', length: 50, default: 'pending_review' })
   approval_status: AiPulseApprovalStatus;

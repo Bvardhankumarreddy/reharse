@@ -14,6 +14,11 @@ You write a brief, candid postmortem for one published AI Pulse short.
 Compare it against the rolling channel mean for its vertical and extract
 reusable signals for future content.
 
+If the script INCLUDED scenes (a per-scene cinematic breakdown), also
+reason about which scene choices worked for THIS vertical. The scenes
+JSON will be in the user prompt when available — when ABSENT, leave the
+scene-related fields out (null/empty/omitted).
+
 Output STRICT JSON ONLY:
 {
   "worked": ["1-3 concrete things that worked"],
@@ -22,9 +27,17 @@ Output STRICT JSON ONLY:
   "reusableHookPattern": "<1 sentence — a hook pattern worth repeating, or empty>",
   "winningThumbnailStyle": "<one of: data_reveal | product_screenshot | versus | identity_target | question_hook | visual_metaphor | bold_text | shocked_reaction | none>",
   "topicSignal": "<short phrase, e.g. 'AI funding round', or empty>",
-  "winningHashtags": ["#tag1","#tag2"]    // empty array if not significant
+  "winningHashtags": ["#tag1","#tag2"],
+
+  // Scene-aware fields — ONLY populate when the user prompt included a SCENES BLOCK.
+  // Set to null / 0 / empty if the script had no scenes.
+  "sceneCount":       <int — total scenes, or 0/null if no scenes>,
+  "openingShotType":  "<scene 01's shot type — e.g. 'close-up', 'wide establishing', 'over-shoulder'; empty if no scenes>",
+  "moodArc":          "<comma-separated distinct moods across scenes; empty if no scenes>",
+  "characterCount":   <int — distinct named characters across scenes, or 0/null if no scenes>,
+  "scenePattern":     "<ONE specific 1-sentence observation about what scene choice clearly worked or fell flat for THIS video and THIS vertical; empty if no clear signal>"
 }
-Be specific (real numbers, real topic), not generic. Skip a field with "" / [] if you can't be honest about it.
+Be specific (real numbers, real topic), not generic. Skip a field with "" / [] / null / 0 if you can't be honest about it.
 `.trim();
 
 @Injectable()
@@ -130,8 +143,9 @@ export class AiPulsePostmortemService {
       `HOOK: ${script.english_hook ?? ''}\n` +
       `SCRIPT EXCERPT: ${(script.english_full_script ?? '').slice(0, 1500)}\n` +
       `DESCRIPTION EXCERPT: ${description.slice(0, 500)}\n` +
-      `STATUS: published, ${views} views — ${liftLabel}\n\n` +
-      `Write the postmortem JSON now.`;
+      `STATUS: published, ${views} views — ${liftLabel}\n` +
+      stringifyScenesForPostmortem(script.scenes) +
+      `\nWrite the postmortem JSON now.`;
 
     const completion = await this.openai.chat.completions.create({
       model: 'gpt-4o',
@@ -166,4 +180,49 @@ export class AiPulsePostmortemService {
 function costFor(usage?: { prompt_tokens?: number; completion_tokens?: number }): number {
   return ((usage?.prompt_tokens ?? 0) / 1_000_000) * 2.5
        + ((usage?.completion_tokens ?? 0) / 1_000_000) * 10;
+}
+
+/**
+ * Render the scenes payload as a compact block for the postmortem
+ * prompt — gives the LLM enough signal to reason about scene patterns
+ * (count, opening shot, mood arc, character count) without dumping the
+ * full per-scene JSON into context. Empty string when the script had
+ * no scenes — postmortem then skips the scene-aware fields cleanly.
+ */
+function stringifyScenesForPostmortem(scenes: unknown): string {
+  if (!scenes || typeof scenes !== 'object') return '';
+  const s = scenes as {
+    scenes?: Array<{ shot?: string; mood?: string; subject?: string; character_dna?: string }>;
+    scene_count?: number;
+  };
+  const arr = Array.isArray(s.scenes) ? s.scenes : [];
+  if (arr.length === 0) return '';
+
+  const sceneCount = s.scene_count ?? arr.length;
+  const openingShot = (arr[0]?.shot ?? '').toString().slice(0, 120);
+  const moods = Array.from(new Set(
+    arr.map((sc) => (sc.mood ?? '').toString().trim()).filter(Boolean),
+  )).slice(0, 6).join(', ');
+  // Approximate distinct character count via cheap token heuristic on
+  // character_dna strings (ALLCAPS tokens or "the <noun>" labels).
+  const characterTokens = new Set<string>();
+  for (const sc of arr) {
+    const dna = (sc.character_dna ?? '').toString();
+    const matches = dna.match(/\b(?:[A-Z][A-Z_]{2,}|the [a-z]+)\b/g) ?? [];
+    for (const m of matches) characterTokens.add(m.toLowerCase());
+  }
+
+  const lines = [
+    '',
+    'SCENES BLOCK (this video had cinematic scenes — reason about them):',
+    `  scene_count: ${sceneCount}`,
+    `  opening_shot: ${openingShot || '(unknown)'}`,
+    `  distinct_moods: ${moods || '(none)'}`,
+    `  approx_character_count: ${characterTokens.size}`,
+    `  first_3_scenes_subjects:`,
+    ...arr.slice(0, 3).map((sc, i) =>
+      `    ${i + 1}. ${(sc.subject ?? '').toString().slice(0, 140)}`,
+    ),
+  ];
+  return lines.join('\n') + '\n';
 }

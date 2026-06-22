@@ -110,6 +110,42 @@ export interface Postmortem {
   created_at: string;
 }
 
+// ── Scenes (blueprint-aligned per-scene JSON + audio block) ─────────────
+export interface AiPulseScene {
+  scene_id:             string;
+  duration_seconds:     number;
+  spoken_text:          string;
+  setting:              string;
+  subject:              string;
+  shot:                 string;
+  lighting:             string;
+  mood:                 string;
+  style:                string;
+  character_dna:        string;
+  reference_image_url?: string | null;
+}
+
+export interface AiPulseVoiceoverSpec {
+  full_text:    string;
+  voice_style:  string;
+  pacing_notes: string;
+}
+
+export interface AiPulseMusicSpec {
+  style:          string;
+  tempo:          string;
+  mood:           string;
+  minimax_prompt: string;
+}
+
+export interface AiPulseScenesPayload {
+  scenes:             AiPulseScene[];
+  scene_count:        number;
+  total_duration_sec: number;
+  voiceover:          AiPulseVoiceoverSpec;
+  music:              AiPulseMusicSpec;
+}
+
 export interface Script {
   id: string;
   news_item_id: string;
@@ -127,6 +163,9 @@ export interface Script {
   thumbnail_prompts: ThumbnailPrompt[];
   distribution_package: DistributionPackage | null;
   telugu_distribution_package: DistributionPackage | null;
+  scenes: AiPulseScenesPayload | null;
+  scenes_generated_at: string | null;
+  scenes_cost_usd: number | string;
   approval_status: 'pending_review' | 'approved' | 'rejected' | 'published';
   approved_by: string | null;
   approved_at: string | null;
