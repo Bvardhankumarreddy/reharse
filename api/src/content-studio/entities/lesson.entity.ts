@@ -54,6 +54,48 @@ export class Lesson {
   @Column({ type: 'varchar', length: 30, default: 'planned' })
   status: string;
 
+  // ── Cinematic scene breakdown (parallel to AQB / AI Pulse) ──────────
+  // Chapter-grouped scenes: each scene tagged with chapter_id linking
+  // back to a lesson outline section. Per-brand visual accents are
+  // pulled from BrandMemory at gen time and inlined into every scene's
+  // "style" field (paste-ready into ChatGPT / Sora / VEO).
+  @Column({ type: 'jsonb', nullable: true })
+  scenes: {
+    scenes: Array<{
+      scene_id:             string;
+      chapter_id:           string;   // matches an outline section's heading slug
+      duration_seconds:     number;
+      spoken_text:          string;
+      setting:              string;
+      subject:              string;
+      shot:                 string;
+      lighting:             string;
+      mood:                 string;
+      style:                string;       // INLINE per blueprint
+      character_dna:        string;       // INLINE per blueprint
+      reference_image_url?: string | null;
+    }>;
+    scene_count:        number;
+    total_duration_sec: number;
+    voiceover: {
+      full_text:    string;
+      voice_style:  string;
+      pacing_notes: string;
+    };
+    music: {
+      style:          string;
+      tempo:          string;
+      mood:           string;
+      minimax_prompt: string;
+    };
+  } | null;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'scenes_generated_at' })
+  scenesGeneratedAt: Date | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 6, default: 0, name: 'scenes_cost_usd' })
+  scenesCostUsd: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

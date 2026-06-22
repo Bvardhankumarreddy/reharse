@@ -13,7 +13,7 @@ import {
 
 type Task =
   | 'strategy' | 'script' | 'ppt' | 'quiz' | 'seo' | 'thumbnail' | 'promo'
-  | 'quiz_validator' | 'grader';
+  | 'quiz_validator' | 'grader' | 'scene';
 
 export interface RouterRequest {
   task: Task;

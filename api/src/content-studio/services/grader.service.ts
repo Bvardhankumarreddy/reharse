@@ -36,6 +36,8 @@ const RUBRIC_BY_AGENT: Record<AgentType, string> = {
     'LinkedIn has hook + 3–5-paragraph body + cta + 3–6 hashtags. Instagram caption 80–220 chars, 8–15 hashtags. WhatsApp Status ≤ 700 chars AND ≤ 10 lines. Each platform respects its norms; promo mines the script rather than rephrasing the title.',
   quiz:
     'Each MCQ has exactly 4 distinct options with one correctIndex. No "all of the above". Distractors plausible but verifiably wrong. Difficulty label realistic.',
+  scene:
+    '20-30 chapter-grouped scenes. Every scene has scene_id, chapter_id, duration_seconds (4-12s), spoken_text, setting, subject, shot, lighting, mood, style, character_dna, reference_image_url. style + character_dna repeat verbatim across all scenes. chapter_id matches one of the outline slugs. Shot variety enforced — no 14+ consecutive scenes of the same subject. voiceover + music block at end with full_text / voice_style / pacing_notes and style / tempo / mood / minimax_prompt.',
 };
 
 const SYSTEM = `

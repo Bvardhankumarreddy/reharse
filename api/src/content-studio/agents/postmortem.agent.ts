@@ -18,18 +18,32 @@ You are a YouTube performance critic. Given one lesson's content, the
 brand's voice, and the latest YouTube metrics for that lesson, write a
 clear, blame-free postmortem aimed at making the NEXT lesson better.
 
+If the lesson INCLUDED a cinematic scene breakdown, also reason about
+which scene choices worked. A SCENES BLOCK will appear in the user
+prompt when scenes exist — when ABSENT, leave the scene-aware fields
+out (null/empty/omitted).
+
 Output STRICT JSON ONLY:
 {
   "worked": ["concrete things that worked, ideally tied to a metric or moment in the script"],
   "didntWork": ["concrete failure modes — be specific, no vague 'engagement was low'"],
   "next": ["1-3 specific changes to try next time (hook tweaks, structural moves, topic angles)"],
-  "reusableHookPattern": "<one sentence describing the hook style if this performed above average; null otherwise>"
+  "reusableHookPattern": "<one sentence describing the hook style if this performed above average; null otherwise>",
+
+  // Scene-aware fields — populate ONLY when the user prompt has a SCENES BLOCK.
+  "sceneCount":            <int, or 0/null if no scenes>,
+  "openingShotType":       "<shot type of scene 01 — e.g. 'close-up' / 'wide establishing' / 'over-shoulder'; empty if no scenes>",
+  "moodArc":               "<comma-separated distinct moods across scenes; empty if no scenes>",
+  "characterCount":        <int — distinct named characters across scenes, or 0/null>,
+  "scenePattern":          "<ONE 1-sentence observation about what scene choice clearly worked/fell flat; empty if no clear signal>",
+  "bestPerformingChapter": "<chapter_id whose scenes felt strongest visually; empty if no scenes>"
 }
 
 Rules:
 - 2–5 items per array, each ≤ 220 chars.
 - Anchor every claim to a fact (a metric, a brand memory, a line of the script).
 - "reusableHookPattern" only if confidence is high — otherwise leave null.
+- Scene-aware fields: ONLY when scenes existed for this lesson. Otherwise null/0/empty.
 `.trim();
 
 @Injectable()
@@ -91,6 +105,7 @@ export class PostmortemAgent {
         `Hook: ${lesson.hook ?? '(none)'}\n\n` +
         `METRICS:\n${metricsBlock}\n\n` +
         (scriptText ? `SCRIPT (excerpts allowed):\n${scriptText.slice(0, 8000)}\n\n` : '') +
+        stringifyScenesForPostmortem(lesson.scenes) +
         `Write the postmortem JSON only.`,
     });
 
@@ -104,6 +119,14 @@ export class PostmortemAgent {
         reusableHookPattern: p.reusableHookPattern
           ? String(p.reusableHookPattern).slice(0, 280)
           : undefined,
+        // Scene-aware fields — keep undefined when the LLM didn't supply
+        // them (most lessons pre-scenes won't have any).
+        sceneCount:            typeof p.sceneCount === 'number' ? p.sceneCount : undefined,
+        openingShotType:       p.openingShotType ? String(p.openingShotType).slice(0, 80) : undefined,
+        moodArc:               p.moodArc ? String(p.moodArc).slice(0, 200) : undefined,
+        characterCount:        typeof p.characterCount === 'number' ? p.characterCount : undefined,
+        scenePattern:          p.scenePattern ? String(p.scenePattern).slice(0, 280) : undefined,
+        bestPerformingChapter: p.bestPerformingChapter ? String(p.bestPerformingChapter).slice(0, 80) : undefined,
       };
     } catch (e) {
       this.logger.warn(`Postmortem JSON parse failed: ${(e as Error).message}`);
@@ -176,4 +199,56 @@ export class PostmortemAgent {
     );
     return { scanned: rows.length, generated };
   }
+}
+
+/**
+ * Compact SCENES BLOCK for the postmortem prompt — surfaces scene_count,
+ * chapter coverage, opening shot, mood arc, character count, and a peek
+ * at the first 3 scenes' subjects. Empty string when the lesson had no
+ * scenes (most pre-cinematic lessons) so the LLM skips scene-aware
+ * fields cleanly.
+ */
+function stringifyScenesForPostmortem(scenes: unknown): string {
+  if (!scenes || typeof scenes !== 'object') return '';
+  const s = scenes as {
+    scenes?: Array<{
+      shot?: string; mood?: string; subject?: string;
+      character_dna?: string; chapter_id?: string;
+    }>;
+    scene_count?: number;
+  };
+  const arr = Array.isArray(s.scenes) ? s.scenes : [];
+  if (arr.length === 0) return '';
+
+  const sceneCount = s.scene_count ?? arr.length;
+  const openingShot = (arr[0]?.shot ?? '').toString().slice(0, 120);
+  const moods = Array.from(new Set(
+    arr.map((sc) => (sc.mood ?? '').toString().trim()).filter(Boolean),
+  )).slice(0, 6).join(', ');
+  const chapters = Array.from(new Set(
+    arr.map((sc) => (sc.chapter_id ?? '').toString().trim()).filter(Boolean),
+  ));
+  const chapterCount = chapters.length;
+  // Approximate distinct character count via cheap token heuristic.
+  const characterTokens = new Set<string>();
+  for (const sc of arr) {
+    const dna = (sc.character_dna ?? '').toString();
+    const matches = dna.match(/\b(?:[A-Z][A-Z_]{2,}|the [a-z]+)\b/g) ?? [];
+    for (const m of matches) characterTokens.add(m.toLowerCase());
+  }
+
+  const lines = [
+    '',
+    'SCENES BLOCK (this lesson had cinematic scenes — reason about them):',
+    `  scene_count: ${sceneCount}`,
+    `  chapter_count: ${chapterCount} (${chapters.slice(0, 8).join(', ')})`,
+    `  opening_shot: ${openingShot || '(unknown)'}`,
+    `  distinct_moods: ${moods || '(none)'}`,
+    `  approx_character_count: ${characterTokens.size}`,
+    `  first_3_scenes_subjects:`,
+    ...arr.slice(0, 3).map((sc, i) =>
+      `    ${i + 1}. [${sc.chapter_id ?? '?'}] ${(sc.subject ?? '').toString().slice(0, 140)}`,
+    ),
+  ];
+  return lines.join('\n') + '\n';
 }

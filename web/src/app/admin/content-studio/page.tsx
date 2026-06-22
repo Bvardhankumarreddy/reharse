@@ -8,6 +8,7 @@ import {
   fetchToken, api, STATUS_COLOR,
   type Brand, type BrandMemory, type WeeklyPlan, type Lesson,
   type ScriptAsset, type PptAsset,
+  type CsScenesResp, type CsScene,
   type SeoAsset, type ThumbnailAsset, type PromoAsset,
   type QuizPoolListResponse, type DeliveredQuizSummary,
   type QuizBundleResp, type QuizPromoResp,
@@ -751,6 +752,9 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
   const [openPromo, setOpenPromo] = useState(false);
   const [busy, setBusy] = useState(false);
   const [busyPpt, setBusyPpt] = useState(false);
+  const [busyScenes, setBusyScenes] = useState(false);
+  const [scenes, setScenes] = useState<CsScenesResp | null>(null);
+  const [openScenes, setOpenScenes] = useState(false);
   const [busySeo, setBusySeo] = useState(false);
   const [busyThumb, setBusyThumb] = useState(false);
   const [busyPromo, setBusyPromo] = useState(false);
@@ -904,6 +908,10 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
         if (!cancelled) setPpt(p);
       } catch { /* 404 — no ppt yet */ }
       try {
+        const sc = await api<CsScenesResp>(token, `/lessons/${lesson.id}/scenes`);
+        if (!cancelled && sc.scenes) setScenes(sc);
+      } catch { /* 404 — no scenes yet */ }
+      try {
         const s = await api<SeoAsset>(token, `/lessons/${lesson.id}/seo`);
         if (!cancelled) setSeo(s);
       } catch { /* 404 */ }
@@ -963,6 +971,22 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
     } catch (e) {
       onToast(`⚠ ${(e as Error).message}`);
     } finally { setBusyPpt(false); }
+  }
+
+  async function generateScenes() {
+    setBusyScenes(true);
+    onToast("Scene agent drafting 20-30 chapter-grouped scenes… (~30-60s)");
+    const token = await fetchToken();
+    if (!token) { onToast("⚠ Not signed in"); setBusyScenes(false); return; }
+    try {
+      await api(token, `/lessons/${lesson.id}/scenes/generate`, { method: "POST" });
+      const fresh = await api<CsScenesResp>(token, `/lessons/${lesson.id}/scenes`);
+      setScenes(fresh);
+      setOpenScenes(true);
+      onToast(`✓ Scenes ready (${fresh.scenes?.scene_count ?? "?"} scenes)`);
+    } catch (e) {
+      onToast(`⚠ ${(e as Error).message}`);
+    } finally { setBusyScenes(false); }
   }
 
   async function generateAsset<T>(
@@ -1392,6 +1416,45 @@ function LessonBlock({ lesson, onToast, onDeleted }: {
               </li>
             ))}
           </ol>
+        )}
+
+        {/* ── 🎬 Scenes (cinematic storyboard) ─────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+          <PrimaryBtn
+            label={
+              busyScenes
+                ? "Drafting scenes…"
+                : scenes?.scenes
+                ? "🔁 Regen Scenes"
+                : "🎬 Generate Scenes"
+            }
+            busy={busyScenes}
+            onClick={generateScenes}
+          />
+          {scenes?.scenes && (
+            <>
+              <Btn
+                label={openScenes ? "Hide scenes" : `👀 View scenes (${scenes.scenes.scene_count})`}
+                onClick={() => setOpenScenes((v) => !v)}
+              />
+              <span className="text-[10px] text-[#6B7799] ml-auto">
+                {scenes.scenes.scene_count} scenes · ~{scenes.scenes.total_duration_sec}s
+                {scenes.scenesGeneratedAt && (
+                  <> · {new Date(scenes.scenesGeneratedAt).toLocaleString()}</>
+                )}
+                {scenes.scenesCostUsd != null && (
+                  <> · ${Number(scenes.scenesCostUsd).toFixed(4)}</>
+                )}
+              </span>
+            </>
+          )}
+        </div>
+
+        {openScenes && scenes?.scenes && (
+          <div className="space-y-3">
+            <ScenesByChapter scenes={scenes.scenes.scenes} />
+            <CsVoMusicBlock voiceover={scenes.scenes.voiceover} music={scenes.scenes.music} />
+          </div>
         )}
 
         {/* ── SEO (Phase B / Slice B1) ─────────────────────────────────────── */}
@@ -4291,6 +4354,149 @@ function PrimaryBtn({ label, onClick, busy }: { label: string; onClick: () => vo
     >
       {label}
     </button>
+  );
+}
+
+// ── Content Studio scene UI ───────────────────────────────────────────
+
+function ScenesByChapter({ scenes }: { scenes: CsScene[] }) {
+  // Group by chapter_id preserving first-seen order.
+  const byChapter = new Map<string, CsScene[]>();
+  for (const s of scenes) {
+    const ch = s.chapter_id || "(none)";
+    const arr = byChapter.get(ch) ?? [];
+    arr.push(s);
+    byChapter.set(ch, arr);
+  }
+  return (
+    <div className="space-y-4">
+      {Array.from(byChapter.entries()).map(([ch, list]) => (
+        <div key={ch}>
+          <div className="text-[10px] uppercase tracking-wide text-[#9D7DFF] font-semibold mb-1.5">
+            Chapter: {ch} · {list.length} scene(s)
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+            {list.map((s) => <CsSceneTile key={s.scene_id} s={s} />)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CsSceneTile({ s }: { s: CsScene }) {
+  const [copied, setCopied] = useState<"none" | "json">("none");
+  async function copyJson() {
+    const obj = {
+      scene_id:            s.scene_id,
+      chapter_id:          s.chapter_id,
+      duration_seconds:    s.duration_seconds,
+      spoken_text:         s.spoken_text,
+      setting:             s.setting,
+      subject:             s.subject,
+      shot:                s.shot,
+      lighting:            s.lighting,
+      mood:                s.mood,
+      style:               s.style,
+      character_dna:       s.character_dna,
+      reference_image_url: s.reference_image_url ?? null,
+    };
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
+      setCopied("json");
+      setTimeout(() => setCopied("none"), 1200);
+    } catch {/* ignore */}
+  }
+  return (
+    <div className="bg-[#0A0E27] border border-white/10 rounded-xl overflow-hidden">
+      <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold text-[#9D7DFF] tracking-wide">
+          Scene {s.scene_id} · {s.duration_seconds}s · {s.mood || "—"}
+        </span>
+        <button
+          onClick={copyJson}
+          className="text-[9px] px-2 py-0.5 rounded-md border border-white/10 text-[#B8C5E0] hover:bg-white/5"
+        >
+          {copied === "json" ? "✓ Copied" : "📋 Copy JSON"}
+        </button>
+      </div>
+      {s.spoken_text && (
+        <div className="px-3 py-1.5 border-b border-white/5 bg-[#0F1330]">
+          <p className="text-[11px] text-white italic">&ldquo;{s.spoken_text}&rdquo;</p>
+        </div>
+      )}
+      <div className="px-3 py-1.5 space-y-1 text-[10px] text-[#B8C5E0]">
+        <CsSceneRow k="Setting"  v={s.setting} />
+        <CsSceneRow k="Subject"  v={s.subject} />
+        <CsSceneRow k="Shot"     v={s.shot} />
+        <CsSceneRow k="Lighting" v={s.lighting} />
+      </div>
+    </div>
+  );
+}
+
+function CsSceneRow({ k, v }: { k: string; v: string }) {
+  if (!v) return null;
+  return (
+    <div className="flex gap-2">
+      <span className="text-[9px] text-[#6B7799] uppercase shrink-0 w-[62px] pt-px">{k}</span>
+      <span className="flex-1 break-words">{v}</span>
+    </div>
+  );
+}
+
+function CsVoMusicBlock({
+  voiceover, music,
+}: {
+  voiceover: { full_text: string; voice_style: string; pacing_notes: string };
+  music:     { style: string; tempo: string; mood: string; minimax_prompt: string };
+}) {
+  const [copied, setCopied] = useState<"none" | "vo" | "music">("none");
+  async function copy(kind: "vo" | "music", text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(kind);
+      setTimeout(() => setCopied("none"), 1200);
+    } catch {/* ignore */}
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1 border-t border-white/5">
+      <div className="bg-[#0A0E27] border border-[#FFB020]/20 rounded-xl p-2.5 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold text-[#FFB020] uppercase">🎙️ Voiceover</span>
+          <button
+            onClick={() => copy("vo", voiceover.full_text)}
+            disabled={!voiceover.full_text}
+            className="text-[9px] px-2 py-0.5 rounded-md border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-40"
+          >
+            {copied === "vo" ? "✓" : "📋 Copy VO"}
+          </button>
+        </div>
+        <CsSceneRow k="Voice"  v={voiceover.voice_style} />
+        <CsSceneRow k="Pacing" v={voiceover.pacing_notes} />
+        <pre className="text-[10px] text-[#B8C5E0] whitespace-pre-wrap font-mono bg-[#0F1330] rounded-md p-2 max-h-[8rem] overflow-y-auto">
+          {voiceover.full_text || "(no VO)"}
+        </pre>
+      </div>
+      <div className="bg-[#0A0E27] border border-[#9D7DFF]/20 rounded-xl p-2.5 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold text-[#9D7DFF] uppercase">🎵 Music</span>
+          <button
+            onClick={() => copy("music", music.minimax_prompt)}
+            disabled={!music.minimax_prompt}
+            className="text-[9px] px-2 py-0.5 rounded-md border border-white/10 text-[#B8C5E0] hover:bg-white/5 disabled:opacity-40"
+          >
+            {copied === "music" ? "✓" : "📋 Copy MiniMax"}
+          </button>
+        </div>
+        <CsSceneRow k="Style" v={music.style} />
+        <CsSceneRow k="Tempo" v={music.tempo} />
+        <CsSceneRow k="Mood"  v={music.mood} />
+        <pre className="text-[10px] text-[#B8C5E0] whitespace-pre-wrap font-mono bg-[#0F1330] rounded-md p-2 max-h-[8rem] overflow-y-auto">
+          {music.minimax_prompt || "(no music prompt)"}
+        </pre>
+      </div>
+    </div>
   );
 }
 

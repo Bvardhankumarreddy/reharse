@@ -3,7 +3,10 @@ import {
 } from 'typeorm';
 
 export type AgentType =
-  | 'strategy' | 'script' | 'ppt' | 'quiz' | 'seo' | 'promo' | 'thumbnail';
+  | 'strategy' | 'script' | 'ppt' | 'quiz' | 'seo' | 'promo' | 'thumbnail'
+  // New: per-lesson cinematic scene generator (chapter-grouped). Mirrors
+  // AQB / AI Pulse scene generators but adapted for 8-10 min lessons.
+  | 'scene';
 
 /** One LLM call's cost/latency/outcome — the cost + audit trail. */
 @Entity('cs_agent_runs')

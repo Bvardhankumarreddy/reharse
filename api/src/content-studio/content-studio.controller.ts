@@ -17,6 +17,7 @@ import { AgentRun } from './entities/agent-run.entity';
 import { StrategyAgent } from './agents/strategy.agent';
 import { ScriptAgent } from './agents/script.agent';
 import { PptAgent } from './agents/ppt.agent';
+import { SceneAgent } from './agents/scene.agent';
 import { SeoAgent } from './agents/seo.agent';
 import { ThumbnailAgent } from './agents/thumbnail.agent';
 import type { ThumbnailStyle, AspectRatio } from './agents/thumbnail.agent';
@@ -76,6 +77,7 @@ export class ContentStudioController {
     private readonly strategy: StrategyAgent,
     private readonly script: ScriptAgent,
     private readonly ppt: PptAgent,
+    private readonly sceneAgent: SceneAgent,
     private readonly seo: SeoAgent,
     private readonly thumbnail: ThumbnailAgent,
     private readonly promo: PromoAgent,
@@ -392,6 +394,27 @@ export class ContentStudioController {
       'Content-Length': String(buf.length),
     });
     res.send(buf);
+  }
+
+  /**
+   * 🎬 Scene agent — chapter-grouped cinematic storyboard for the lesson.
+   * Requires the script asset to exist (call /script/generate first).
+   * Re-runnable; overwrites previous scenes on the lesson row.
+   */
+  @Post('lessons/:id/scenes/generate')
+  generateScenes(@Param('id') id: string) {
+    return this.sceneAgent.generateForLesson(id);
+  }
+
+  @Get('lessons/:id/scenes')
+  async lessonScenes(@Param('id') id: string) {
+    const lesson = await this.lessonRepo.findOne({ where: { id } });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    return {
+      scenes:             lesson.scenes ?? null,
+      scenesGeneratedAt:  lesson.scenesGeneratedAt,
+      scenesCostUsd:      lesson.scenesCostUsd,
+    };
   }
 
   // ── Phase B (Slice B1): SEO / Thumbnail / Promo agents ────────────────

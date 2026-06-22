@@ -578,6 +578,39 @@ export interface PromoAsset extends AssetQuality {
   createdAt: string;
 }
 
+// ── Scenes (Content Studio cinematic storyboard) ───────────────────────
+export interface CsScene {
+  scene_id:             string;
+  chapter_id:           string;
+  duration_seconds:     number;
+  spoken_text:          string;
+  setting:              string;
+  subject:              string;
+  shot:                 string;
+  lighting:             string;
+  mood:                 string;
+  style:                string;
+  character_dna:        string;
+  reference_image_url?: string | null;
+}
+
+export interface CsVoiceoverSpec { full_text: string; voice_style: string; pacing_notes: string }
+export interface CsMusicSpec     { style: string; tempo: string; mood: string; minimax_prompt: string }
+
+export interface CsScenesPayload {
+  scenes:             CsScene[];
+  scene_count:        number;
+  total_duration_sec: number;
+  voiceover:          CsVoiceoverSpec;
+  music:              CsMusicSpec;
+}
+
+export interface CsScenesResp {
+  scenes:             CsScenesPayload | null;
+  scenesGeneratedAt:  string | null;
+  scenesCostUsd:      number | string;
+}
+
 export interface PptAsset extends AssetQuality {
   id: string;
   lessonId: string | null;

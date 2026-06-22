@@ -4,7 +4,11 @@ import {
 
 export type MemoryType =
   | 'voice' | 'style' | 'hook' | 'structure' | 'do' | 'dont'
-  | 'title_pattern' | 'tag_pattern';   // SEO miner output (Improvement Agent)
+  | 'title_pattern' | 'tag_pattern'   // SEO miner output (Improvement Agent)
+  // Cinematic scene patterns mined from lesson postmortems — e.g.
+  // "10-13 scenes per lesson wins", "open chapters with close-up of hands".
+  // Per brand; consumed by the scene agent via brand-memory.relevantFor('scene').
+  | 'scene_pattern';
 
 /** Reusable brand voice/style/pattern fed into agent prompts. */
 @Entity('cs_brand_memories')

@@ -80,11 +80,156 @@ export class ImprovementAgent {
         promoted += await this.runForBrand(b.id);
         promoted += await this.mineChannelWinnersForBrand(b.id);
         promoted += await this.mineSeoPatternsForBrand(b.id);
+        promoted += await this.mineScenePatternsForBrand(b.id);
       } catch (e) {
         this.logger.error(`Improvement for "${b.name}" failed: ${(e as Error).message}`);
       }
     }
     return { scanned: brands.length, promoted };
+  }
+
+  /**
+   * Mine cinematic scene patterns from this brand's winning lessons.
+   * Reads postmortems that have scene-aware fields (only present when the
+   * lesson had scenes generated), aggregates them across winners, and
+   * promotes them as 'scene_pattern' memories on this brand.
+   *
+   * Signal floor: needs ≥3 scene-enabled winners — below that, patterns
+   * are too noisy. Each pattern only promotes when seen in ≥2 winners.
+   * Idempotent (BrandMemory(brandId,memoryType,content) is the natural
+   * dedup key — we skip if a matching memory already exists).
+   */
+  async mineScenePatternsForBrand(brandId: string): Promise<number> {
+    const brand = await this.brandRepo.findOne({ where: { id: brandId } });
+    if (!brand) return 0;
+
+    // Pull postmortems for this brand's winning scene-enabled lessons.
+    // Winner = views ≥ 1.5× rolling mean (same lift used elsewhere).
+    const rows: Array<{ postmortemId: string }> = await this.postmortemRepo.query(`
+      WITH latest_metric AS (
+        SELECT DISTINCT ON ("lessonId") "lessonId", views
+          FROM cs_lesson_metrics
+         ORDER BY "lessonId", "fetchedAt" DESC
+      ),
+      brand_lessons AS (
+        SELECT l.id AS "lessonId", lm.views, l.scenes
+          FROM latest_metric lm
+          JOIN cs_lessons l ON l.id = lm."lessonId"
+          JOIN cs_weekly_content_plans p ON p.id = l."planId"
+         WHERE p."brandId" = $1
+           AND l.scenes IS NOT NULL
+      ),
+      stats AS (
+        SELECT AVG(views) AS mean FROM brand_lessons
+      )
+      SELECT pm.id AS "postmortemId"
+        FROM cs_lesson_postmortems pm
+        JOIN brand_lessons bl ON bl."lessonId" = pm."lessonId"
+       WHERE bl.views >= 1.5 * (SELECT mean FROM stats)
+    `, [brandId]);
+    if (rows.length < 3) {
+      this.logger.log(
+        `Scene-pattern mining skipped for "${brand.name}" — ` +
+        `${rows.length} scene-enabled winner postmortem(s) (need ≥3)`,
+      );
+      return 0;
+    }
+    const postmortems = await this.postmortemRepo.findByIds(rows.map((r) => r.postmortemId));
+    const contents = postmortems.map((p) => p.content ?? {}) as Array<
+      Partial<{
+        sceneCount: number;
+        openingShotType: string;
+        moodArc: string;
+        characterCount: number;
+        scenePattern: string;
+        bestPerformingChapter: string;
+      }>
+    >;
+
+    let promoted = 0;
+    const promote = async (content: string): Promise<void> => {
+      const exists = await this.memRepo.findOne({
+        where: { brandId, memoryType: 'scene_pattern', content },
+      });
+      if (exists) return;
+      const created = await this.memRepo.save(
+        this.memRepo.create({
+          brandId,
+          memoryType: 'scene_pattern',
+          content,
+          weight: 2,
+          appliesTo: ['scene'],
+          isActive: true,
+        }),
+      );
+      void this.memorySvc.embedOnSave(created.id, created.content);
+      promoted++;
+    };
+
+    // a) Scene count band
+    const buckets = tallyStrings(
+      contents.map((c) => sceneBucket(Number(c.sceneCount ?? 0))).filter((b): b is string => !!b),
+    );
+    const topBucket = sortedTopKey(buckets);
+    if (topBucket && buckets[topBucket] >= 2) {
+      await promote(
+        `Scene count that wins on this brand: ${topBucket} scenes ` +
+        `(${buckets[topBucket]} of ${postmortems.length} winners).`,
+      );
+    }
+
+    // b) Opening shot type
+    const openings = tallyStrings(
+      contents.map((c) => (c.openingShotType ?? '').trim().toLowerCase()).filter((s): s is string => !!s && s.length > 2),
+    );
+    const topOpening = sortedTopKey(openings);
+    if (topOpening && openings[topOpening] >= 2) {
+      await promote(
+        `Opening shot that wins: "${topOpening}" ` +
+        `(${openings[topOpening]} of ${postmortems.length} winners). ` +
+        `Lead the cold open with this shot type.`,
+      );
+    }
+
+    // c) Mood arc tokens
+    const allMoods = contents
+      .flatMap((c) => (c.moodArc ?? '').split(',').map((m) => m.trim().toLowerCase()))
+      .filter((m) => m && m.length > 2);
+    const moodCounts = tallyStrings(allMoods);
+    const topMoods = Object.entries(moodCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .filter(([, n]) => n >= 2)
+      .map(([t, n]) => `${t} (${n}×)`);
+    if (topMoods.length > 0) {
+      await promote(`Mood tokens correlated with wins: ${topMoods.join(', ')}.`);
+    }
+
+    // d) Character count bucket
+    const charBuckets = tallyStrings(
+      contents.map((c) => characterBucket(Number(c.characterCount ?? 0))).filter((b): b is string => !!b),
+    );
+    const topChar = sortedTopKey(charBuckets);
+    if (topChar && charBuckets[topChar] >= 2) {
+      await promote(
+        `Character count that wins: ${topChar} characters ` +
+        `(${charBuckets[topChar]} of ${postmortems.length} winners).`,
+      );
+    }
+
+    // e) Distinct 1-line scenePattern observations
+    const notes = Array.from(new Set(
+      contents.map((c) => (c.scenePattern ?? '').trim()).filter((s): s is string => !!s && s.length > 12),
+    )).slice(0, 5);
+    for (const n of notes) {
+      await promote(`Scene observation from a winner: ${n}`);
+    }
+
+    this.logger.log(
+      `Scene-pattern mining for "${brand.name}" — promoted ${promoted} from ` +
+      `${postmortems.length} winner(s)`,
+    );
+    return promoted;
   }
 
   /**
@@ -357,4 +502,39 @@ export class ImprovementAgent {
     }
     return null;
   }
+}
+
+// ── Scene-pattern mining helpers ──────────────────────────────────────
+
+function tallyStrings(arr: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const x of arr) {
+    const k = x.toLowerCase().trim();
+    if (!k) continue;
+    out[k] = (out[k] ?? 0) + 1;
+  }
+  return out;
+}
+
+function sortedTopKey(counts: Record<string, number>): string | null {
+  const entries = Object.entries(counts);
+  if (entries.length === 0) return null;
+  entries.sort((a, b) => b[1] - a[1]);
+  return entries[0][0];
+}
+
+/** Bands for scene_count — keeps "12 wins" vs "13 wins" from polluting
+ *  memory with near-noise. */
+function sceneBucket(n: number): string | null {
+  if (n <= 0) return null;
+  if (n <= 18) return '12-18 (tight)';
+  if (n <= 26) return '19-26 (standard lesson length)';
+  return '27+ (very long, may be over-stuffed)';
+}
+
+function characterBucket(n: number): string | null {
+  if (n <= 0) return null;
+  if (n === 1) return '1';
+  if (n <= 3)  return '2-3';
+  return '4+';
 }
