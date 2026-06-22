@@ -198,8 +198,15 @@ export class DistributionPackageService {
     // ~2-3× more tokens than English, so the per-platform budget is
     // doubled for 'te' — otherwise the response truncates mid-string and
     // JSON.parse throws "Unterminated string".
-    const perPlatformTokens = language === 'te' ? 1200 : 600;
-    const maxTokens = Math.max(1200, platforms.length * perPlatformTokens);
+    // Output tokens per platform. The LLM has gotten richer/longer over
+    // time (Instagram + LinkedIn captions easily run 400+ words each
+    // with hashtags). Earlier 600/platform for English was truncating
+    // mid-string on 2-platform regens — bumped to 1000/platform. Floor
+    // raised to 1500 so single-platform calls also get headroom for
+    // long-form (a YouTube description with 8 hashtags + pinned comment
+    // can hit ~900 tokens on its own).
+    const perPlatformTokens = language === 'te' ? 1200 : 1000;
+    const maxTokens = Math.max(1500, platforms.length * perPlatformTokens);
 
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
       system: language === 'te' ? DISTRIBUTION_SYSTEM_PROMPT_TE : DISTRIBUTION_SYSTEM_PROMPT,
