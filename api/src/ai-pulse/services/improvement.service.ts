@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import OpenAI from 'openai';
 import { AiPulseScript } from '../entities/news-script.entity';
 import { AiPulsePostmortem } from '../entities/postmortem.entity';
 import { AiPulseVertical } from '../entities/news-item.entity';
@@ -24,12 +26,18 @@ export class AiPulseImprovementService {
 
   private readonly logger = new Logger(AiPulseImprovementService.name);
 
+  private readonly openai: OpenAI | null;
+
   constructor(
     @InjectRepository(AiPulseScript) private readonly scripts: Repository<AiPulseScript>,
     @InjectRepository(AiPulsePostmortem) private readonly postmortems: Repository<AiPulsePostmortem>,
     private readonly metricsFetcher: AiPulseMetricsFetcherService,
     private readonly memorySvc: AiPulseMemoryService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    const apiKey = this.config.get<string>('OPENAI_API_KEY');
+    this.openai = apiKey ? new OpenAI({ apiKey }) : null;
+  }
 
   async runDaily(): Promise<{ scanned: number; winners: number; promoted: number }> {
     const latest = await this.metricsFetcher.latestPerShort();
@@ -160,7 +168,116 @@ export class AiPulseImprovementService {
       );
     }
 
+    // 6) Title + description edit patterns — diff LLM-generated copy
+    //    against what the curator published on YouTube. Per-vertical so
+    //    an ai_business editorial fingerprint stays isolated from
+    //    ai_science. Promotes 'edit_pattern' memories with appliesTo
+    //    ['script','distribution'] so future generations pre-apply them.
+    promoted += await this.promoteEditPatterns(v, winnerScripts, evidence);
+
     return promoted;
+  }
+
+  /**
+   * Per-vertical edit-pattern miner. For each winner with a non-trivial
+   * diff between LLM-generated YouTube title/description and the live
+   * published version, ask the LLM to extract 1-3 reusable editorial
+   * rules. Promoted patterns flow into next script + distribution gen
+   * via memory.relevantFor(vertical, 'script' / 'distribution').
+   *
+   * Soft-fails per-winner so a bad LLM call doesn't blow the whole sweep.
+   * ~$0.005 per winner. Memory dedup via promoteUnique (content hash).
+   */
+  private async promoteEditPatterns(
+    v: AiPulseVertical,
+    winners: AiPulseScript[],
+    evidence: string[],
+  ): Promise<number> {
+    if (!this.openai) return 0;
+    let promoted = 0;
+    const seen = new Set<string>();
+
+    for (const w of winners) {
+      const dist = w.distribution_package as
+        | { youtube?: { title?: string; description?: string } }
+        | null;
+      const llmTitle  = (dist?.youtube?.title ?? '').trim();
+      const llmDesc   = (dist?.youtube?.description ?? '').trim();
+      const liveTitle = (w.live_youtube_title ?? '').trim();
+      const liveDesc  = (w.live_youtube_description ?? '').trim();
+
+      const titleHasDiff = llmTitle && liveTitle && llmTitle !== liveTitle;
+      const descHasDiff  = llmDesc  && liveDesc  && llmDesc  !== liveDesc;
+      if (!titleHasDiff && !descHasDiff) continue;
+
+      // Skip whitespace/casing-only diffs.
+      const titleNoise = titleHasDiff && normForCompare(llmTitle) === normForCompare(liveTitle);
+      const descNoise  = descHasDiff  && normForCompare(llmDesc)  === normForCompare(liveDesc);
+      if ((!titleHasDiff || titleNoise) && (!descHasDiff || descNoise)) continue;
+
+      try {
+        const rules = await this.summariseEditDiff({
+          llmTitle, liveTitle, llmDesc, liveDesc,
+        });
+        for (const r of rules) {
+          const key = normForCompare(r);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const m = await this.memorySvc.promoteUnique(
+            v, 'edit_pattern', r, ['script', 'distribution'], evidence,
+          );
+          if (m) promoted++;
+        }
+      } catch (e) {
+        this.logger.warn(
+          `Edit-pattern mining for script ${w.id} (${v}) failed: ${(e as Error).message}`,
+        );
+      }
+    }
+    if (promoted > 0) {
+      this.logger.log(`Edit-pattern mining (${v}) — promoted ${promoted} rule(s) from ${winners.length} winner(s)`);
+    }
+    return promoted;
+  }
+
+  private async summariseEditDiff(opts: {
+    llmTitle: string; liveTitle: string;
+    llmDesc:  string; liveDesc:  string;
+  }): Promise<string[]> {
+    if (!this.openai) return [];
+    const system =
+      `You analyse the diff between LLM-drafted copy and the human-edited ` +
+      `version a curator actually published on YouTube. Your job: extract ` +
+      `1-3 REUSABLE editorial rules describing WHAT THE HUMAN consistently ` +
+      `changes. Specific (next LLM draft can actually apply it), not vague. ` +
+      `\n\nReply with strict JSON only:\n` +
+      `{"rules":[{"text":"<one-sentence reusable rule>","confidence":"high|medium|low"}]}\n\n` +
+      `Skip "low" confidence rules. If edits look random/noise, return {"rules":[]}.`;
+    const user =
+      `TITLE\n` +
+      `LLM draft:    ${opts.llmTitle || '(none)'}\n` +
+      `Human edited: ${opts.liveTitle || '(unchanged)'}\n\n` +
+      `DESCRIPTION (first 500 chars)\n` +
+      `LLM draft:    ${(opts.llmDesc ?? '').slice(0, 500) || '(none)'}\n` +
+      `Human edited: ${(opts.liveDesc ?? '').slice(0, 500) || '(unchanged)'}\n\n` +
+      `Extract editorial rules. JSON only.`;
+
+    const completion = await this.openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user',   content: user },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      max_tokens: 400,
+    });
+    const raw = completion.choices[0]?.message?.content ?? '{"rules":[]}';
+    const parsed = JSON.parse(raw) as { rules?: Array<{ text?: string; confidence?: string }> };
+    return (parsed.rules ?? [])
+      .filter((r) => r.text && r.confidence !== 'low')
+      .map((r) => String(r.text).trim())
+      .filter((t) => t.length > 12 && t.length < 280);
   }
 
   /**
@@ -268,6 +385,15 @@ export class AiPulseImprovementService {
 }
 
 /** Group scene counts into bands so we promote signal not noise. */
+/** Normalise a string for cheap dedup / noise-edit detection. */
+function normForCompare(s: string): string {
+  return (s ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function sceneBucket(n: number): string | null {
   if (n <= 0) return null;
   if (n <= 9)  return '6-9';

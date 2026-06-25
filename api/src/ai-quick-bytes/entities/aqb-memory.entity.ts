@@ -8,7 +8,13 @@ export type AqbMemoryType =
   // Scene-generator patterns mined from postmortems of videos that included
   // cinematic scenes — e.g. "opening close-up beats wide establishing",
   // "12-14 scenes wins", "multi-character (2-3) beats single-character".
-  | 'scene_pattern';
+  | 'scene_pattern'
+  // Patterns mined from the DIFF between LLM-generated title/description
+  // and what the curator actually published on YouTube. Captures the
+  // human's editorial fingerprint (verb swaps, shortened brand names,
+  // added em-dash hooks, restructured descriptions) so the next gen
+  // pre-applies them. Fed into both script + distribution prompts.
+  | 'edit_pattern';
 
 export type AqbMemoryTask =
   | 'scoring' | 'script' | 'thumbnail' | 'distribution'

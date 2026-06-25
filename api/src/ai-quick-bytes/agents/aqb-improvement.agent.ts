@@ -5,6 +5,7 @@ import { ShortScript } from '../entities/short-script.entity';
 import { AqbShortPostmortem, AqbPostmortemContent } from '../entities/short-postmortem.entity';
 import { AqbMemoryService } from '../services/aqb-memory.service';
 import { AqbMetricsFetcherService } from '../services/aqb-metrics-fetcher.service';
+import { AnthropicClientService } from '../services/anthropic-client.service';
 
 /**
  * Closes the loop for AQB. After postmortems exist, this aggregates the
@@ -23,6 +24,7 @@ export class AqbImprovementAgent {
     @InjectRepository(AqbShortPostmortem) private readonly postmortems: Repository<AqbShortPostmortem>,
     private readonly memorySvc: AqbMemoryService,
     private readonly metricsSvc: AqbMetricsFetcherService,
+    private readonly anthropic: AnthropicClientService,
   ) {}
 
   async runWeekly(): Promise<{ scanned: number; promoted: number; winners: number }> {
@@ -140,11 +142,120 @@ export class AqbImprovementAgent {
     );
     promoted += await this.promoteScenePatterns(sceneWinners);
 
+    // 6) Title + description edit patterns — diff LLM-generated copy
+    //    against what the curator actually published on YouTube. Captures
+    //    the human's editorial fingerprint (verb swaps, em-dash hooks,
+    //    description restructures) that the LLM should pre-apply next time.
+    promoted += await this.promoteEditPatterns(winnerScripts);
+
     this.logger.log(
       `AQB improvement — ${winnerIds.length}/${latest.length} winners; promoted ${promoted} memory(ies)` +
       ` (mean ${Math.round(mean)} views)`,
     );
     return { scanned: latest.length, winners: winnerIds.length, promoted };
+  }
+
+  /**
+   * Mine title + description edits from winners. For each winner with a
+   * non-trivial diff between LLM-generated copy and the live YouTube
+   * snippet, ask the LLM to summarise the editorial pattern in one
+   * sentence. Patterns appearing in ≥1 winner promote — bar is low
+   * because curator edits are explicit human signal.
+   *
+   * Costs ~$0.005 per winner. promoteUnique() dedupes by content hash
+   * so a "remove the brand prefix" rule promoted once won't re-promote.
+   * Soft-fails per-winner — one bad diff doesn't blow the whole sweep.
+   */
+  private async promoteEditPatterns(
+    winners: ShortScript[],
+  ): Promise<number> {
+    if (!this.anthropic.isConfigured()) return 0;
+    let promoted = 0;
+    const seenContent = new Set<string>();
+
+    for (const w of winners) {
+      const dist = w.distributionPackage as
+        | { youtube?: { title?: string; description?: string } }
+        | null;
+      const llmTitle  = dist?.youtube?.title?.trim() ?? '';
+      const llmDesc   = dist?.youtube?.description?.trim() ?? '';
+      const liveTitle = (w.liveYoutubeTitle ?? '').trim();
+      const liveDesc  = (w.liveYoutubeDescription ?? '').trim();
+
+      // Need both sides for a meaningful diff. Skip if either is missing.
+      const titleHasDiff = llmTitle && liveTitle && llmTitle !== liveTitle;
+      const descHasDiff  = llmDesc  && liveDesc  && llmDesc  !== liveDesc;
+      if (!titleHasDiff && !descHasDiff) continue;
+
+      // Skip near-identical edits (just whitespace / casing). Saves the
+      // LLM call when the diff isn't substantive.
+      const titleNoise = titleHasDiff && normForCompare(llmTitle) === normForCompare(liveTitle);
+      const descNoise  = descHasDiff  && normForCompare(llmDesc)  === normForCompare(liveDesc);
+      if ((!titleHasDiff || titleNoise) && (!descHasDiff || descNoise)) continue;
+
+      try {
+        const patterns = await this.summariseEditDiff({
+          llmTitle, liveTitle, llmDesc, liveDesc,
+        });
+        for (const p of patterns) {
+          const key = normForCompare(p);
+          if (seenContent.has(key)) continue;
+          seenContent.add(key);
+          const m = await this.memorySvc.promoteUnique(
+            'edit_pattern', p, ['script', 'distribution'], 2,
+          );
+          if (m) promoted++;
+        }
+      } catch (e) {
+        this.logger.warn(
+          `Edit-pattern mining for script ${w.id} failed: ${(e as Error).message}`,
+        );
+      }
+    }
+    return promoted;
+  }
+
+  /**
+   * One LLM call per winner — feeds the LLM the before/after pair and
+   * gets back 1-3 reusable rules describing what the human consistently
+   * changed. Strict JSON. Skips low-confidence rules.
+   */
+  private async summariseEditDiff(opts: {
+    llmTitle: string; liveTitle: string;
+    llmDesc:  string; liveDesc:  string;
+  }): Promise<string[]> {
+    const system =
+      `You analyse the diff between LLM-drafted copy and the human-edited ` +
+      `version a curator actually published on YouTube. Your job: extract ` +
+      `1-3 REUSABLE editorial rules that capture WHAT THE HUMAN ` +
+      `consistently changes. Be specific (a rule the next LLM draft can ` +
+      `actually apply), not vague. ` +
+      `\n\nReply with strict JSON only:\n` +
+      `{"rules":[{"text":"<one-sentence reusable rule>","confidence":"high|medium|low"}]}\n\n` +
+      `Skip "low" confidence rules in your output. If the edits look ` +
+      `random or noise (typo fixes, no clear pattern), return {"rules":[]}.`;
+    const user =
+      `TITLE\n` +
+      `LLM draft:    ${opts.llmTitle || '(none)'}\n` +
+      `Human edited: ${opts.liveTitle || '(unchanged)'}\n\n` +
+      `DESCRIPTION (first 500 chars)\n` +
+      `LLM draft:    ${(opts.llmDesc ?? '').slice(0, 500) || '(none)'}\n` +
+      `Human edited: ${(opts.liveDesc ?? '').slice(0, 500) || '(unchanged)'}\n\n` +
+      `Extract the editorial rules now. JSON only.`;
+
+    const { content: raw } = await this.anthropic.completeJSON({
+      system,
+      user,
+      temperature: 0.3,
+      maxTokens:   400,
+    });
+    const parsed = JSON.parse(raw || '{"rules":[]}') as {
+      rules?: Array<{ text?: string; confidence?: string }>;
+    };
+    return (parsed.rules ?? [])
+      .filter((r) => r.text && r.confidence !== 'low')
+      .map((r) => String(r.text).trim())
+      .filter((t) => t.length > 12 && t.length < 280);
   }
 
   /**
@@ -261,6 +372,16 @@ export class AqbImprovementAgent {
 
 /** Group scene counts into bands so we don't promote noisy "13 scenes wins"
  *  patterns — bands tell the scene gen "stay tight" vs "go verbose". */
+/** Normalise a string for cheap dedup / noise-edit detection. Strips
+ *  punctuation, lowercases, collapses whitespace. */
+function normForCompare(s: string): string {
+  return (s ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function sceneBucket(n: number): string | null {
   if (n <= 0) return null;
   if (n <= 9)  return '6-9';

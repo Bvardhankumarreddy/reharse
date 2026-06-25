@@ -13,7 +13,11 @@ export type AiPulseMemoryType =
   // cinematic scenes — e.g. "opening close-up beats wide", "10-13 scenes win
   // for this vertical", "2-3 characters beats 1". Per-vertical (memories are
   // scoped to a vertical row).
-  | 'scene_pattern';
+  | 'scene_pattern'
+  // Patterns mined from the DIFF between LLM-generated title/description
+  // and the curator's published version on YouTube. Per-vertical so an
+  // ai_business editorial fingerprint doesn't leak into ai_science.
+  | 'edit_pattern';
 
 export type AiPulseMemoryScope = 'script' | 'thumbnail' | 'distribution' | 'scene';
 
