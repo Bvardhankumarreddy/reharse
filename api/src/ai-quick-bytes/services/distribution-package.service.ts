@@ -428,7 +428,17 @@ export class DistributionPackageService {
   ): string {
     const hook = language === 'te' ? (script.teluguHook ?? script.hook) : script.hook;
     const full = language === 'te' ? (script.teluguFullScript ?? script.fullScript) : script.fullScript;
-    return `GENERATE ${language === 'te' ? 'TELUGU ' : ''}DISTRIBUTION PACKAGE FOR THIS SHORT
+    // Explicit output-language directive at the top of the user prompt.
+    // Belt-and-suspenders against any memory bleed or prompt-cache drift
+    // that might otherwise push an English regen into Telugu (or vice
+    // versa). The system prompt already covers this, but a learned
+    // "rewrite in Telugu" memory once managed to override it — never again.
+    const langDirective = language === 'te'
+      ? 'OUTPUT LANGUAGE: Telugu (Hyderabad-style code-mix per the system prompt). Every text field MUST be in Telugu script + tech terms in English. Do NOT output English-primary copy.'
+      : 'OUTPUT LANGUAGE: English. Every text field MUST be in English. Do NOT output Telugu script — even if a learned pattern below seems to suggest it. Hashtags and brand names stay as-is.';
+    return `${langDirective}
+
+GENERATE ${language === 'te' ? 'TELUGU ' : ''}DISTRIBUTION PACKAGE FOR THIS SHORT
 
 SCRIPT
 Day: ${script.dayNumber ?? 'n/a'} | Avatar: ${script.avatarId ?? 'vardhan'} | Duration: ${script.durationEstimateSeconds ?? '?'}s

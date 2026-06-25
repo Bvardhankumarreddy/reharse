@@ -187,6 +187,23 @@ export class AqbImprovementAgent {
       const descHasDiff  = llmDesc  && liveDesc  && llmDesc  !== liveDesc;
       if (!titleHasDiff && !descHasDiff) continue;
 
+      // Language mismatch guard. If the LLM drafted English but the
+      // curator's live snippet is in Telugu (or vice-versa), the diff
+      // is dominated by TRANSLATION not editorial style — the LLM will
+      // dutifully summarise it as "rewrite in Telugu", which then
+      // contaminates EVERY future English distribution gen (memories are
+      // not language-scoped). Skip these — translation patterns are not
+      // editorial patterns.
+      const llmIsTe  = hasTeluguGlyphs(llmTitle)  || hasTeluguGlyphs(llmDesc);
+      const liveIsTe = hasTeluguGlyphs(liveTitle) || hasTeluguGlyphs(liveDesc);
+      if (llmIsTe !== liveIsTe) {
+        this.logger.log(
+          `Edit-pattern mining: skipping script ${w.id} — language mismatch ` +
+          `(llm=${llmIsTe ? 'te' : 'en'} vs live=${liveIsTe ? 'te' : 'en'})`,
+        );
+        continue;
+      }
+
       // Skip near-identical edits (just whitespace / casing). Saves the
       // LLM call when the diff isn't substantive.
       const titleNoise = titleHasDiff && normForCompare(llmTitle) === normForCompare(liveTitle);
@@ -198,6 +215,13 @@ export class AqbImprovementAgent {
           llmTitle, liveTitle, llmDesc, liveDesc,
         });
         for (const p of patterns) {
+          // Double-belt: even with matched languages, refuse to promote
+          // rules that themselves prescribe a target language. These are
+          // not portable editorial rules.
+          if (/\b(in |to )?telugu\b/i.test(p) || /\benglish\b/i.test(p)) {
+            this.logger.log(`Edit-pattern miner: dropping language-prescriptive rule "${p.slice(0, 60)}…"`);
+            continue;
+          }
           const key = normForCompare(p);
           if (seenContent.has(key)) continue;
           seenContent.add(key);
@@ -380,6 +404,13 @@ function normForCompare(s: string): string {
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** Telugu Unicode block (U+0C00–U+0C7F). Used by the edit-pattern miner
+ *  to skip cross-language diffs that would otherwise produce
+ *  "translate to Telugu" rules. */
+function hasTeluguGlyphs(s: string): boolean {
+  return /[ఀ-౿]/.test(s ?? '');
 }
 
 function sceneBucket(n: number): string | null {
