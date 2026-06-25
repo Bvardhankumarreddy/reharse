@@ -54,6 +54,20 @@ export class Lesson {
   @Column({ type: 'varchar', length: 30, default: 'planned' })
   status: string;
 
+  // ── Live YouTube snippet (auto-refreshed by MetricsFetcherService) ──
+  // Mirrors the AQB / AI Pulse live-snippet pattern. Captures whatever
+  // the curator manually edited on YouTube Studio so the edit-pattern
+  // miner can diff against the LLM-generated SEO asset and learn the
+  // human's editorial fingerprint.
+  @Column({ type: 'text', nullable: true })
+  liveYoutubeTitle: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  liveYoutubeDescription: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  liveYoutubeFetchedAt: Date | null;
+
   // ── Cinematic scene breakdown (parallel to AQB / AI Pulse) ──────────
   // Chapter-grouped scenes: each scene tagged with chapter_id linking
   // back to a lesson outline section. Per-brand visual accents are

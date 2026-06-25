@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PublishedVideo } from '../entities/published-video.entity';
 import { LessonMetrics } from '../entities/lesson-metrics.entity';
+import { Lesson } from '../entities/lesson.entity';
 import { YouTubeDataService } from './youtube-data.service';
 
 /**
@@ -21,6 +22,8 @@ export class MetricsFetcherService {
     private readonly published: Repository<PublishedVideo>,
     @InjectRepository(LessonMetrics)
     private readonly metrics: Repository<LessonMetrics>,
+    @InjectRepository(Lesson)
+    private readonly lessons: Repository<Lesson>,
     private readonly yt: YouTubeDataService,
   ) {}
 
@@ -43,6 +46,7 @@ export class MetricsFetcherService {
     const byId = new Map(vids.map((v) => [v.id, v]));
 
     let saved = 0;
+    const now = new Date();
     for (const p of published) {
       if (!p.youtubeVideoId) continue;
       const v = byId.get(p.youtubeVideoId);
@@ -57,9 +61,20 @@ export class MetricsFetcherService {
           raw: v.raw,
         }),
       );
+      // Snapshot the live YouTube title + description back onto the
+      // lesson row. videos.list charges 1 quota unit regardless of part
+      // count, so capturing snippet was already free — we were just
+      // discarding it. Powers the edit-pattern miner downstream.
+      if (v.title != null || v.description != null) {
+        await this.lessons.update(p.lessonId, {
+          liveYoutubeTitle:       v.title ?? null,
+          liveYoutubeDescription: v.description ?? null,
+          liveYoutubeFetchedAt:   now,
+        });
+      }
       saved++;
     }
-    this.logger.log(`Metrics sweep: ${saved}/${published.length} lessons`);
+    this.logger.log(`Metrics sweep: ${saved}/${published.length} lessons (incl. live snippet)`);
     return { scanned: published.length, saved };
   }
 

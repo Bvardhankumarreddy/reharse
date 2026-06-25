@@ -53,6 +53,24 @@ export class ShortScript {
   @Column({ type: 'int', nullable: true })
   brandVoiceScore: number | null;
 
+  // ── Story-mode metadata (story prompt v2) ───────────────────────────
+  /** Generic role + setting — never a real name. Used by the anti-repetition
+   *  query to surface "do not reuse" archetypes in the next script gen. */
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  protagonist: string | null;
+
+  /** Two-emotion arc e.g. "curiosity → surprise" / "frustration → relief".
+   *  Used by anti-repetition (don't re-use the same arc back-to-back) and
+   *  by downstream agents that want a tone hint. */
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  emotionalProgression: string | null;
+
+  /** Single sentence the viewer should remember after watching. Acts as a
+   *  north star for thumbnail / scene / distribution agents (cleaner than
+   *  re-deriving intent from the prose script). */
+  @Column({ type: 'text', nullable: true })
+  coreMessage: string | null;
+
   @Index()
   @Column({ type: 'varchar', length: 50, default: 'draft' })
   status: ScriptStatus;

@@ -53,6 +53,7 @@ import { WebhooksController } from './controllers/webhooks.controller';
 import { AqbIntelligenceController } from './controllers/intelligence.controller';
 import { AqbQuotesController } from './controllers/quotes.controller';
 import { QuoteBankService } from './services/quote-bank.service';
+import { IdeaSelectionService } from './services/idea-selection.service';
 import { SceneGeneratorService } from './services/scene-generator.service';
 
 /**
@@ -107,6 +108,7 @@ import { SceneGeneratorService } from './services/scene-generator.service';
     // Learning loop (additive — no behaviour change until memories exist)
     AqbMemoryService,
     QuoteBankService,
+    IdeaSelectionService,
     SceneGeneratorService,
     AqbMetricsFetcherService,
     AqbPostmortemAgent,

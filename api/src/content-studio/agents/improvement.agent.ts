@@ -81,11 +81,177 @@ export class ImprovementAgent {
         promoted += await this.mineChannelWinnersForBrand(b.id);
         promoted += await this.mineSeoPatternsForBrand(b.id);
         promoted += await this.mineScenePatternsForBrand(b.id);
+        promoted += await this.mineEditPatternsForBrand(b.id);
       } catch (e) {
         this.logger.error(`Improvement for "${b.name}" failed: ${(e as Error).message}`);
       }
     }
     return { scanned: brands.length, promoted };
+  }
+
+  /**
+   * Mine title + description edit patterns from this brand's winning
+   * lessons. For each winner with a non-trivial diff between the
+   * LLM-drafted SEO title/description and the live YouTube snippet,
+   * ask the LLM to extract 1-3 reusable editorial rules. Per brand.
+   *
+   * Memory flows back into next script + seo agents via
+   * brand-memory.relevantFor(brandId, 'script' | 'seo').
+   *
+   * Signal floor: needs ≥3 scored lessons (same as runForBrand). Skips
+   * winners where curator made no edits (no signal). Soft-fails per
+   * winner so a bad LLM call doesn't blow the sweep. ~$0.005/winner.
+   */
+  async mineEditPatternsForBrand(brandId: string): Promise<number> {
+    const brand = await this.brandRepo.findOne({ where: { id: brandId } });
+    if (!brand) return 0;
+
+    // Winners = lessons with views ≥ 1.5× brand mean, that ALSO have
+    // both a live snippet AND an SEO asset to diff against.
+    const rows: Array<{
+      lessonId: string;
+      liveTitle: string | null;
+      liveDesc:  string | null;
+    }> = await this.lessonRepo.query(`
+      WITH latest_metric AS (
+        SELECT DISTINCT ON ("lessonId") "lessonId", views
+          FROM cs_lesson_metrics
+         ORDER BY "lessonId", "fetchedAt" DESC
+      ),
+      brand_lessons AS (
+        SELECT l.id AS "lessonId", lm.views,
+               l."liveYoutubeTitle"       AS "liveTitle",
+               l."liveYoutubeDescription" AS "liveDesc"
+          FROM latest_metric lm
+          JOIN cs_lessons l ON l.id = lm."lessonId"
+          JOIN cs_weekly_content_plans p ON p.id = l."planId"
+         WHERE p."brandId" = $1
+           AND l."liveYoutubeTitle" IS NOT NULL
+      ),
+      stats AS (
+        SELECT AVG(views) AS mean FROM brand_lessons
+      )
+      SELECT "lessonId", "liveTitle", "liveDesc"
+        FROM brand_lessons, stats
+       WHERE views >= 1.5 * stats.mean
+    `, [brandId]);
+
+    if (rows.length === 0) {
+      this.logger.log(
+        `Edit-pattern mining skipped for "${brand.name}" — 0 scored ` +
+        `winners with live snippet`,
+      );
+      return 0;
+    }
+
+    let promoted = 0;
+    const seen = new Set<string>();
+
+    for (const r of rows) {
+      // Fetch the LATEST SEO asset for this lesson — that's the LLM
+      // draft we diff against. SEO asset content shape:
+      // { titles: string[], chosenTitle: string, description: string, ... }
+      const seo = await this.assetRepo.findOne({
+        where: { lessonId: r.lessonId, assetType: 'seo' },
+        order: { version: 'DESC' },
+      });
+      const seoContent = (seo?.content ?? {}) as {
+        chosenTitle?: string;
+        title?: string;
+        description?: string;
+      };
+      const llmTitle = (seoContent.chosenTitle ?? seoContent.title ?? '').trim();
+      const llmDesc  = (seoContent.description ?? '').trim();
+      const liveTitle = (r.liveTitle ?? '').trim();
+      const liveDesc  = (r.liveDesc  ?? '').trim();
+
+      const titleHasDiff = llmTitle && liveTitle && llmTitle !== liveTitle;
+      const descHasDiff  = llmDesc  && liveDesc  && llmDesc  !== liveDesc;
+      if (!titleHasDiff && !descHasDiff) continue;
+
+      const titleNoise = titleHasDiff && normForCompareCs(llmTitle) === normForCompareCs(liveTitle);
+      const descNoise  = descHasDiff  && normForCompareCs(llmDesc)  === normForCompareCs(liveDesc);
+      if ((!titleHasDiff || titleNoise) && (!descHasDiff || descNoise)) continue;
+
+      try {
+        const rules = await this.summariseEditDiff({
+          llmTitle, liveTitle, llmDesc, liveDesc,
+        });
+        for (const text of rules) {
+          const key = normForCompareCs(text);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          // Dedup against existing memories.
+          const exists = await this.memRepo.findOne({
+            where: { brandId, memoryType: 'edit_pattern', content: text },
+          });
+          if (exists) continue;
+          const created = await this.memRepo.save(
+            this.memRepo.create({
+              brandId,
+              memoryType: 'edit_pattern',
+              content: text,
+              weight: 2,
+              appliesTo: ['script', 'seo'],
+              isActive: true,
+            }),
+          );
+          void this.memorySvc.embedOnSave(created.id, created.content);
+          promoted++;
+        }
+      } catch (e) {
+        this.logger.warn(
+          `Edit-pattern mining for lesson ${r.lessonId} (${brand.name}) failed: ${(e as Error).message}`,
+        );
+      }
+    }
+    if (promoted > 0) {
+      this.logger.log(
+        `Edit-pattern mining for "${brand.name}" — promoted ${promoted} rule(s) ` +
+        `from ${rows.length} winner(s)`,
+      );
+    }
+    return promoted;
+  }
+
+  /** One LLM call per winner — model-router-routed, brand override-aware. */
+  private async summariseEditDiff(opts: {
+    llmTitle: string; liveTitle: string;
+    llmDesc:  string; liveDesc:  string;
+  }): Promise<string[]> {
+    const system =
+      `You analyse the diff between LLM-drafted copy and the human-edited ` +
+      `version a curator actually published on YouTube. Your job: extract ` +
+      `1-3 REUSABLE editorial rules describing WHAT THE HUMAN consistently ` +
+      `changes. Specific (next LLM draft can apply it), not vague. ` +
+      `\n\nReply with strict JSON only:\n` +
+      `{"rules":[{"text":"<one-sentence reusable rule>","confidence":"high|medium|low"}]}\n\n` +
+      `Skip "low" confidence rules. If edits look like random/noise, return {"rules":[]}.`;
+    const user =
+      `TITLE\n` +
+      `LLM draft:    ${opts.llmTitle || '(none)'}\n` +
+      `Human edited: ${opts.liveTitle || '(unchanged)'}\n\n` +
+      `DESCRIPTION (first 500 chars)\n` +
+      `LLM draft:    ${(opts.llmDesc ?? '').slice(0, 500) || '(none)'}\n` +
+      `Human edited: ${(opts.liveDesc ?? '').slice(0, 500) || '(unchanged)'}\n\n` +
+      `Extract editorial rules. JSON only.`;
+
+    const r = await this.router.run({
+      task: 'grader',         // cheap path — same as postmortem uses
+      agentType: 'seo',       // for cost ledger; no functional effect
+      jsonOutput: true,
+      maxTokens: 400,
+      temperature: 0.3,
+      system,
+      user,
+    });
+    const parsed = JSON.parse(r.text || '{"rules":[]}') as {
+      rules?: Array<{ text?: string; confidence?: string }>;
+    };
+    return (parsed.rules ?? [])
+      .filter((x) => x.text && x.confidence !== 'low')
+      .map((x) => String(x.text).trim())
+      .filter((t) => t.length > 12 && t.length < 280);
   }
 
   /**
@@ -505,6 +671,15 @@ export class ImprovementAgent {
 }
 
 // ── Scene-pattern mining helpers ──────────────────────────────────────
+
+/** Normalise a string for cheap dedup / noise-edit detection. */
+function normForCompareCs(s: string): string {
+  return (s ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 function tallyStrings(arr: string[]): Record<string, number> {
   const out: Record<string, number> = {};

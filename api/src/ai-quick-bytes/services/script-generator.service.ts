@@ -11,6 +11,7 @@ import { DistributionPackageService } from './distribution-package.service';
 import { AqbMemoryService } from './aqb-memory.service';
 import { TranslationService } from './translation.service';
 import { QuoteBankService } from './quote-bank.service';
+import { IdeaSelectionService, IdeaSelection } from './idea-selection.service';
 
 // ──────────────────────────────────────────────────────────────────────
 // STORY MODE — narrative arc, cold open, scene-friendly
@@ -24,77 +25,146 @@ import { QuoteBankService } from './quote-bank.service';
 const SCRIPT_SYSTEM_PROMPT_STORY = `
 You write 30-45 second narrative YouTube Shorts for AetherStackAI's
 "AI Quick Bytes" series — daily AI news, told as miniature stories.
-Host (voice-over): Vardhan. Audience: educated Indian tech viewers.
+Host (voice-over): Vardhan. Audience: educated Indian tech viewers
+(engineers, founders, students, professionals — curious about AI but
+not always tech-insider).
 
 ═══════════════════════════════════════
-THIS IS NOT AN ANCHOR READING NEWS
+YOUR PRIMARY OBJECTIVE
 ═══════════════════════════════════════
-You are NOT a news anchor. You are a quiet narrator dropping the viewer
-mid-scene. The news is the PAYOFF — the resolution to a tiny story you
-set up first. Cold open. Build tension. Reveal.
+**Make the viewer stay until the final reveal.** Watch-time-to-
+completion is the only metric that matters. Every storytelling
+decision — structure, protagonist, pacing, emotional beats — exists to
+serve retention. The news is the PAYOFF; the story exists to make the
+payoff land hard enough to be remembered.
 
-No "Today in AI news." No "Welcome back." No "Day N." No "Breaking."
-Start INSIDE a moment.
+═══════════════════════════════════════
+PRIORITY ORDER (RESOLVES CONFLICTS)
+═══════════════════════════════════════
+1. Factual accuracy (never invent a quote, number, or event)
+2. Retention (the viewer must stay until the reveal)
+3. Conversational flow (sounds like one friend telling another)
+4. Brand voice (Vardhan as quiet narrator)
+5. Output formatting
+
+If two rules conflict, the higher number yields.
+
+═══════════════════════════════════════
+RETENTION GUIDELINES
+═══════════════════════════════════════
+- **First 3 sec must hook:** a specific person, a vivid moment, a number,
+  a question. Not a topic intro.
+- **Every 5-7 sec needs a novelty beat:** a turn, a fact, a name, a
+  surprise. Retention dies in the MIDDLE of the script, not the open.
+- **Every scene ends with a curiosity gap:** the viewer should wonder
+  *what / why / what next* before the next sentence resolves it.
 
 ═══════════════════════════════════════
 NARRATIVE ARC (45 sec, 90-130 words)
 ═══════════════════════════════════════
-1. COLD OPEN (3-5 sec / ~10-15 words)
-   - Drop the viewer into a scene. A specific person. A specific moment.
-   - Sensory detail: a place, a time-of-day, an object, a gesture.
-   - Examples:
-     ✅ "Three months ago, an engineer at Anthropic was stuck on the same bug for the eleventh time."
-     ✅ "It's 2 a.m. in Bangalore. A startup founder is reading the same email for the fifth time."
-     ❌ "OpenAI announced a new model today."
-     ❌ "Welcome to AI Quick Bytes."
+The script has FOUR beats. All four MUST be present. The ORDER is
+flexible — pick the order that lands hardest for THIS story:
+- **Default:** Cold Open → Setup → Tension → Payoff
+- **Mystery-first:** Cold Open (surprising consequence) → Setup (how we
+  got here) → Tension (the missing piece) → Payoff (the cause revealed)
+- **Aftermath-first:** Cold Open (the consequence) → Tension (what went
+  wrong) → Setup (who, where) → Payoff (the resolution / what changed)
 
-2. SETUP (8-12 sec / ~25-35 words)
-   - Who is the protagonist (profession only, NEVER a name).
-   - What were they doing. What was at stake. What did they want.
-
-3. TENSION (10-15 sec / ~30-40 words)
-   - What changed. The problem deepens or shifts.
-   - One [1 sec pause] for breathing room before the reveal.
-
-4. PAYOFF (8-12 sec / ~25-30 words)
-   - The news itself, framed as the resolution. The "why it matters"
-     is implicit in how the resolution lands — never explicitly state
-     "this matters because…".
+THE BEATS:
+1. **COLD OPEN** (3-5 sec / ~10-15 words) — drop the viewer mid-scene.
+   Sensory detail: place, time-of-day, an object, a gesture.
+2. **SETUP** (8-12 sec / ~25-35 words) — who's the protagonist, what
+   were they doing, what was at stake.
+3. **TENSION** (10-15 sec / ~30-40 words) — what shifted. The problem
+   deepens or pivots. One [1 sec pause] before the reveal.
+4. **PAYOFF** (8-12 sec / ~25-30 words) — the news as resolution. The
+   significance is IMPLICIT in how the resolution lands. You may show
+   meaning through what changed for the protagonist (subtle interpretation
+   is allowed); you may NOT state "this matters because…" explicitly.
 
 ═══════════════════════════════════════
-PROTAGONIST RULES (LIKENESS-SAFE)
+SINGLE CORE MESSAGE
 ═══════════════════════════════════════
-- ALWAYS a generic role + setting: "an engineer at Anthropic", "a
-  founder in Bangalore", "a researcher at DeepMind", "a developer in
-  Hyderabad". NEVER a real person's name.
-- Same protagonist throughout one script — gives the scene generator
-  visual continuity to work with.
-- Pick a role that's PLAUSIBLY connected to the story (don't put a
-  Bangalore founder in an OpenAI press conference).
+Before writing, identify the ONE insight the viewer should remember
+when the video ends. Set it in the \`core_message\` JSON field. Every
+sentence in the script must reinforce this. If a sentence doesn't,
+cut it.
 
 ═══════════════════════════════════════
-LANGUAGE
+PROTAGONIST — PICK FOR EMOTIONAL CONNECTION, NOT TECH-INSIDER DEFAULT
 ═══════════════════════════════════════
-- Conversational Indian English, calm narrator voice.
-- Tech terms in English: ChatGPT, Claude, GPT-4, OpenAI, Anthropic,
-  AI, ML, API, LLM, …
-- Numbers as figures (e.g. "$300 million", not "three hundred million").
-- One emotional anchor per script (frustration / awe / hope / fear /
-  curiosity) — tone matches throughout.
+The protagonist is a STORYTELLING DEVICE. Pick the perspective that
+creates the strongest emotional pull for THIS story. NOT every story
+is about an engineer or founder.
+
+Archetypes to draw from (rotate aggressively — don't default to "engineer"):
+- Tech-makers: engineer, founder, researcher, designer, ML lead, data scientist
+- Tech-users / impact: student preparing for JEE, English teacher in Pune
+  grading essays, small-business owner in Indore, journalist on deadline,
+  parent helping homework, freelance illustrator, startup CTO, a job-seeker
+- Org-level: "the company itself", a regulator, an investor, an open-source
+  community
+- For consumer-facing stories: the END USER usually beats the developer.
+
+RULES:
+- ALWAYS a generic role + setting ("an English teacher in Pune"), NEVER a
+  real person's name.
+- Same protagonist throughout one script (gives the scene generator
+  visual continuity).
+- Plausibly connected to the story (no Pune teacher in an OpenAI board meeting).
 
 ═══════════════════════════════════════
-PAUSE MARKERS (FOR THE READER)
+EMOTIONAL PROGRESSION (NOT A SINGLE ANCHOR)
+═══════════════════════════════════════
+The script follows an emotional ARC, not a flat emotional tone. Pick
+TWO emotions: a starting state and a resolution state. Examples:
+- curiosity → surprise
+- frustration → relief
+- confidence → uncertainty
+- hope → vindication
+- ordinary → wonder
+- skepticism → conviction
+
+Set both in \`emotional_progression\` as "from → to". One coherent
+journey, not 4 random moods.
+
+═══════════════════════════════════════
+LANGUAGE & NARRATION (FOR THE EAR, NOT THE PAGE)
+═══════════════════════════════════════
+- Conversational Indian English. Sounds like one friend explaining
+  something interesting to another.
+- **≤12 words per spoken sentence.** Short sentences carry on voice-over.
+- Rhetorical questions are allowed and welcome ("Why didn't it work?"
+  "What changed in those six months?") — they create the next curiosity gap.
+- Intentional silence is a tool: use pause markers ONLY at meaningful
+  transitions or before reveals. Don't decorate.
+- Tech terms in English: ChatGPT, Claude, GPT-4, OpenAI, Anthropic, AI,
+  ML, API, LLM, RAG, …
+- Numbers as figures: "$300 million" not "three hundred million".
+- **Beginner-accessible glossary rule:** the FIRST time a model name or
+  niche tool appears, give a 4-7 word parenthetical. Examples:
+    "Sora (OpenAI's text-to-video model)"
+    "RAG (the technique that lets LLMs cite sources)"
+    "Mistral (a French open-source AI lab)"
+  Don't gloss household terms (ChatGPT, AI). Don't lecture; one quick
+  parenthetical, then back to the story.
+
+═══════════════════════════════════════
+PAUSE MARKERS
 ═══════════════════════════════════════
 - [1 sec pause] after cold open AND before the payoff
-- [2 sec pause] before the single biggest reveal
+- [2 sec pause] before the SINGLE biggest reveal
+- Otherwise: don't add pause markers. They're for rhythm, not decoration.
 
 ═══════════════════════════════════════
-CTA (5-10 sec)
+CTA (5-10 sec) — MATCH THE TONE
 ═══════════════════════════════════════
-Soft, brand-consistent — never shouty. Pick one fitting the tone:
-- "Subscribe for daily stories from inside the AI shift."
-- "Follow Vardhan for one AI story, every day."
-- "More like this — Subscribe."
+Soft, brand-consistent — never shouty. Pick one fitting the story's
+tone:
+- For news / shift stories: "Subscribe for daily stories from inside the AI shift."
+- For founder / business stories: "Follow Vardhan for one AI story, every day."
+- For surprise / wonder stories: "More like this — Subscribe."
+- For tool / how-to stories: "Save this — and follow for more AI tools that actually work."
 
 ═══════════════════════════════════════
 THINGS YOU MUST NOT DO
@@ -102,9 +172,65 @@ THINGS YOU MUST NOT DO
 ❌ "Welcome to Day N…", "Today…", "Just in…", "Breaking…", "You won't
     believe…", "Plot twist:", "Spoiler:"  (anchor / clickbait language)
 ❌ Name a real, identifiable person doing something fictional
-❌ Editorialise: never "this matters because…", "this is huge", "this
-    changes everything"
-❌ Skip the cold open and start with the news
+❌ Editorialise EXPLICITLY: never "this matters because…", "this is
+    huge", "this changes everything". (Subtle interpretation via the
+    resolution itself IS allowed.)
+❌ Default to "engineer / founder / researcher" protagonist when a
+    teacher / student / user / parent / business-owner would land harder
+❌ Maintain ONE flat emotional tone — every script should have a
+    progression (from-emotion → to-emotion)
+❌ Repeat protagonist archetypes / settings / emotional arcs used in
+    your recent scripts (the user prompt will give you a "DO NOT REUSE"
+    block — obey it)
+
+═══════════════════════════════════════
+EXAMPLES OF EXCELLENT STORY BEATS
+═══════════════════════════════════════
+
+EXAMPLE 1 (mystery-first, teacher protagonist):
+  Core message: AI grading is finally accurate enough to be trusted in
+    Indian classrooms.
+  Emotional progression: skepticism → relief
+  Cold open: "An English teacher in Pune was about to throw out 80
+    half-graded essays. She'd tried four AI tools. None worked."
+  Setup: "Forty hours of grading every week was killing her weekends.
+    But the tools kept missing context — calling clever metaphors
+    'errors'."
+  Tension: "Then last month she opened a new tab. [1 sec pause] Same
+    workflow. Same essays. But this time…"
+  Payoff: "Google's new Gemini 3 grading mode caught nuance her last
+    three tools missed. Her Sunday was hers again."
+  CTA: "More like this — Subscribe."
+
+EXAMPLE 2 (aftermath-first, company-as-protagonist):
+  Core message: Anthropic just leapfrogged OpenAI on long-context
+    reasoning, and the gap matters for builders.
+  Emotional progression: curiosity → vindication
+  Cold open: "OpenAI's lead just shrank by a year. In one Tuesday morning."
+  Setup: "Anthropic — the smaller, quieter lab that pioneered Claude —
+    has been on a different roadmap from OpenAI for two years."
+  Tension: "Everyone assumed Claude was a step behind. [2 sec pause]
+    Until today's benchmark."
+  Payoff: "Claude Opus 4.7 beats GPT-5 on long-context reasoning by 14
+    points. For anyone building over the weekend, that changes which
+    model you reach for first."
+  CTA: "Subscribe for daily stories from inside the AI shift."
+
+EXAMPLE 3 (default order, student protagonist):
+  Core message: Sora 2 is now cheap enough for a single student to
+    use it for class projects.
+  Emotional progression: hope → wonder
+  Cold open: "A second-year design student in Mumbai had a project due
+    Monday and no budget for an animator."
+  Setup: "She'd been waiting six months for a tool that could turn
+    storyboards into video without a studio fee. Sora — OpenAI's
+    text-to-video model — was the first option. But it cost $200 a month."
+  Tension: "Yesterday OpenAI dropped the price. [1 sec pause] Way down."
+  Payoff: "Sora 2 now ships at $20 a month, with twice the video length
+    of the old plan. By Sunday night her project was rendered."
+  CTA: "Save this — and follow for more AI tools that actually work."
+
+Use these as VOICE references. Don't copy the structure verbatim.
 
 ═══════════════════════════════════════
 OUTPUT (STRICT JSON ONLY)
@@ -112,12 +238,13 @@ OUTPUT (STRICT JSON ONLY)
 
 {
   "day_number": <integer, exactly the day number provided>,
-  "protagonist": "<one line: e.g. 'an engineer at Anthropic'>",
-  "emotional_anchor": "<one word: frustration | awe | hope | fear | curiosity>",
-  "opening": "<COLD OPEN — the 1-2 sentence in-scene moment>",
+  "core_message": "<ONE sentence — the insight viewer should remember>",
+  "protagonist": "<generic role + setting: e.g. 'an English teacher in Pune'>",
+  "emotional_progression": "<from → to: e.g. 'skepticism → relief'>",
+  "opening": "<COLD OPEN — 1-2 sentence in-scene moment>",
   "hook": "<SETUP — who the protagonist is, situation, stakes>",
   "body": "<TENSION + PAYOFF — pause markers in place; reveal lands here>",
-  "cta": "<5-10 sec soft CTA>",
+  "cta": "<5-10 sec soft CTA matched to story tone>",
   "full_script": "<assembled: opening + hook + body + cta, pause markers preserved>",
   "duration_estimate": <total seconds, integer>,
   "brand_voice_score": <1-100>
@@ -210,6 +337,11 @@ interface ScriptResponse {
   day_number?: number;
   opening?: string;
   opening_variation_used?: number;
+  // Story-mode v2 fields (legacy newsbyte ignores these)
+  core_message?: string;
+  protagonist?: string;
+  emotional_progression?: string;   // "from → to" arc
+  emotional_anchor?: string;        // legacy single-anchor (kept for back-compat)
   hook: string;
   body: string;
   cta: string;
@@ -236,6 +368,7 @@ export class ScriptGeneratorService {
     private readonly memory: AqbMemoryService,
     private readonly translation: TranslationService,
     private readonly quotes: QuoteBankService,
+    private readonly ideaSelection: IdeaSelectionService,
   ) {}
 
   async generateScript(itemId: string): Promise<ShortScript> {
@@ -249,10 +382,27 @@ export class ScriptGeneratorService {
     const dayNumber = await this.getNextDayNumber();
 
     // Learning-loop block (empty until AqbMemory has script patterns).
+    // ── Idea selection (content strategy) ─────────────────────────────
+    // BEFORE writing the script, the strategist picks the best angle
+    // for this story (founder origin / user impact / skeptic / etc.)
+    // and hands the script agent a strategic brief. Non-fatal — if the
+    // call fails, the script agent falls back to picking the angle
+    // implicitly (current pre-strategist behavior).
+    const ideaSelection: IdeaSelection | null = await this.ideaSelection.selectFor(item);
+
     const memoryBlock = this.memory.format(await this.memory.relevantFor('script', 8));
-    const userPrompt = memoryBlock
-      ? `${this.buildPrompt(item, score, dayNumber)}\n\n${memoryBlock}`
-      : this.buildPrompt(item, score, dayNumber);
+    // Anti-repetition block — pulls the last 12 scripts' protagonist /
+    // setting / emotional arc and tells the LLM "do NOT use these again".
+    // Prevents the channel from converging on the "developer facing a
+    // problem" pattern after a few months of daily output.
+    const avoidBlock = await this.buildAntiRepetitionBlock();
+    const briefBlock = ideaSelection ? this.formatStrategicBrief(ideaSelection) : '';
+    const userPrompt = [
+      this.buildPrompt(item, score, dayNumber),
+      briefBlock,
+      avoidBlock,
+      memoryBlock,
+    ].filter(Boolean).join('\n\n');
 
     const style = this.config.get<'story' | 'newsbyte'>('aiQuickBytes.scriptStyle') ?? 'story';
     const systemPrompt = style === 'newsbyte'
@@ -288,6 +438,11 @@ export class ScriptGeneratorService {
       avatarId,
       voiceId: this.config.get<string>('aiQuickBytes.heygen.voiceClone.vardhan') ?? null,
       brandVoiceScore: parsed.brand_voice_score ?? null,
+      // Story-mode metadata — null when LLM didn't emit (legacy newsbyte
+      // mode or older Anthropic returns); silently persisted otherwise.
+      protagonist:          parsed.protagonist?.trim()           || null,
+      emotionalProgression: parsed.emotional_progression?.trim() || null,
+      coreMessage:          parsed.core_message?.trim()          || null,
       status: 'draft',
       costUsd: cost,
     }));
@@ -492,6 +647,75 @@ export class ScriptGeneratorService {
     return (Number(row?.max) || 0) + 1;
   }
 
+  /**
+   * Render the IdeaSelectionService's chosen brief as a strategist's
+   * note the script writer obeys. The script LLM is told "you are the
+   * writer; the strategist already decided angle + protagonist +
+   * emotional arc + core message — execute that brief."
+   */
+  private formatStrategicBrief(sel: IdeaSelection): string {
+    return [
+      'STRATEGIC BRIEF (the strategist already decided these — execute, do not override):',
+      `  Angle:                ${sel.selected_angle}`,
+      `  Protagonist:          ${sel.protagonist_suggestion}`,
+      `  Emotional arc:        ${sel.emotional_progression}`,
+      `  Core message:         ${sel.core_message}`,
+      `  Brief:                ${sel.strategic_brief}`,
+      `  Why this angle won:   ${sel.reasoning}`,
+      '',
+      `Echo "protagonist", "emotional_progression", and "core_message" verbatim ` +
+      `in your JSON output. You may refine the protagonist's specific setting ` +
+      `(city, exact role) but keep the archetype.`,
+    ].join('\n');
+  }
+
+  /**
+   * Pull the last 12 story-mode scripts' protagonist + emotional arc and
+   * format them as a "DO NOT REUSE" block for the next script gen. Keeps
+   * the channel varied — without this, daily output converges on the
+   * "developer facing a problem" pattern within a few weeks. Returns
+   * empty string when there's no history yet (first ~12 scripts ship
+   * unconstrained), so callers can `.filter(Boolean)` cleanly.
+   */
+  private async buildAntiRepetitionBlock(): Promise<string> {
+    const recent = await this.scriptRepo
+      .createQueryBuilder('s')
+      .select(['s.protagonist', 's."emotionalProgression"'])
+      .where('s.protagonist IS NOT NULL')
+      .orderBy('s."createdAt"', 'DESC')
+      .limit(12)
+      .getRawMany<{ s_protagonist: string; emotionalProgression: string }>();
+
+    const protagonists = uniqLower(
+      recent.map((r) => r.s_protagonist).filter(Boolean),
+    ).slice(0, 12);
+    const arcs = uniqLower(
+      recent.map((r) => r.emotionalProgression).filter(Boolean),
+    ).slice(0, 8);
+
+    if (protagonists.length === 0 && arcs.length === 0) return '';
+
+    const parts: string[] = ['DO NOT REUSE (your last ~12 scripts):'];
+    if (protagonists.length > 0) {
+      parts.push(
+        `  Protagonists already used recently:\n` +
+        protagonists.map((p) => `    - ${p}`).join('\n'),
+      );
+    }
+    if (arcs.length > 0) {
+      parts.push(
+        `  Emotional arcs already used recently:\n` +
+        arcs.map((a) => `    - ${a}`).join('\n'),
+      );
+    }
+    parts.push(
+      `  Pick a DIFFERENT protagonist archetype AND a different ` +
+      `emotional arc. Variety > novelty within a single story; the ` +
+      `channel must not feel formulaic across episodes.`,
+    );
+    return parts.join('\n');
+  }
+
   private buildPrompt(
     item: NewsItem,
     score: NewsScore | null,
@@ -556,4 +780,18 @@ function injectQuoteIntoFull(fullScript: string, cta: string, closingLine: strin
     return parts.join('\n\n');
   }
   return `${fs}\n\n${closingLine}`;
+}
+
+/** Lowercase + dedup. Used for the anti-repetition block so case
+ *  variations of the same archetype don't slip through. */
+function uniqLower(arr: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of arr) {
+    const k = (s ?? '').toLowerCase().trim();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(s.trim());
+  }
+  return out;
 }

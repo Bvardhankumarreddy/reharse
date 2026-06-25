@@ -8,7 +8,11 @@ export type MemoryType =
   // Cinematic scene patterns mined from lesson postmortems — e.g.
   // "10-13 scenes per lesson wins", "open chapters with close-up of hands".
   // Per brand; consumed by the scene agent via brand-memory.relevantFor('scene').
-  | 'scene_pattern';
+  | 'scene_pattern'
+  // Patterns mined from the DIFF between LLM-generated SEO title/description
+  // and the curator's published version on YouTube. Per brand. Flows back
+  // into script + seo agents via brand-memory.relevantFor().
+  | 'edit_pattern';
 
 /** Reusable brand voice/style/pattern fed into agent prompts. */
 @Entity('cs_brand_memories')
