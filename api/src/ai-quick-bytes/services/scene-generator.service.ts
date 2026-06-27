@@ -189,9 +189,12 @@ export class SceneGeneratorService {
       system,
       user,
       temperature: 0.8,
-      // Per-scene JSON + voiceover + music + 10-20 scenes — give plenty
-      // of headroom; truncated JSON throws below with a clear error.
-      maxTokens:   6000,
+      // Per-scene JSON + voiceover + music + 10-20 scenes. Bumped from
+      // 6000 → 10000 after humans-only character DNAs (longer full-body
+      // descriptions) + Google Flow specificity rules (8-15 words per
+      // descriptor field) pushed responses past 6000 tokens and caused
+      // "Unterminated string in JSON" truncation errors.
+      maxTokens:   10000,
     });
 
     let parsed: AqbScenesPayload;
