@@ -140,8 +140,12 @@ export class AiPulseApprovalController {
    * / publish flow. Re-runnable; overwrites previous scenes.
    */
   @Post(':id/scenes/generate')
-  async generateScenes(@Param('id') id: string) {
-    return this.scenes.generateFor(id);
+  async generateScenes(
+    @Param('id') id: string,
+    @Query('language') language?: string,
+  ) {
+    const lang = (language === 'te') ? 'te' : 'en';
+    return this.scenes.generateFor(id, lang);
   }
 
   @Get(':id/scenes')
@@ -149,9 +153,12 @@ export class AiPulseApprovalController {
     const script = await this.scripts.findOne({ where: { id } });
     if (!script) throw new NotFoundException('Script not found');
     return {
-      scenes:             script.scenes ?? null,
-      scenesGeneratedAt:  script.scenes_generated_at,
-      scenesCostUsd:      script.scenes_cost_usd,
+      scenes:               script.scenes ?? null,
+      scenesGeneratedAt:    script.scenes_generated_at,
+      scenesCostUsd:        script.scenes_cost_usd,
+      scenesTe:             script.scenes_te ?? null,
+      scenesTeGeneratedAt:  script.scenes_te_generated_at,
+      scenesTeCostUsd:      script.scenes_te_cost_usd,
     };
   }
 

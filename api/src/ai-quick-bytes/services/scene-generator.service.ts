@@ -104,14 +104,28 @@ export class SceneGeneratorService {
     private readonly characters: CharacterDictionaryService,
   ) {}
 
-  async generateFor(scriptId: string): Promise<AqbScenesPayload> {
+  async generateFor(
+    scriptId: string,
+    language: 'en' | 'te' = 'en',
+  ): Promise<AqbScenesPayload> {
     const script = await this.scriptRepo.findOne({
       where: { id: scriptId },
       relations: ['newsItem'],
     });
     if (!script) throw new NotFoundException('script not found');
-    if (!script.fullScript?.trim()) {
-      throw new BadRequestException('script has no fullScript to break into scenes');
+
+    // Pick the source script for spoken_text breakdown. Same cast +
+    // visual style across languages — only the spoken_text in each
+    // scene + the voiceover full_text change.
+    const sourceScript = language === 'te'
+      ? script.teluguFullScript?.trim()
+      : script.fullScript?.trim();
+    if (!sourceScript) {
+      throw new BadRequestException(
+        language === 'te'
+          ? 'script has no teluguFullScript — run /telugu/regenerate-translation first'
+          : 'script has no fullScript to break into scenes',
+      );
     }
     // Cast-driven scenes — REQUIRE the script to have a cartoon cast.
     // Older scripts predating the casting system have characterCast=null
@@ -166,8 +180,8 @@ export class SceneGeneratorService {
       await this.memory.relevantFor('scene', 8),
     );
 
-    const system = this.buildSystemPrompt(brandStyle, hostRef, memoryBlock, depictedCast, composedDna, mainChar);
-    const user   = this.buildUserPrompt(script);
+    const system = this.buildSystemPrompt(brandStyle, hostRef, memoryBlock, depictedCast, composedDna, mainChar, language);
+    const user   = this.buildUserPrompt(script, sourceScript, language);
 
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
       system,
@@ -194,13 +208,19 @@ export class SceneGeneratorService {
     const normalized = this.normalize(parsed, brandStyle, hostRef, composedDna, depictedCast);
     const cost = this.calcCost(model, usage);
 
-    script.scenes = normalized;
-    script.scenesGeneratedAt = new Date();
-    script.scenesCostUsd = Number(script.scenesCostUsd ?? 0) + cost;
+    if (language === 'te') {
+      script.scenesTe = normalized;
+      script.scenesTeGeneratedAt = new Date();
+      script.scenesTeCostUsd = Number(script.scenesTeCostUsd ?? 0) + cost;
+    } else {
+      script.scenes = normalized;
+      script.scenesGeneratedAt = new Date();
+      script.scenesCostUsd = Number(script.scenesCostUsd ?? 0) + cost;
+    }
     await this.scriptRepo.save(script);
 
     this.logger.log(
-      `Scenes for ${scriptId} — ${normalized.scene_count} scenes / ` +
+      `Scenes for ${scriptId} [${language}] — ${normalized.scene_count} scenes / ` +
       `${normalized.total_duration_sec}s · $${cost.toFixed(4)}`,
     );
     return normalized;
@@ -215,6 +235,7 @@ export class SceneGeneratorService {
     cast: Character[],
     composedDna: string,
     mainChar: Character,
+    language: 'en' | 'te',
   ): string {
     const hostBlock = hostRef
       ? `When the HOST (Vardhan) appears in a scene, set the scene's ` +
@@ -379,20 +400,26 @@ Your response MUST start with "{" and contain ONLY:
 `.trim();
   }
 
-  private buildUserPrompt(script: ShortScript): string {
+  private buildUserPrompt(
+    script: ShortScript,
+    sourceScript: string,
+    language: 'en' | 'te',
+  ): string {
+    const langLabel = language === 'te' ? 'TELUGU' : 'ENGLISH';
     return [
-      `STORY SCRIPT (30-45 sec, AQB story mode)`,
+      `STORY SCRIPT (30-45 sec, AQB story mode) — ${langLabel}`,
       `Day: ${script.dayNumber ?? '?'}`,
       `Avatar slot: ${script.avatarId ?? 'vardhan'}`,
       ``,
-      `Full script (preserve EVERY word in your scenes' "spoken_text" fields, in order):`,
-      script.fullScript,
+      `Full script (${langLabel} — preserve EVERY word in your scenes' "spoken_text" fields, in order; do NOT translate, the script is already in ${langLabel}):`,
+      sourceScript,
       ``,
       `Closing motivational quote already inlined above as part of the script — ` +
       `match its tone in the QUOTE scene.`,
       ``,
       `Now emit the JSON object per the system prompt. Start with "{". ` +
-      `No preamble. Style + character_dna repeat verbatim in every scene.`,
+      `No preamble. Style + character_dna repeat verbatim in every scene. ` +
+      `spoken_text MUST be in ${langLabel} (do not translate).`,
     ].join('\n');
   }
 

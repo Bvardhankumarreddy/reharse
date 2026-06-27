@@ -273,6 +273,20 @@ export class ShortScript {
   @Column({ type: 'decimal', precision: 10, scale: 6, default: 0 })
   scenesCostUsd: number;
 
+  // ── Telugu scenes (parallel column, same payload shape as scenes) ───
+  // Generated on demand when the operator hits the scene endpoint with
+  // ?language=te. Same cast, same visual style — only spoken_text + the
+  // voiceover full_text differ (Telugu instead of English). Lets the host
+  // paste either EN or TE scenes into VEO / HeyGen / Sora as needed.
+  @Column({ type: 'jsonb', nullable: true, name: 'scenes_te' })
+  scenesTe: ShortScript['scenes'];
+
+  @Column({ type: 'timestamp', nullable: true, name: 'scenes_te_generated_at' })
+  scenesTeGeneratedAt: Date | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 6, default: 0, name: 'scenes_te_cost_usd' })
+  scenesTeCostUsd: number;
+
   @Column({ type: 'uuid', nullable: true })
   teluguClosingQuoteId: string | null;
 

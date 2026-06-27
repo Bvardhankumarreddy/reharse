@@ -222,6 +222,20 @@ export class AiPulseScript {
   @Column({ type: 'decimal', precision: 10, scale: 6, default: 0, name: 'scenes_cost_usd' })
   scenes_cost_usd: number;
 
+  // ── Telugu scenes (parallel to scenes — same payload shape) ─────────
+  // Generated on demand via POST /scenes/generate?language=te. Same
+  // cast + visual style; only spoken_text + voiceover full_text are
+  // Telugu instead of English. Lets the host paste either EN or TE
+  // scenes into VEO / HeyGen / Sora.
+  @Column({ type: 'jsonb', nullable: true, name: 'scenes_te' })
+  scenes_te: AiPulseScript['scenes'];
+
+  @Column({ type: 'timestamp', nullable: true, name: 'scenes_te_generated_at' })
+  scenes_te_generated_at: Date | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 6, default: 0, name: 'scenes_te_cost_usd' })
+  scenes_te_cost_usd: number;
+
   @Index()
   @Column({ type: 'varchar', length: 50, default: 'pending_review' })
   approval_status: AiPulseApprovalStatus;

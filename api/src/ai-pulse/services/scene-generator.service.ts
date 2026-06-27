@@ -96,13 +96,26 @@ export class AiPulseSceneGeneratorService {
     this.openai = apiKey ? new OpenAI({ apiKey }) : null;
   }
 
-  async generateFor(scriptId: string): Promise<AiPulseScenesPayload> {
+  async generateFor(
+    scriptId: string,
+    language: 'en' | 'te' = 'en',
+  ): Promise<AiPulseScenesPayload> {
     if (!this.openai) throw new Error('OPENAI_API_KEY not configured');
 
     const script = await this.scripts.findOne({ where: { id: scriptId } });
     if (!script) throw new NotFoundException('script not found');
-    if (!script.english_full_script?.trim()) {
-      throw new BadRequestException('script has no english_full_script to break into scenes');
+
+    // Pick the source script for spoken_text breakdown — same cast +
+    // visual style across languages, only spoken_text changes.
+    const sourceScript = language === 'te'
+      ? script.telugu_full_script?.trim()
+      : script.english_full_script?.trim();
+    if (!sourceScript) {
+      throw new BadRequestException(
+        language === 'te'
+          ? 'script has no telugu_full_script — translate the script first'
+          : 'script has no english_full_script to break into scenes',
+      );
     }
     // Cast-driven scenes — REQUIRE the script to have a cartoon cast.
     // Older scripts predating the casting system have character_cast=null
@@ -159,7 +172,7 @@ export class AiPulseSceneGeneratorService {
       vertical, verticalLabel, accent, baseStyle, hostRef, memoryBlock,
       depictedCast, mainChar,
     );
-    const user = this.buildUserPrompt(script, verticalLabel);
+    const user = this.buildUserPrompt(script, verticalLabel, sourceScript, language);
 
     const completion = await this.openai.chat.completions.create({
       model: 'gpt-4o',
@@ -197,13 +210,19 @@ export class AiPulseSceneGeneratorService {
     const normalized = this.normalize(parsed, combinedStyle, hostRef, composedDna, depictedCast);
     const cost = this.calcCost(completion.usage);
 
-    script.scenes = normalized;
-    script.scenes_generated_at = new Date();
-    script.scenes_cost_usd = Number(script.scenes_cost_usd ?? 0) + cost;
+    if (language === 'te') {
+      script.scenes_te = normalized;
+      script.scenes_te_generated_at = new Date();
+      script.scenes_te_cost_usd = Number(script.scenes_te_cost_usd ?? 0) + cost;
+    } else {
+      script.scenes = normalized;
+      script.scenes_generated_at = new Date();
+      script.scenes_cost_usd = Number(script.scenes_cost_usd ?? 0) + cost;
+    }
     await this.scripts.save(script);
 
     this.logger.log(
-      `AI Pulse scenes for ${scriptId} (${vertical}) — ` +
+      `AI Pulse scenes for ${scriptId} (${vertical}) [${language}] — ` +
       `${normalized.scene_count} scenes / ${normalized.total_duration_sec}s · ` +
       `$${cost.toFixed(4)}`,
     );
@@ -379,17 +398,30 @@ Your response MUST start with "{" and contain ONLY:
 `.trim();
   }
 
-  private buildUserPrompt(script: AiPulseScript, verticalLabel: string): string {
+  private buildUserPrompt(
+    script: AiPulseScript,
+    verticalLabel: string,
+    sourceScript: string,
+    language: 'en' | 'te',
+  ): string {
+    const langLabel = language === 'te' ? 'TELUGU' : 'ENGLISH';
+    const title = language === 'te'
+      ? (script.telugu_title ?? script.english_title ?? '(untitled)')
+      : (script.english_title ?? '(untitled)');
+    const hook  = language === 'te'
+      ? (script.telugu_hook  ?? script.english_hook  ?? '')
+      : (script.english_hook ?? '');
     return [
-      `AI PULSE STORY SCRIPT — vertical: ${verticalLabel}`,
-      `Title: ${script.english_title ?? '(untitled)'}`,
-      `Hook:  ${script.english_hook ?? ''}`,
+      `AI PULSE STORY SCRIPT — vertical: ${verticalLabel} — ${langLabel}`,
+      `Title: ${title}`,
+      `Hook:  ${hook}`,
       ``,
-      `Full script (preserve EVERY word across scenes' "spoken_text" fields, in order):`,
-      script.english_full_script,
+      `Full script (${langLabel} — preserve EVERY word across scenes' "spoken_text" fields, in order; do NOT translate, the script is already in ${langLabel}):`,
+      sourceScript,
       ``,
       `Emit the JSON object per the system prompt. Start with "{". ` +
-      `No preamble. Style + character_dna repeat verbatim in every scene.`,
+      `No preamble. Style + character_dna repeat verbatim in every scene. ` +
+      `spoken_text MUST be in ${langLabel} (do not translate).`,
     ].join('\n');
   }
 

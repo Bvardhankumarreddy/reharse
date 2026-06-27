@@ -230,8 +230,12 @@ export class ApprovalController {
    * pure host-facing asset. Re-runnable; overwrites previous scenes.
    */
   @Post(':id/scenes/generate')
-  async generateScenes(@Param('id') id: string) {
-    return this.scenes.generateFor(id);
+  async generateScenes(
+    @Param('id') id: string,
+    @Query('language') language?: string,
+  ) {
+    const lang = (language === 'te') ? 'te' : 'en';
+    return this.scenes.generateFor(id, lang);
   }
 
   @Get(':id/scenes')
@@ -239,9 +243,12 @@ export class ApprovalController {
     const script = await this.scriptRepo.findOne({ where: { id } });
     if (!script) throw new NotFoundException('Script not found');
     return {
-      scenes:             script.scenes ?? null,
-      scenesGeneratedAt:  script.scenesGeneratedAt,
-      scenesCostUsd:      script.scenesCostUsd,
+      scenes:               script.scenes ?? null,
+      scenesGeneratedAt:    script.scenesGeneratedAt,
+      scenesCostUsd:        script.scenesCostUsd,
+      scenesTe:             script.scenesTe ?? null,
+      scenesTeGeneratedAt:  script.scenesTeGeneratedAt,
+      scenesTeCostUsd:      script.scenesTeCostUsd,
     };
   }
 
