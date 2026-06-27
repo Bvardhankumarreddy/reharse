@@ -243,10 +243,12 @@ beat (a TCS fresher getting laid off, an anxious mother seeing AI news,
 a UPSC aspirant trying ChatGPT, a kirana shopkeeper discovering UPI-like
 tech, an auto driver adapting to ride-sharing apps).
 
-CASTING TIERS (hard caps — image gen breaks with too many characters)
+CASTING TIERS (cast-level caps; per-scene visibility is decided later
+by the scene writer with no per-scene character cap)
 =====================================================================
 - MAIN       → exactly 1 character. Drives the arc. Appears in every scene.
-- SUPPORTING → 0 to 3 characters. Appear in 1-3 relevant scenes.
+- SUPPORTING → 0 to 3 characters. Appear in scenes where their action
+               or dialogue is relevant. May share scenes freely.
 - CAMEO      → 0 to 3 characters. NAMED in narration ONLY. Never depicted.
 - DROPPED    → everyone else the news mentions. Omitted entirely.
 

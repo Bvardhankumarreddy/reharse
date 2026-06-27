@@ -335,12 +335,16 @@ MAIN protagonist: ${mainChar.slug} (${mainChar.display_name}). Appears
 in every scene that has any character at all.
 
 PER-SCENE CHARACTER ASSIGNMENT (you decide this)
-- For each scene, choose 1-3 character SLUGS from the cast above and
-  list them in "characters_in_scene" (e.g. ["${mainChar.slug}"] or
-  ["${mainChar.slug}", "${cast[1]?.slug ?? mainChar.slug}"]).
-- MAX 3 characters per scene (image gen breaks beyond that).
+- For each scene, choose ANY subset of the cast above and list slugs
+  in "characters_in_scene" (e.g. ["${mainChar.slug}"] solo, or
+  ["${mainChar.slug}", "${cast[1]?.slug ?? mainChar.slug}"] duo, or
+  the entire cast for crowd / press conference / boardroom scenes).
+- NO HARD CAP — pick what the story needs. Trade-off: image gen
+  renders 1-3 characters with strong DNA fidelity; 4+ shares detail
+  budget so each face/outfit gets less attention. Use larger groups
+  only when the scene truly benefits (cast reveal, ensemble payoff).
 - MAIN appears in every scene with characters; SUPPORTING joins when
-  the spoken_text references them or their action is relevant.
+  the spoken_text references them or their action matters to the beat.
 - Pure still-life / closing-citation scenes → empty array [].
 
 CHARACTER_DNA FIELD (auto-injected — do NOT improvise visuals)
@@ -473,12 +477,14 @@ Your response MUST start with "{" and contain ONLY:
         const dur = Number(s.duration_seconds);
         const showsHost = isHostScene(s);
 
-        // Clamp characters_in_scene to known slugs, deduped, max 3.
+        // Clamp characters_in_scene to known slugs, deduped — no per-scene
+        // cap, LLM decides based on narrative need (crowds, press
+        // conferences, ensemble payoffs are all valid).
         const rawChars = Array.isArray(s.characters_in_scene) ? s.characters_in_scene : [];
         const chars = Array.from(new Set(
           rawChars.map((c) => String(c).toLowerCase().trim())
             .filter((c) => validSlugs.has(c)),
-        )).slice(0, 3);
+        ));
 
         // Per-scene DNA composed from chosen slugs; falls back to full
         // cast DNA when scene has none (silent / still-life beat).

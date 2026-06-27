@@ -319,14 +319,19 @@ MAIN protagonist: ${mainChar.slug} (${mainChar.display_name}). This
 character appears in EVERY scene that has any character at all.
 
 PER-SCENE CHARACTER ASSIGNMENT (you decide this)
-- For each scene, choose 1-3 character SLUGS from the cast above and
-  list them in "characters_in_scene" (e.g. ["${mainChar.slug}"] or
-  ["${mainChar.slug}", "${cast[1]?.slug ?? mainChar.slug}"]).
-- MAX 3 characters per scene (image gen breaks beyond that and DNA
-  consistency suffers).
-- The MAIN protagonist appears in every scene with characters.
-- SUPPORTING characters join only in scenes where the spoken_text
-  references them or their action is relevant.
+- For each scene, choose ANY subset of the cast above and list slugs in
+  "characters_in_scene" (e.g. ["${mainChar.slug}"] for solo, or
+  ["${mainChar.slug}", "${cast[1]?.slug ?? mainChar.slug}"] for a duo,
+  or the entire cast if the narrative needs a crowd / press
+  conference / classroom).
+- NO HARD CAP — pick what the story needs. Trade-off to consider:
+  image gen renders 1-3 characters with strong DNA fidelity; 4+ shares
+  detail budget across characters so each face/outfit gets less
+  attention. Use larger groups only when the scene truly benefits
+  (cast reveal, ensemble payoff, market scene).
+- The MAIN protagonist appears in every scene that has any character.
+- SUPPORTING characters join scenes where their action / dialogue
+  matters to the beat.
 - Pure still-life / abstract scenes (the QUOTE scene) → empty array [].
 
 CHARACTER_DNA FIELD (every scene — locked, do NOT improvise visuals)
@@ -474,13 +479,15 @@ Your response MUST start with "{" and contain ONLY:
         const dur = Number(s.duration_seconds);
         const showsHost = isHostScene(s);
 
-        // Clamp characters_in_scene to: known slugs only, deduped, max 3.
-        // Empty array (silent / still-life scene) is preserved.
+        // Clamp characters_in_scene to: known slugs only, deduped.
+        // No per-scene cap — LLM picks based on what the scene needs
+        // (crowd scenes, press conferences, classrooms can carry all
+        // cast members). Empty array (silent / still-life) preserved.
         const rawChars = Array.isArray(s.characters_in_scene) ? s.characters_in_scene : [];
         const chars = Array.from(new Set(
           rawChars.map((c) => String(c).toLowerCase().trim())
             .filter((c) => validSlugs.has(c)),
-        )).slice(0, 3);
+        ));
 
         // Per-scene character_dna composed from the slugs the LLM picked.
         // If the LLM forgot to populate characters (and the scene isn't a
