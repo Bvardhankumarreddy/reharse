@@ -53,18 +53,19 @@ export class ApprovalController {
     );
     // Dedupe by news_item_id: regen creates a NEW script row (doesn't
     // mutate the old), so a news item can have multiple drafts in the
-    // queue (e.g. old pre-cast draft + new post-cast draft after
-    // regenerating). Show only the LATEST draft per news item — older
-    // drafts stay in the DB for audit but disappear from the queue.
-    const latestIds = (await this.scriptRepo
-      .createQueryBuilder('inner_s')
-      .select('DISTINCT ON (inner_s."newsItemId") inner_s.id', 'id')
-      .addSelect('inner_s."createdAt"', 'createdAt')
-      .where('inner_s.status = :status', { status: 'draft' })
-      .orderBy('inner_s."newsItemId"')
-      .addOrderBy('inner_s."createdAt"', 'DESC')
-      .getRawMany<{ id: string }>())
-      .map((r) => r.id);
+    // queue. Show only the LATEST draft per news item — older drafts
+    // stay in the DB for audit but disappear from the queue.
+    //
+    // Raw query — TypeORM's createQueryBuilder mangles DISTINCT ON
+    // syntax; raw SQL is predictable. Outer query hydrates the rows
+    // + joined news_item / source / score cleanly.
+    const latestRows = await this.scriptRepo.query<{ id: string }[]>(
+      `SELECT DISTINCT ON ("newsItemId") id
+         FROM aqb_short_scripts
+        WHERE status = 'draft'
+        ORDER BY "newsItemId", "createdAt" DESC`,
+    );
+    const latestIds = latestRows.map((r) => r.id);
     if (latestIds.length === 0) return [];
     // .limit() (not .take()) — joins here are OneToOne/ManyToOne with no row
     // fan-out, and it avoids TypeORM's take()+join+orderBy crash.

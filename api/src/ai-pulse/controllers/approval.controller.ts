@@ -36,29 +36,33 @@ export class AiPulseApprovalController {
     @Query('status') status?: string,
   ) {
     // Dedupe by news_item_id: regen creates a new script row, so a news
-    // item can have multiple scripts across statuses (e.g. old approved
-    // + new draft after regenerating for the cast system). The queue
-    // shows ONLY the latest script per news item — older rows stay in
-    // the DB for audit but disappear from the workflow lists.
+    // item can have multiple scripts across statuses. Return ONLY the
+    // latest script per news item. Older rows stay in the DB for audit
+    // but disappear from the workflow lists.
     //
-    // Two-step: subquery picks the latest script id per news_item_id
-    // (within the chosen status filter), outer query joins back to
-    // hydrate the full row + news_item relation.
+    // Raw query for the dedup step — TypeORM's createQueryBuilder
+    // mangles DISTINCT ON syntax; raw SQL is predictable and matches
+    // what Postgres actually wants. Outer findByIds hydrates the rows
+    // + news_item relation cleanly.
     const effectiveStatus = (status ?? 'pending_review').toLowerCase();
     const ALLOWED = ['pending_review', 'approved', 'published', 'rejected'];
     const statusFilter = effectiveStatus === 'all'
       ? null
       : (ALLOWED.includes(effectiveStatus) ? effectiveStatus : 'pending_review');
 
-    const latestIdsQb = this.scripts
-      .createQueryBuilder('inner_s')
-      .select('DISTINCT ON (inner_s.news_item_id) inner_s.id', 'id')
-      .addSelect('inner_s.created_at', 'created_at')
-      .orderBy('inner_s.news_item_id')
-      .addOrderBy('inner_s.created_at', 'DESC');
-    if (statusFilter)  latestIdsQb.where('inner_s.approval_status = :st', { st: statusFilter });
-    if (vertical)      latestIdsQb.andWhere('inner_s.vertical = :v',     { v: vertical });
-    const latestIds = (await latestIdsQb.getRawMany<{ id: string }>()).map((r) => r.id);
+    const params: unknown[] = [];
+    const conds: string[] = [];
+    if (statusFilter) { params.push(statusFilter); conds.push(`approval_status = $${params.length}`); }
+    if (vertical)     { params.push(vertical);     conds.push(`vertical = $${params.length}`); }
+    const whereSql = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+    const latestRows = await this.scripts.query<{ id: string }[]>(
+      `SELECT DISTINCT ON (news_item_id) id
+         FROM ai_pulse_scripts
+         ${whereSql}
+         ORDER BY news_item_id, created_at DESC`,
+      params,
+    );
+    const latestIds = latestRows.map((r) => r.id);
     if (latestIds.length === 0) return [];
 
     return this.scripts
