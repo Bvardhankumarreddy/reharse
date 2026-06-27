@@ -12,6 +12,7 @@ import { AqbMemoryService } from './aqb-memory.service';
 import { TranslationService } from './translation.service';
 import { QuoteBankService } from './quote-bank.service';
 import { IdeaSelectionService, IdeaSelection } from './idea-selection.service';
+import { CharacterCastingService, CastingResult } from '../../characters/services/character-casting.service';
 
 // ──────────────────────────────────────────────────────────────────────
 // STORY MODE — narrative arc, cold open, scene-friendly
@@ -369,6 +370,7 @@ export class ScriptGeneratorService {
     private readonly translation: TranslationService,
     private readonly quotes: QuoteBankService,
     private readonly ideaSelection: IdeaSelectionService,
+    private readonly casting: CharacterCastingService,
   ) {}
 
   async generateScript(itemId: string): Promise<ShortScript> {
@@ -390,6 +392,19 @@ export class ScriptGeneratorService {
     // implicitly (current pre-strategist behavior).
     const ideaSelection: IdeaSelection | null = await this.ideaSelection.selectFor(item);
 
+    // ── Character casting (cartoon cast for this story) ───────────────
+    // After idea-selection picks the angle, the casting director picks
+    // which anthropomorphized cartoon characters star. The script writer
+    // then references them by name throughout, and the scene generator
+    // pulls their locked visual_dna into every scene's character_dna.
+    // Non-fatal — if casting fails the script still writes (scene gen
+    // will block until cast is repopulated by a regen, by design).
+    const casting: CastingResult | null = await this.casting.castForNews({
+      title: item.title,
+      summary: item.summary || item.content?.slice(0, 1500) || '',
+      brief: ideaSelection?.strategic_brief ?? null,
+    });
+
     const memoryBlock = this.memory.format(await this.memory.relevantFor('script', 8));
     // Anti-repetition block — pulls the last 12 scripts' protagonist /
     // setting / emotional arc and tells the LLM "do NOT use these again".
@@ -397,9 +412,11 @@ export class ScriptGeneratorService {
     // problem" pattern after a few months of daily output.
     const avoidBlock = await this.buildAntiRepetitionBlock();
     const briefBlock = ideaSelection ? this.formatStrategicBrief(ideaSelection) : '';
+    const castBlock  = casting ? this.formatCastBlock(casting) : '';
     const userPrompt = [
       this.buildPrompt(item, score, dayNumber),
       briefBlock,
+      castBlock,
       avoidBlock,
       memoryBlock,
     ].filter(Boolean).join('\n\n');
@@ -443,6 +460,15 @@ export class ScriptGeneratorService {
       protagonist:          parsed.protagonist?.trim()           || null,
       emotionalProgression: parsed.emotional_progression?.trim() || null,
       coreMessage:          parsed.core_message?.trim()          || null,
+      // Cast — persisted so scene gen can read it without re-running
+      // the casting LLM. Null when casting failed; scene gen will then
+      // refuse to run and ask the operator to regenerate the script.
+      cast: casting ? {
+        main:       casting.main.slug,
+        supporting: casting.supporting.map((c) => c.slug),
+        cameo:      casting.cameo.map((c) => c.slug),
+        reasoning:  casting.reasoning,
+      } : null,
       status: 'draft',
       costUsd: cost,
     }));
@@ -653,6 +679,47 @@ export class ScriptGeneratorService {
    * writer; the strategist already decided angle + protagonist +
    * emotional arc + core message — execute that brief."
    */
+  /**
+   * Render the casting director's cast for the script writer. The point:
+   * the writer should reference characters BY NAME (not "the OpenAI CEO"
+   * — but "Sam Altman") so the scene generator can map names to locked
+   * cartoon DNAs and the same characters appear visually consistent
+   * across every script that mentions them.
+   */
+  private formatCastBlock(casting: CastingResult): string {
+    const fmt = (c: { display_name: string; signature_action: string | null }) =>
+      `${c.display_name}${c.signature_action ? ` (often: ${c.signature_action})` : ''}`;
+    const lines = [
+      'CARTOON CAST (the cartoon characters who will star in this story\'s scenes):',
+      `  MAIN protagonist (in every scene): ${fmt(casting.main)}`,
+    ];
+    if (casting.supporting.length > 0) {
+      lines.push(
+        `  SUPPORTING cast (in 1-3 scenes): ` +
+        casting.supporting.map(fmt).join(' · '),
+      );
+    }
+    if (casting.cameo.length > 0) {
+      lines.push(
+        `  CAMEO (named in narration, NOT depicted): ` +
+        casting.cameo.map((c) => c.display_name).join(' · '),
+      );
+    }
+    if (casting.reasoning) lines.push(`  Casting note: ${casting.reasoning}`);
+    lines.push(
+      '',
+      'CAST RULES:',
+      '- Reference MAIN + SUPPORTING characters BY THEIR EXACT DISPLAY NAMES ' +
+      'in the script (e.g. "Sam Altman" not "the OpenAI CEO"). The scene generator ' +
+      'maps names → locked cartoon visuals; mismatched names break consistency.',
+      '- CAMEO characters can be mentioned in passing but are NOT shown — do not ' +
+      'build scenes around them.',
+      '- Anchor the story arc on the MAIN character. The viewer should care about ' +
+      'what happens to THEM.',
+    );
+    return lines.join('\n');
+  }
+
   private formatStrategicBrief(sel: IdeaSelection): string {
     return [
       'STRATEGIC BRIEF (the strategist already decided these — execute, do not override):',

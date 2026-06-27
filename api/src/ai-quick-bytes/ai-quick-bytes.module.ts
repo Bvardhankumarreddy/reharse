@@ -13,6 +13,7 @@ import { AqbShortPostmortem } from './entities/short-postmortem.entity';
 import { AqbMemory } from './entities/aqb-memory.entity';
 import { AqbQuote } from './entities/aqb-quote.entity';
 import { AdminModule } from '../admin/admin.module';
+import { CharactersModule } from '../characters/characters.module';
 
 import { OpenAIClientService } from './services/openai-client.service';
 import { AnthropicClientService } from './services/anthropic-client.service';
@@ -75,6 +76,7 @@ import { SceneGeneratorService } from './services/scene-generator.service';
       { name: AQB_INTELLIGENCE_QUEUE },
     ),
     AdminModule,
+    CharactersModule,
   ],
   controllers: [
     NewsController,

@@ -7,6 +7,7 @@ import { AiPulseNewsItem, AiPulseVertical } from '../entities/news-item.entity';
 import { AiPulseScript } from '../entities/news-script.entity';
 import { VERTICALS } from '../config/verticals.config';
 import { AiPulseMemoryService } from './memory.service';
+import { CharacterCastingService, CastingResult } from '../../characters/services/character-casting.service';
 
 const COMMON_REQUIREMENTS = `
 HARD REQUIREMENTS (non-negotiable):
@@ -232,6 +233,7 @@ export class AiPulseScriptGeneratorService {
     private readonly scripts: Repository<AiPulseScript>,
     private readonly config: ConfigService,
     private readonly memorySvc: AiPulseMemoryService,
+    private readonly casting: CharacterCastingService,
   ) {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     this.openai = apiKey ? new OpenAI({ apiKey }) : null;
@@ -250,11 +252,24 @@ export class AiPulseScriptGeneratorService {
       await this.memorySvc.relevantFor(item.vertical, 'script', 6),
     );
 
+    // ── Character casting (cartoon cast for this story) ─────────────
+    // Picks the recurring cartoon characters who star in this script.
+    // The script writer references them by name; scene gen pulls locked
+    // visual DNAs. Non-fatal — script writes even if casting fails, but
+    // scene gen will block until cast is repopulated by a regen.
+    const casting: CastingResult | null = await this.casting.castForNews({
+      title:    item.headline,
+      summary:  item.summary ?? '',
+      vertical: item.vertical,
+    });
+    const castBlock = casting ? formatAiPulseCastBlock(casting) : '';
+
     // ── English ─────────────────────────────────────────────────────
     const enUser =
       `NEWS:\nHeadline: ${item.headline}\nSummary: ${item.summary ?? '(none)'}\n` +
       `Source name (use this VERBATIM in the final-line citation): ${item.source_name}\n` +
       `Source URL: ${item.source_url}\nPublished: ${item.published_at?.toISOString() ?? 'unknown'}\n\n` +
+      (castBlock   ? `${castBlock}\n\n`   : '') +
       (memoryBlock ? `${memoryBlock}\n\n` : '') +
       `Generate the script per the system prompt format. The LAST LINE of ` +
       `english_full_script MUST be exactly:\n` +
@@ -294,6 +309,15 @@ export class AiPulseScriptGeneratorService {
         english_word_count: enWordCount,
         llm_model: 'gpt-4o',
         llm_cost_usd: enCost,
+        // Persist cast so scene gen can read it without re-running
+        // casting LLM. Null when casting failed — scene gen will then
+        // refuse and ask the operator to regenerate the script.
+        cast: casting ? {
+          main:       casting.main.slug,
+          supporting: casting.supporting.map((c) => c.slug),
+          cameo:      casting.cameo.map((c) => c.slug),
+          reasoning:  casting.reasoning,
+        } : null,
       }),
     );
     this.logger.log(
@@ -357,4 +381,41 @@ function costFor(
   const [ir, or] = rates[model] ?? rates['gpt-4o'];
   return ((usage?.prompt_tokens ?? 0) / 1_000_000) * ir
        + ((usage?.completion_tokens ?? 0) / 1_000_000) * or;
+}
+
+/** Render the casting director's cast for the AI Pulse script writer.
+ *  Mirrors the AQB block (kept inline here so AI Pulse doesn't take a
+ *  cross-module dep on AQB's script generator). */
+function formatAiPulseCastBlock(casting: CastingResult): string {
+  const fmt = (c: { display_name: string; signature_action: string | null }) =>
+    `${c.display_name}${c.signature_action ? ` (often: ${c.signature_action})` : ''}`;
+  const lines = [
+    'CARTOON CAST (the cartoon characters who will star in this story\'s scenes):',
+    `  MAIN protagonist (in every scene): ${fmt(casting.main)}`,
+  ];
+  if (casting.supporting.length > 0) {
+    lines.push(
+      `  SUPPORTING cast (in 1-3 scenes): ` +
+      casting.supporting.map(fmt).join(' · '),
+    );
+  }
+  if (casting.cameo.length > 0) {
+    lines.push(
+      `  CAMEO (named in narration, NOT depicted): ` +
+      casting.cameo.map((c) => c.display_name).join(' · '),
+    );
+  }
+  if (casting.reasoning) lines.push(`  Casting note: ${casting.reasoning}`);
+  lines.push(
+    '',
+    'CAST RULES:',
+    '- Reference MAIN + SUPPORTING characters BY THEIR EXACT DISPLAY NAMES in ' +
+    'the script (e.g. "Sam Altman" not "the OpenAI CEO"). The scene generator ' +
+    'maps names → locked cartoon visuals; mismatched names break consistency.',
+    '- CAMEO characters can be mentioned in passing but are NOT shown — do not ' +
+    'build scenes around them.',
+    '- Anchor the story arc on the MAIN character. The viewer should care about ' +
+    'what happens to THEM.',
+  );
+  return lines.join('\n');
 }

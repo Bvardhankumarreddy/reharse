@@ -11,6 +11,8 @@ import {
   VERTICAL_SCENE_ACCENTS, VERTICALS, VerticalSceneAccent,
 } from '../config/verticals.config';
 import { AiPulseMemoryService } from './memory.service';
+import { CharacterDictionaryService } from '../../characters/services/character-dictionary.service';
+import { Character } from '../../characters/entities/character.entity';
 
 // ── Types (parallel to AQB scenes; same blueprint shape) ────────────────
 
@@ -25,6 +27,9 @@ export interface AiPulseScene {
   mood:                 string;
   style:                string;       // INLINE per blueprint
   character_dna:        string;       // INLINE per blueprint
+  /** Slugs of characters depicted in this scene (max 3). Pulled from
+   *  script.cast; LLM picks per scene. Empty for still-life scenes. */
+  characters_in_scene?: string[];
   reference_image_url?: string | null;
 }
 
@@ -69,6 +74,7 @@ export class AiPulseSceneGeneratorService {
     private readonly scripts: Repository<AiPulseScript>,
     private readonly config: ConfigService,
     private readonly memory: AiPulseMemoryService,
+    private readonly characters: CharacterDictionaryService,
   ) {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     this.openai = apiKey ? new OpenAI({ apiKey }) : null;
@@ -82,6 +88,36 @@ export class AiPulseSceneGeneratorService {
     if (!script.english_full_script?.trim()) {
       throw new BadRequestException('script has no english_full_script to break into scenes');
     }
+    // Cast-driven scenes — REQUIRE the script to have a cartoon cast.
+    // Older scripts predating the casting system have cast=null and must
+    // be regenerated before scenes can be (re)generated.
+    if (!script.cast?.main) {
+      throw new BadRequestException(
+        'Script has no character cast — regenerate the script first so the ' +
+        'casting director can pick the cartoon cast for this story. ' +
+        'Existing scripts predating the cast system need a fresh generation pass.',
+      );
+    }
+
+    // Resolve cast slugs → Character rows from the shared dictionary.
+    const allSlugs = Array.from(new Set([
+      script.cast.main,
+      ...(script.cast.supporting ?? []),
+    ]));
+    const castRows = await this.characters.findManyBySlugs(allSlugs);
+    const castBySlug = new Map(castRows.map((c) => [c.slug, c]));
+    const mainChar = castBySlug.get(script.cast.main);
+    if (!mainChar) {
+      throw new BadRequestException(
+        `Script cast references unknown main character "${script.cast.main}". ` +
+        `Regenerate the script to pick a fresh cast.`,
+      );
+    }
+    const supportingChars = (script.cast.supporting ?? [])
+      .map((s) => castBySlug.get(s))
+      .filter((c): c is Character => !!c);
+    const depictedCast = [mainChar, ...supportingChars];
+    const composedDna = this.characters.composeCharacterDna(depictedCast);
 
     const vertical = script.vertical;
     const accent   = VERTICAL_SCENE_ACCENTS[vertical];
@@ -104,6 +140,7 @@ export class AiPulseSceneGeneratorService {
 
     const system = this.buildSystemPrompt(
       vertical, verticalLabel, accent, baseStyle, hostRef, memoryBlock,
+      depictedCast, mainChar,
     );
     const user = this.buildUserPrompt(script, verticalLabel);
 
@@ -140,7 +177,7 @@ export class AiPulseSceneGeneratorService {
       `${baseStyle} Per-vertical accent: palette = ${accent.palette}; ` +
       `props = ${accent.props}; settings = ${accent.settings}.`;
 
-    const normalized = this.normalize(parsed, combinedStyle, hostRef);
+    const normalized = this.normalize(parsed, combinedStyle, hostRef, composedDna, depictedCast);
     const cost = this.calcCost(completion.usage);
 
     script.scenes = normalized;
@@ -165,6 +202,8 @@ export class AiPulseSceneGeneratorService {
     baseStyle: string,
     hostRef: string | null,
     memoryBlock: string,
+    cast: Character[],
+    mainChar: Character,
   ): string {
     const hostBlock = hostRef
       ? `When the HOST (Vardhan) appears in a scene, set the scene's ` +
@@ -219,20 +258,34 @@ Lean into these. Different verticals look DIFFERENT. An ai_business scene
 should not look like an ai_science scene.
 
 ═══════════════════════════════════════
-CHARACTER RULES (LIKENESS-SAFE)
+CHARACTER RULES (CARTOON CAST — LOCKED DNA)
 ═══════════════════════════════════════
-- Pick the protagonist's role + age range + attire ONCE — from the
-  archetypes above, matched to what the script implies — and repeat the
-  SAME description in every scene's "character_dna" field.
-  Example for ai_business: "THE FOUNDER (late 30s, sharp casual blazer,
-  intense direct gaze, dark hair, well-trimmed beard)".
-- NEVER use a real person's name or recognisable likeness.
+This story uses an anthropomorphic-cartoon cast — the same cartoon
+characters recur across every script that mentions them, so channel
+identity compounds. CharacterCastingService already picked this cast:
+
+THE CAST FOR THIS STORY
+${cast.map((c) => `  • ${c.slug} (${c.display_name}) — ${c.signature_action ?? ''}`).join('\n')}
+
+MAIN protagonist: ${mainChar.slug} (${mainChar.display_name}). Appears
+in every scene that has any character at all.
+
+PER-SCENE CHARACTER ASSIGNMENT (you decide this)
+- For each scene, choose 1-3 character SLUGS from the cast above and
+  list them in "characters_in_scene" (e.g. ["${mainChar.slug}"] or
+  ["${mainChar.slug}", "${cast[1]?.slug ?? mainChar.slug}"]).
+- MAX 3 characters per scene (image gen breaks beyond that).
+- MAIN appears in every scene with characters; SUPPORTING joins when
+  the spoken_text references them or their action is relevant.
+- Pure still-life / closing-citation scenes → empty array [].
+
+CHARACTER_DNA FIELD (auto-injected — do NOT improvise visuals)
+- The locked cartoon DNAs for the chosen characters get deterministically
+  pasted into the character_dna field after generation, so you may emit a
+  placeholder like "(see locked cast DNA)" — it'll be replaced. What
+  MATTERS is that you correctly populate "characters_in_scene".
+
 ${hostBlock}
-- For the source-citation closing scene (the "Source: X. Link in
-  description." line), use a still-life or environmental shot (the
-  source's office building exterior, a newspaper detail, a screen
-  showing the source URL). No people. character_dna = "(no human
-  characters in this scene)".
 
 ═══════════════════════════════════════
 SCENE SCHEMA (every scene — same shape)
@@ -247,7 +300,8 @@ SCENE SCHEMA (every scene — same shape)
   "lighting":            "<key + fill + colour temperature + mood>",
   "mood":                "<one emotional word>",
   "style":               "<PASTE THE STYLE STRING ABOVE VERBATIM, with the per-vertical accent>",
-  "character_dna":       "<persistent character descriptions, identical every scene>",
+  "character_dna":       "(see locked cast DNA — injected post-gen)",
+  "characters_in_scene": ["<cast slug>", "..."],
   "reference_image_url": "<URL string or null per host rules>"
 }
 
@@ -328,18 +382,33 @@ Your response MUST start with "{" and contain ONLY:
     parsed: AiPulseScenesPayload,
     combinedStyle: string,
     hostRef: string | null,
+    composedDna: string,
+    depictedCast: Character[],
   ): AiPulseScenesPayload {
     const rawScenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
 
-    // Canonical character_dna = first scene that supplies one.
-    const canonicalDna =
-      rawScenes.find((s) => s?.character_dna?.trim())?.character_dna?.trim() ?? '';
+    const castBySlug = new Map(depictedCast.map((c) => [c.slug, c]));
+    const validSlugs = new Set(castBySlug.keys());
 
     const scenes: AiPulseScene[] = rawScenes
       .filter((s) => s && (s.subject ?? '').toString().trim())
       .map((s, i): AiPulseScene => {
         const dur = Number(s.duration_seconds);
         const showsHost = isHostScene(s);
+
+        // Clamp characters_in_scene to known slugs, deduped, max 3.
+        const rawChars = Array.isArray(s.characters_in_scene) ? s.characters_in_scene : [];
+        const chars = Array.from(new Set(
+          rawChars.map((c) => String(c).toLowerCase().trim())
+            .filter((c) => validSlugs.has(c)),
+        )).slice(0, 3);
+
+        // Per-scene DNA composed from chosen slugs; falls back to full
+        // cast DNA when scene has none (silent / still-life beat).
+        const characterDna = chars.length > 0
+          ? this.characters.composeCharacterDna(chars.map((c) => castBySlug.get(c)!).filter(Boolean))
+          : composedDna;
+
         return {
           scene_id:         String(s.scene_id ?? String(i + 1).padStart(2, '0')),
           duration_seconds: Number.isFinite(dur) && dur > 0 ? Math.round(dur) : 3,
@@ -350,7 +419,10 @@ Your response MUST start with "{" and contain ONLY:
           lighting:         String(s.lighting ?? '').trim(),
           mood:             String(s.mood ?? '').trim(),
           style:            combinedStyle,
-          character_dna:    String(s.character_dna ?? canonicalDna).trim(),
+          // Deterministic — always overwrite with dictionary-composed DNA
+          // so the same cartoon characters look the same across scripts.
+          character_dna:    characterDna,
+          characters_in_scene: chars,
           reference_image_url: showsHost ? hostRef : null,
         };
       });

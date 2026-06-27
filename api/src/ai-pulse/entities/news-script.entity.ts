@@ -195,6 +195,25 @@ export class AiPulseScript {
     };
   } | null;
 
+  // ── Character cast (anthropomorphic cartoon cast for scene gen) ─────
+  // Decided by CharacterCastingService BEFORE script generation, so the
+  // script writer references the cast naturally. Scene gen REQUIRES this
+  // field — existing scripts must be regenerated before scenes can be
+  // regenerated with the per-character DNA system.
+  //
+  //   main       — 1 character slug; protagonist, appears in every scene
+  //   supporting — 0-3 slugs; appear in 1-3 relevant scenes each
+  //   cameo      — 0-3 slugs; NAMED in narration only, never depicted
+  //
+  // Slugs map to rows in the shared `characters` table.
+  @Column({ type: 'jsonb', nullable: true })
+  cast: {
+    main:       string;
+    supporting: string[];
+    cameo:      string[];
+    reasoning?: string;
+  } | null;
+
   @Column({ type: 'timestamp', nullable: true, name: 'scenes_generated_at' })
   scenes_generated_at: Date | null;
 

@@ -7,6 +7,8 @@ import { ConfigService } from '@nestjs/config';
 import { ShortScript } from '../entities/short-script.entity';
 import { AnthropicClientService } from './anthropic-client.service';
 import { AqbMemoryService } from './aqb-memory.service';
+import { CharacterDictionaryService } from '../../characters/services/character-dictionary.service';
+import { Character } from '../../characters/entities/character.entity';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -21,6 +23,10 @@ export interface AqbScene {
   mood:                 string;
   style:                string;
   character_dna:        string;
+  /** Slugs of characters depicted in THIS scene (max 3). Pulled from
+   *  the script's cast field; the LLM chooses per scene from the
+   *  available cast. Empty for pure still-life scenes (quote scene). */
+  characters_in_scene?: string[];
   reference_image_url?: string | null;
 }
 
@@ -73,6 +79,7 @@ export class SceneGeneratorService {
     private readonly anthropic: AnthropicClientService,
     private readonly config: ConfigService,
     private readonly memory: AqbMemoryService,
+    private readonly characters: CharacterDictionaryService,
   ) {}
 
   async generateFor(scriptId: string): Promise<AqbScenesPayload> {
@@ -84,6 +91,40 @@ export class SceneGeneratorService {
     if (!script.fullScript?.trim()) {
       throw new BadRequestException('script has no fullScript to break into scenes');
     }
+    // Cast-driven scenes — REQUIRE the script to have a cartoon cast.
+    // Older scripts predating the casting system have cast=null and must
+    // be regenerated before scenes can be (re)generated. This is the
+    // explicit "regenerate script first" contract.
+    if (!script.cast?.main) {
+      throw new BadRequestException(
+        'Script has no character cast — regenerate the script first so the ' +
+        'casting director can pick the cartoon cast for this story. ' +
+        'Existing scripts predating the cast system need a fresh generation pass.',
+      );
+    }
+
+    // Resolve cast slugs → Character rows from the shared dictionary.
+    // The script's cast is the source of truth; the dictionary supplies
+    // the locked visual DNAs that pin character appearance.
+    const allSlugs = Array.from(new Set([
+      script.cast.main,
+      ...(script.cast.supporting ?? []),
+      // Cameos are named in narration but never depicted — exclude here.
+    ]));
+    const castRows = await this.characters.findManyBySlugs(allSlugs);
+    const castBySlug = new Map(castRows.map((c) => [c.slug, c]));
+    const mainChar = castBySlug.get(script.cast.main);
+    if (!mainChar) {
+      throw new BadRequestException(
+        `Script cast references unknown main character "${script.cast.main}". ` +
+        `Regenerate the script to pick a fresh cast.`,
+      );
+    }
+    const supportingChars = (script.cast.supporting ?? [])
+      .map((s) => castBySlug.get(s))
+      .filter((c): c is Character => !!c);
+    const depictedCast = [mainChar, ...supportingChars];
+    const composedDna = this.characters.composeCharacterDna(depictedCast);
 
     const brandStyle =
       this.config.get<string>('aiQuickBytes.scenes.brandVisualStyle') ?? '';
@@ -98,7 +139,7 @@ export class SceneGeneratorService {
       await this.memory.relevantFor('scene', 8),
     );
 
-    const system = this.buildSystemPrompt(brandStyle, hostRef, memoryBlock);
+    const system = this.buildSystemPrompt(brandStyle, hostRef, memoryBlock, depictedCast, composedDna, mainChar);
     const user   = this.buildUserPrompt(script);
 
     const { content: raw, usage, model } = await this.anthropic.completeJSON({
@@ -123,7 +164,7 @@ export class SceneGeneratorService {
       );
     }
 
-    const normalized = this.normalize(parsed, brandStyle, hostRef);
+    const normalized = this.normalize(parsed, brandStyle, hostRef, composedDna, depictedCast);
     const cost = this.calcCost(model, usage);
 
     script.scenes = normalized;
@@ -144,6 +185,9 @@ export class SceneGeneratorService {
     brandStyle: string,
     hostRef: string | null,
     memoryBlock: string,
+    cast: Character[],
+    composedDna: string,
+    mainChar: Character,
   ): string {
     const hostBlock = hostRef
       ? `When the HOST (Vardhan) appears in a scene, set the scene's ` +
@@ -186,17 +230,37 @@ THE BRAND STYLE (paste verbatim into every scene's "style" field):
 ${brandStyle || '(no brand style configured — invent a coherent cinematic look and reuse it verbatim)'}
 
 ═══════════════════════════════════════
-CHARACTER RULES (LIKENESS-SAFE)
+CHARACTER RULES (CARTOON CAST — LOCKED DNA)
 ═══════════════════════════════════════
-- The script's protagonist is a generic ROLE (e.g. "an engineer at
-  Anthropic"). Pick the description ONCE — age, build, hair, attire —
-  and repeat it verbatim in every scene's "character_dna" field.
-  Example: "the engineer (early thirties, dark hair, wire-rimmed
-  glasses, charcoal sweater)"
-- NEVER use a real person's name or recognisable likeness.
+This story uses an anthropomorphic-cartoon cast — the same cartoon
+characters recur across every script that mentions them, so channel
+identity compounds. CharacterCastingService already picked this cast:
+
+THE CAST FOR THIS STORY
+${cast.map((c) => `  • ${c.slug} (${c.display_name}) — ${c.signature_action ?? ''}`).join('\n')}
+
+MAIN protagonist: ${mainChar.slug} (${mainChar.display_name}). This
+character appears in EVERY scene that has any character at all.
+
+PER-SCENE CHARACTER ASSIGNMENT (you decide this)
+- For each scene, choose 1-3 character SLUGS from the cast above and
+  list them in "characters_in_scene" (e.g. ["${mainChar.slug}"] or
+  ["${mainChar.slug}", "${cast[1]?.slug ?? mainChar.slug}"]).
+- MAX 3 characters per scene (image gen breaks beyond that and DNA
+  consistency suffers).
+- The MAIN protagonist appears in every scene with characters.
+- SUPPORTING characters join only in scenes where the spoken_text
+  references them or their action is relevant.
+- Pure still-life / abstract scenes (the QUOTE scene) → empty array [].
+
+CHARACTER_DNA FIELD (every scene — locked, do NOT improvise visuals)
+- We will deterministically inject the locked cartoon DNA for the
+  chosen characters into the character_dna field after generation, so
+  you may emit a placeholder like "(see locked cast DNA)" — it'll be
+  replaced. What MATTERS is that you correctly populate
+  "characters_in_scene" with the right slugs.
+
 ${hostBlock}
-- For the quote scene (see below), set character_dna to "(no human
-  characters in this scene)".
 
 ═══════════════════════════════════════
 SCENE SCHEMA (every scene — same shape)
@@ -211,7 +275,8 @@ SCENE SCHEMA (every scene — same shape)
   "lighting":            "<key + fill + colour temperature + mood>",
   "mood":                "<one emotional word: frustration | awe | hope | fear | curiosity | quiet>",
   "style":               "<PASTE THE BRAND STYLE VERBATIM>",
-  "character_dna":       "<persistent character descriptions, same string every scene>",
+  "character_dna":       "(see locked cast DNA — injected post-gen)",
+  "characters_in_scene": ["<cast slug>", "..."],
   "reference_image_url": "<URL string or null per host rules>"
 }
 
@@ -310,20 +375,39 @@ Your response MUST start with "{" and contain ONLY:
     parsed: AqbScenesPayload,
     brandStyle: string,
     hostRef: string | null,
+    composedDna: string,
+    depictedCast: Character[],
   ): AqbScenesPayload {
     const rawScenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
 
-    // Discover canonical character_dna — first scene that has one. We
-    // repaste it into any later scene that drifted off (Claude does this
-    // sometimes after 10+ outputs).
-    const canonicalDna =
-      rawScenes.find((s) => s?.character_dna?.trim())?.character_dna?.trim() ?? '';
+    // Build a quick lookup so per-scene DNAs can be composed deterministically
+    // from the slugs the LLM emitted in characters_in_scene. Anything that
+    // isn't in the cast is silently dropped (defends against LLM hallucinations).
+    const castBySlug = new Map(depictedCast.map((c) => [c.slug, c]));
+    const validSlugs = new Set(castBySlug.keys());
 
     const scenes: AqbScene[] = rawScenes
       .filter((s) => s && (s.subject ?? '').toString().trim())
       .map((s, i): AqbScene => {
         const dur = Number(s.duration_seconds);
         const showsHost = isHostScene(s);
+
+        // Clamp characters_in_scene to: known slugs only, deduped, max 3.
+        // Empty array (silent / still-life scene) is preserved.
+        const rawChars = Array.isArray(s.characters_in_scene) ? s.characters_in_scene : [];
+        const chars = Array.from(new Set(
+          rawChars.map((c) => String(c).toLowerCase().trim())
+            .filter((c) => validSlugs.has(c)),
+        )).slice(0, 3);
+
+        // Per-scene character_dna composed from the slugs the LLM picked.
+        // If the LLM forgot to populate characters (and the scene isn't a
+        // pure still-life), we silently fall back to the full composed DNA
+        // so the scene still ships with a known cast description.
+        const characterDna = chars.length > 0
+          ? this.characters.composeCharacterDna(chars.map((c) => castBySlug.get(c)!).filter(Boolean))
+          : composedDna;
+
         return {
           scene_id:         String(s.scene_id ?? String(i + 1).padStart(2, '0')),
           duration_seconds: Number.isFinite(dur) && dur > 0 ? Math.round(dur) : 3,
@@ -336,9 +420,12 @@ Your response MUST start with "{" and contain ONLY:
           // Enforce the inline-style rule: every scene gets the brand
           // style verbatim even if the LLM trimmed it on later scenes.
           style:            brandStyle || String(s.style ?? '').trim(),
-          // Same enforcement for character_dna — use the first scene's
-          // dna if a later scene dropped it.
-          character_dna:    String(s.character_dna ?? canonicalDna).trim(),
+          // Deterministic — never trust the LLM's character_dna; we always
+          // overwrite with the dictionary-composed string for the chosen
+          // cast in this scene. Guarantees cross-scene + cross-script DNA
+          // consistency.
+          character_dna:    characterDna,
+          characters_in_scene: chars,
           // Host scenes get the reference URL; non-host scenes are
           // forced to null even if the LLM put a URL on them by mistake.
           reference_image_url: showsHost ? hostRef : null,
