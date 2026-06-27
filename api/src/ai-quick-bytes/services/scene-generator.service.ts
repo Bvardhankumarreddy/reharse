@@ -10,6 +10,21 @@ import { AqbMemoryService } from './aqb-memory.service';
 import { CharacterDictionaryService } from '../../characters/services/character-dictionary.service';
 import { Character } from '../../characters/entities/character.entity';
 
+/**
+ * Cartoon-first brand style for AQB scenes. Pasted into every scene's
+ * "style" field. MUST agree with the cartoon DNAs the casting system
+ * injects — otherwise image gen / HeyGen Avatar IV sees mixed signals
+ * (cartoon character + realistic cinematography) and defaults to realism.
+ */
+const AQB_CARTOON_BRAND_STYLE =
+  'CARTOON ILLUSTRATION ONLY — NOT photoreal, NOT cinematic film, NOT live-action. ' +
+  'Style: flat 2D vector illustration, Kurzgesagt-meets-Indian-comic-book. ' +
+  'Clean bold outlines, solid fill colours, NO gradients, NO realistic skin/hair detail, ' +
+  'NO photographic depth-of-field, NO film grain. Expressive cartoon faces with simple geometry. ' +
+  'Vibrant balanced palette, soft single-direction shadows only. ' +
+  '9:16 vertical aspect ratio for Shorts. Channel identity: AetherStackAI cartoon universe — ' +
+  'every scene must look like it came from the SAME 2D animated short.';
+
 // ── Types ─────────────────────────────────────────────────────────────
 
 export interface AqbScene {
@@ -126,8 +141,13 @@ export class SceneGeneratorService {
     const depictedCast = [mainChar, ...supportingChars];
     const composedDna = this.characters.composeCharacterDna(depictedCast);
 
-    const brandStyle =
-      this.config.get<string>('aiQuickBytes.scenes.brandVisualStyle') ?? '';
+    // Cartoon-first brand style — pasted into every scene's "style" field.
+    // The earlier realistic-cinematic default (ARRI Alexa / shallow DoF /
+    // documentary lighting) conflicted with the cartoon character_dna we
+    // now inject from the cast dictionary — image gen / HeyGen Avatar IV
+    // saw both signals and defaulted to realism. Locking to cartoon style
+    // here so style + character_dna agree.
+    const brandStyle = AQB_CARTOON_BRAND_STYLE;
     const hostRef =
       this.config.get<string | null>('aiQuickBytes.scenes.hostReferenceUrl') ?? null;
 

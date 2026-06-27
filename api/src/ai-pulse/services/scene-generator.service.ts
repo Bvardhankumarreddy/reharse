@@ -14,6 +14,20 @@ import { AiPulseMemoryService } from './memory.service';
 import { CharacterDictionaryService } from '../../characters/services/character-dictionary.service';
 import { Character } from '../../characters/entities/character.entity';
 
+/**
+ * Cartoon-first brand style for AI Pulse scenes. Mirrors the AQB cartoon
+ * brand style — both modules share one cinematic universe of flat 2D
+ * cartoon characters; only the per-vertical accent overlay differs.
+ */
+const AI_PULSE_CARTOON_BRAND_STYLE =
+  'CARTOON ILLUSTRATION ONLY — NOT photoreal, NOT cinematic film, NOT live-action. ' +
+  'Style: flat 2D vector illustration, Kurzgesagt-meets-Indian-comic-book. ' +
+  'Clean bold outlines, solid fill colours, NO gradients, NO realistic skin/hair detail, ' +
+  'NO photographic depth-of-field, NO film grain. Expressive cartoon faces with simple geometry. ' +
+  'Vibrant balanced palette, soft single-direction shadows only. ' +
+  '9:16 vertical aspect ratio for Shorts. Channel identity: AetherStackAI cartoon universe — ' +
+  'every scene must look like it came from the SAME 2D animated short.';
+
 // ── Types (parallel to AQB scenes; same blueprint shape) ────────────────
 
 export interface AiPulseScene {
@@ -123,12 +137,13 @@ export class AiPulseSceneGeneratorService {
     const accent   = VERTICAL_SCENE_ACCENTS[vertical];
     const verticalLabel = VERTICALS[vertical]?.display_name ?? vertical;
 
-    const baseStyle =
-      this.config.get<string>('AI_PULSE_BRAND_VISUAL_STYLE') ??
-      'Documentary realism. Cinematic editorial film aesthetic. ARRI Alexa 65. ' +
-      '85mm lens. Extremely shallow depth of field. Rich shadows. Premium ' +
-      'architectural interior or environmental setting. 9:16 vertical, 1080x1920. ' +
-      'Award-winning still photograph quality — every frame a magazine cover.';
+    // Cartoon-first brand style — pasted into every scene's "style" field.
+    // The realistic-documentary default conflicted with the cartoon
+    // character_dna injected by the cast dictionary, so image gen
+    // defaulted to realism. Locking to cartoon style here so style +
+    // character_dna agree (HeyGen Avatar IV / ChatGPT image gen / Sora
+    // all render cartoon as a result).
+    const baseStyle = AI_PULSE_CARTOON_BRAND_STYLE;
 
     const hostRef = this.config.get<string>('AI_PULSE_HOST_REFERENCE_URL') ?? null;
 
