@@ -433,7 +433,7 @@ export class ScriptGeneratorService {
       maxTokens: 2000,
     });
 
-    const parsed = JSON.parse(raw || '{}') as ScriptResponse;
+    const parsed = parseScriptJson(raw || '{}');
     const cost = this.calcCost(model, usage);
     const avatarId = this.assignAvatar(item);
     // Prefer the LLM's assembled full_script (opening baked in); fall back to
@@ -848,6 +848,36 @@ function injectQuoteIntoFull(fullScript: string, cta: string, closingLine: strin
     return parts.join('\n\n');
   }
   return `${fs}\n\n${closingLine}`;
+}
+
+/** Defensive JSON parse for script-writer LLM output. Anthropic
+ *  occasionally appends a trailing sentence after the closing brace
+ *  ("That's the script — let me know if you'd like adjustments.")
+ *  which makes JSON.parse throw "Unexpected non-whitespace character
+ *  after JSON at position N". This recovers by:
+ *    1. Trying a plain JSON.parse (fast path — always works for
+ *       well-behaved outputs)
+ *    2. On failure, stripping markdown fences and extracting the
+ *       substring between the first "{" and last "}" — then retrying
+ *  If that ALSO fails we surface the original error so the caller's
+ *  catch block logs the head/tail for debugging. */
+function parseScriptJson(raw: string): ScriptResponse {
+  try {
+    return JSON.parse(raw) as ScriptResponse;
+  } catch (firstErr) {
+    const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const first = cleaned.indexOf('{');
+    const last  = cleaned.lastIndexOf('}');
+    if (first >= 0 && last > first) {
+      const candidate = cleaned.slice(first, last + 1);
+      try {
+        return JSON.parse(candidate) as ScriptResponse;
+      } catch {
+        // fall through — original error is more informative
+      }
+    }
+    throw firstErr;
+  }
 }
 
 /** Lowercase + dedup. Used for the anti-repetition block so case
