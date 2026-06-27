@@ -196,6 +196,16 @@ export interface ScenesResp {
   } | null;
   scenesGeneratedAt:  string | null;
   scenesCostUsd:      number | string;
+  // Telugu parallel — same payload shape, Telugu spoken_text
+  scenesTe: {
+    scenes:             AqbScene[];
+    scene_count:        number;
+    total_duration_sec: number;
+    voiceover:          AqbVoiceoverSpec;
+    music:              AqbMusicSpec;
+  } | null;
+  scenesTeGeneratedAt: string | null;
+  scenesTeCostUsd:     number | string;
 }
 
 export async function fetchToken(): Promise<string | null> {

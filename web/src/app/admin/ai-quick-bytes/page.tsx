@@ -572,12 +572,12 @@ function ScriptCard({ script, onAct }: {
     setShowScenes(next);
     if (next && !scenes) void loadScenes();
   }
-  async function generateScenes() {
+  async function generateScenes(language: 'en' | 'te' = 'en') {
     setScenesBusy(true);
     const token = await fetchToken();
     if (!token) { setScenesBusy(false); return; }
     try {
-      await api(token, `/approval/${script.id}/scenes/generate`, { method: "POST" });
+      await api(token, `/approval/${script.id}/scenes/generate?language=${language}`, { method: "POST" });
       await loadScenes();
     } catch (e) {
       alert(`⚠ ${(e as Error).message}`);
@@ -993,45 +993,86 @@ function ScriptCard({ script, onAct }: {
               </span>
               <span className="text-[10px] text-[#6B7799]">
                 {scenes?.scenes
-                  ? `${scenes.scenes.scene_count} scenes · ~${scenes.scenes.total_duration_sec}s` +
+                  ? `EN: ${scenes.scenes.scene_count} scenes · ~${scenes.scenes.total_duration_sec}s` +
                     (scenes.scenesGeneratedAt
-                      ? ` · generated ${new Date(scenes.scenesGeneratedAt).toLocaleString()}`
+                      ? ` · ${new Date(scenes.scenesGeneratedAt).toLocaleString()}`
                       : "")
-                  : "No scenes yet"}
+                  : "No EN scenes yet"}
+                {scenes?.scenesTe && (
+                  <>
+                    {" · "}
+                    <span className="text-[#FFB020]">
+                      TE: {scenes.scenesTe.scene_count} scenes
+                    </span>
+                  </>
+                )}
               </span>
             </div>
-            <button
-              onClick={generateScenes}
-              disabled={scenesBusy}
-              className="px-3 py-1 text-xs font-semibold rounded-lg border border-[#9D7DFF]/40 text-[#9D7DFF] hover:bg-[#9D7DFF]/10 disabled:opacity-50 whitespace-nowrap"
-            >
-              {scenesBusy
-                ? "Working…"
-                : scenes?.scenes
-                  ? "🔄 Regenerate scenes"
-                  : "✨ Generate scenes"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => generateScenes('en')}
+                disabled={scenesBusy}
+                className="px-3 py-1 text-xs font-semibold rounded-lg border border-[#9D7DFF]/40 text-[#9D7DFF] hover:bg-[#9D7DFF]/10 disabled:opacity-50 whitespace-nowrap"
+              >
+                {scenesBusy
+                  ? "Working…"
+                  : scenes?.scenes
+                    ? "🔄 Regen EN scenes"
+                    : "✨ Generate EN scenes"}
+              </button>
+              <button
+                onClick={() => generateScenes('te')}
+                disabled={scenesBusy}
+                className="px-3 py-1 text-xs font-semibold rounded-lg border border-[#FFB020]/40 text-[#FFB020] hover:bg-[#FFB020]/10 disabled:opacity-50 whitespace-nowrap"
+              >
+                {scenesBusy
+                  ? "Working…"
+                  : scenes?.scenesTe
+                    ? "🔄 Regen TE scenes"
+                    : "✨ Generate TE scenes"}
+              </button>
+            </div>
           </div>
 
-          {scenesBusy && !scenes?.scenes ? (
+          {scenesBusy && !scenes?.scenes && !scenes?.scenesTe ? (
             <p className="text-[#6B7799] text-sm">Loading scenes…</p>
-          ) : scenes?.scenes?.scenes?.length ? (
-            <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {scenes.scenes.scenes.map((s: AqbScene) => (
-                  <SceneTile key={s.scene_id} s={s} />
-                ))}
-              </div>
-              <VoiceoverMusicBlock
-                voiceover={scenes.scenes.voiceover}
-                music={scenes.scenes.music}
-              />
-            </>
           ) : (
-            <p className="text-[#6B7799] text-xs">
-              No scenes yet — click ✨ Generate scenes. Works best on story-mode
-              scripts (set AQB_SCRIPT_STYLE=story).
-            </p>
+            <>
+              {scenes?.scenes?.scenes?.length ? (
+                <div className="space-y-2">
+                  <div className="text-[10px] font-semibold text-[#9D7DFF] uppercase tracking-wider">English scenes</div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    {scenes.scenes.scenes.map((s: AqbScene) => (
+                      <SceneTile key={s.scene_id} s={s} />
+                    ))}
+                  </div>
+                  <VoiceoverMusicBlock
+                    voiceover={scenes.scenes.voiceover}
+                    music={scenes.scenes.music}
+                  />
+                </div>
+              ) : null}
+              {scenes?.scenesTe?.scenes?.length ? (
+                <div className="space-y-2 pt-4 border-t border-white/5">
+                  <div className="text-[10px] font-semibold text-[#FFB020] uppercase tracking-wider">Telugu scenes</div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    {scenes.scenesTe.scenes.map((s: AqbScene) => (
+                      <SceneTile key={`te-${s.scene_id}`} s={s} />
+                    ))}
+                  </div>
+                  <VoiceoverMusicBlock
+                    voiceover={scenes.scenesTe.voiceover}
+                    music={scenes.scenesTe.music}
+                  />
+                </div>
+              ) : null}
+              {!scenes?.scenes?.scenes?.length && !scenes?.scenesTe?.scenes?.length && (
+                <p className="text-[#6B7799] text-xs">
+                  No scenes yet — click ✨ Generate EN/TE scenes. Works best on
+                  story-mode scripts (set AQB_SCRIPT_STYLE=story).
+                </p>
+              )}
+            </>
           )}
         </div>
       )}

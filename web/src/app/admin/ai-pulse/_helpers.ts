@@ -166,6 +166,10 @@ export interface Script {
   scenes: AiPulseScenesPayload | null;
   scenes_generated_at: string | null;
   scenes_cost_usd: number | string;
+  // Telugu parallel — same payload shape, Telugu spoken_text
+  scenesTe: AiPulseScenesPayload | null;
+  scenesTeGeneratedAt: string | null;
+  scenesTeCostUsd: number | string;
   approval_status: 'pending_review' | 'approved' | 'rejected' | 'published';
   approved_by: string | null;
   approved_at: string | null;

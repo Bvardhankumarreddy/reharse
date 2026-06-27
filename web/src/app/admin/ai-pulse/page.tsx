@@ -550,13 +550,22 @@ function ScriptDetail({
           🔁 Regen TE distribution
         </button>
         <button
-          onClick={() => action("Generated scenes",
-            () => api(token, `/approval/${scriptId}/scenes/generate`, { method: "POST" }))}
+          onClick={() => action("Generated EN scenes",
+            () => api(token, `/approval/${scriptId}/scenes/generate?language=en`, { method: "POST" }))}
           disabled={!!busy || !script.english_full_script}
           title={script.english_full_script ? "Break the English script into cinematic scenes" : "Needs an English script first"}
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#9D7DFF]/40 text-[#9D7DFF] hover:bg-[#9D7DFF]/10 disabled:opacity-40"
         >
-          {script.scenes ? "🔄 Regen scenes" : "✨ Generate scenes"}
+          {script.scenes ? "🔄 Regen EN scenes" : "✨ Generate EN scenes"}
+        </button>
+        <button
+          onClick={() => action("Generated TE scenes",
+            () => api(token, `/approval/${scriptId}/scenes/generate?language=te`, { method: "POST" }))}
+          disabled={!!busy || !script.telugu_full_script}
+          title={script.telugu_full_script ? "Break the Telugu script into cinematic scenes" : "Needs a Telugu script first"}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#9D7DFF]/40 text-[#9D7DFF] hover:bg-[#9D7DFF]/10 disabled:opacity-40"
+        >
+          {script.scenesTe ? "🔄 Regen TE scenes" : "✨ Generate TE scenes"}
         </button>
         <button
           onClick={() => {
@@ -651,8 +660,8 @@ function ScriptDetail({
       {(script.telugu_full_script || distTe) &&
         renderDistribution(distTe, "📦 Telugu distribution", "border-[#FFB020]/30")}
 
-      {/* 🎬 Scenes — cinematic per-scene image prompts (paste into ChatGPT) */}
-      <Section title="🎬 Scenes">
+      {/* 🎬 Scenes — English */}
+      <Section title="🎬 English Scenes">
         {script.scenes && script.scenes.scenes?.length ? (
           <div className="space-y-3">
             <div className="text-[10px] text-[#6B7799]">
@@ -673,8 +682,36 @@ function ScriptDetail({
           </div>
         ) : (
           <div className="text-[11px] text-[#6B7799] border border-dashed border-[#9D7DFF]/30 rounded-lg p-3">
-            No scenes yet — click <span className="text-[#9D7DFF] font-semibold">✨ Generate scenes</span> in the toolbar above.
+            No English scenes yet — click <span className="text-[#9D7DFF] font-semibold">✨ Generate EN scenes</span> in the toolbar above.
             Per-vertical visual accent ({script.vertical}) is baked into every scene.
+          </div>
+        )}
+      </Section>
+
+      {/* 🎬 Scenes — Telugu (same cast + visual style, Telugu spoken_text) */}
+      <Section title="🎬 Telugu Scenes">
+        {script.scenesTe && script.scenesTe.scenes?.length ? (
+          <div className="space-y-3">
+            <div className="text-[10px] text-[#6B7799]">
+              {script.scenesTe.scene_count} scenes · ~{script.scenesTe.total_duration_sec}s
+              {script.scenesTeGeneratedAt && (
+                <> · generated {new Date(script.scenesTeGeneratedAt).toLocaleString()}</>
+              )}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {script.scenesTe.scenes.map((s) => (
+                <SceneTile key={s.scene_id} s={s} />
+              ))}
+            </div>
+            <VoiceoverMusicBlock
+              voiceover={script.scenesTe.voiceover}
+              music={script.scenesTe.music}
+            />
+          </div>
+        ) : (
+          <div className="text-[11px] text-[#6B7799] border border-dashed border-[#FFB020]/30 rounded-lg p-3">
+            No Telugu scenes yet — click <span className="text-[#FFB020] font-semibold">✨ Generate TE scenes</span> above.
+            {!script.telugu_full_script && " (Needs a Telugu script first.)"}
           </div>
         )}
       </Section>
