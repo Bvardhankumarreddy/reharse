@@ -312,7 +312,8 @@ export class AiPulseScriptGeneratorService {
         // Persist cast so scene gen can read it without re-running
         // casting LLM. Null when casting failed — scene gen will then
         // refuse and ask the operator to regenerate the script.
-        cast: casting ? {
+        // Field named character_cast (not cast) — see entity comment.
+        character_cast: casting ? {
           main:       casting.main.slug,
           supporting: casting.supporting.map((c) => c.slug),
           cameo:      casting.cameo.map((c) => c.slug),

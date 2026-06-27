@@ -89,9 +89,9 @@ export class AiPulseSceneGeneratorService {
       throw new BadRequestException('script has no english_full_script to break into scenes');
     }
     // Cast-driven scenes — REQUIRE the script to have a cartoon cast.
-    // Older scripts predating the casting system have cast=null and must
-    // be regenerated before scenes can be (re)generated.
-    if (!script.cast?.main) {
+    // Older scripts predating the casting system have character_cast=null
+    // and must be regenerated before scenes can be (re)generated.
+    if (!script.character_cast?.main) {
       throw new BadRequestException(
         'Script has no character cast — regenerate the script first so the ' +
         'casting director can pick the cartoon cast for this story. ' +
@@ -101,19 +101,19 @@ export class AiPulseSceneGeneratorService {
 
     // Resolve cast slugs → Character rows from the shared dictionary.
     const allSlugs = Array.from(new Set([
-      script.cast.main,
-      ...(script.cast.supporting ?? []),
+      script.character_cast.main,
+      ...(script.character_cast.supporting ?? []),
     ]));
     const castRows = await this.characters.findManyBySlugs(allSlugs);
     const castBySlug = new Map(castRows.map((c) => [c.slug, c]));
-    const mainChar = castBySlug.get(script.cast.main);
+    const mainChar = castBySlug.get(script.character_cast.main);
     if (!mainChar) {
       throw new BadRequestException(
-        `Script cast references unknown main character "${script.cast.main}". ` +
+        `Script cast references unknown main character "${script.character_cast.main}". ` +
         `Regenerate the script to pick a fresh cast.`,
       );
     }
-    const supportingChars = (script.cast.supporting ?? [])
+    const supportingChars = (script.character_cast.supporting ?? [])
       .map((s) => castBySlug.get(s))
       .filter((c): c is Character => !!c);
     const depictedCast = [mainChar, ...supportingChars];

@@ -92,10 +92,10 @@ export class SceneGeneratorService {
       throw new BadRequestException('script has no fullScript to break into scenes');
     }
     // Cast-driven scenes — REQUIRE the script to have a cartoon cast.
-    // Older scripts predating the casting system have cast=null and must
-    // be regenerated before scenes can be (re)generated. This is the
-    // explicit "regenerate script first" contract.
-    if (!script.cast?.main) {
+    // Older scripts predating the casting system have characterCast=null
+    // and must be regenerated before scenes can be (re)generated. This
+    // is the explicit "regenerate script first" contract.
+    if (!script.characterCast?.main) {
       throw new BadRequestException(
         'Script has no character cast — regenerate the script first so the ' +
         'casting director can pick the cartoon cast for this story. ' +
@@ -107,20 +107,20 @@ export class SceneGeneratorService {
     // The script's cast is the source of truth; the dictionary supplies
     // the locked visual DNAs that pin character appearance.
     const allSlugs = Array.from(new Set([
-      script.cast.main,
-      ...(script.cast.supporting ?? []),
+      script.characterCast.main,
+      ...(script.characterCast.supporting ?? []),
       // Cameos are named in narration but never depicted — exclude here.
     ]));
     const castRows = await this.characters.findManyBySlugs(allSlugs);
     const castBySlug = new Map(castRows.map((c) => [c.slug, c]));
-    const mainChar = castBySlug.get(script.cast.main);
+    const mainChar = castBySlug.get(script.characterCast.main);
     if (!mainChar) {
       throw new BadRequestException(
-        `Script cast references unknown main character "${script.cast.main}". ` +
+        `Script cast references unknown main character "${script.characterCast.main}". ` +
         `Regenerate the script to pick a fresh cast.`,
       );
     }
-    const supportingChars = (script.cast.supporting ?? [])
+    const supportingChars = (script.characterCast.supporting ?? [])
       .map((s) => castBySlug.get(s))
       .filter((c): c is Character => !!c);
     const depictedCast = [mainChar, ...supportingChars];

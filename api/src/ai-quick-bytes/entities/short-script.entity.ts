@@ -74,17 +74,20 @@ export class ShortScript {
   // ── Character cast (anthropomorphic cartoon cast for scene gen) ─────
   // Decided by CharacterCastingService BEFORE script generation, so the
   // script writer references the cast naturally. Scene gen REQUIRES this
-  // field to be set — if cast is null on an existing script row, the
-  // operator must regenerate the script before regenerating scenes.
+  // field to be set — if null on an existing script row, the operator
+  // must regenerate the script before regenerating scenes.
   //
-  //   main       — exactly 1 character slug; protagonist, appears in
-  //                every scene
+  // Stored as JSONB:
+  //   main       — exactly 1 character slug; protagonist in every scene
   //   supporting — 0-3 slugs; appear in 1-3 relevant scenes each
   //   cameo      — 0-3 slugs; NAMED in narration only, never depicted
   //
-  // Slugs map to rows in the shared `characters` table.
+  // Slugs map to rows in the shared `characters` table. NOTE: column
+  // is named characterCast (not "cast") because `cast` is a SQL
+  // reserved word — using it as an unquoted identifier breaks ALTER
+  // TABLE / INSERT statements.
   @Column({ type: 'jsonb', nullable: true })
-  cast: {
+  characterCast: {
     main:       string;
     supporting: string[];
     cameo:      string[];

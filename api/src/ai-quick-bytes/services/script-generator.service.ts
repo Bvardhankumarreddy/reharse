@@ -463,7 +463,8 @@ export class ScriptGeneratorService {
       // Cast — persisted so scene gen can read it without re-running
       // the casting LLM. Null when casting failed; scene gen will then
       // refuse to run and ask the operator to regenerate the script.
-      cast: casting ? {
+      // Field named characterCast (not cast) — see entity comment.
+      characterCast: casting ? {
         main:       casting.main.slug,
         supporting: casting.supporting.map((c) => c.slug),
         cameo:      casting.cameo.map((c) => c.slug),
