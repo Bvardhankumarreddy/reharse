@@ -22,15 +22,17 @@ import { Character } from '../../characters/entities/character.entity';
  * DreamWorks / Disney 3D animation adapted for Indian audiences.
  */
 const AQB_CARTOON_BRAND_STYLE =
-  'STYLIZED 3D ANIMATION ONLY — NOT photoreal, NOT live-action. ' +
-  'Style: stylized 3D Pixar-meets-Indian-animation rendering. ' +
-  'Friendly Pixar/DreamWorks-style proportions — slightly larger heads, big expressive eyes, ' +
-  'simplified-but-detailed cartoon-realism. Full 3D character animation with subtle ambient occlusion, ' +
-  'soft cinematic depth-of-field, warm atmospheric lighting (golden hour preferred). ' +
-  'Recognizably Indian context: chai tapri, IT office, household kitchen, auto rickshaw, ' +
-  'Bengaluru/Hyderabad street, college campus. ' +
-  '9:16 vertical aspect ratio for Shorts. Channel identity: AetherStackAI 3D cartoon universe — ' +
-  'every scene must look like it came from the SAME 3D animated short.';
+  'Pixar-DreamWorks stylized 3D animation rendering. Full volumetric ' +
+  'character animation with subsurface skin shading, soft ambient occlusion, ' +
+  'shallow cinematic depth-of-field, golden-hour key lighting at 4500K, ' +
+  'gentle rim light camera-left. Friendly Pixar character proportions: ' +
+  'slightly larger head, big expressive eyes, simplified but detailed features. ' +
+  'Saturated palette (marigold orange, kingfisher blue, ivory cream, terracotta). ' +
+  'Recognizably Indian setting: chai tapri / IT office desk / household kitchen / ' +
+  'auto rickshaw / college campus corridor / Bengaluru-Hyderabad street at golden hour. ' +
+  '9:16 vertical aspect ratio, 1080x1920. Every character is HUMAN. ' +
+  'Channel identity: AetherStackAI 3D cartoon universe — every scene reads as ' +
+  'one continuous 3D animated short.';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -259,7 +261,30 @@ GOAL
 ═══════════════════════════════════════
 A scrolling viewer must stop on ANY single frame as if it were a
 magazine cover. Each scene = one frozen cinematic moment. Cut between
-shot scales. Never two adjacent same-frame scenes.
+shot scales. Vary the framing across consecutive scenes.
+
+═══════════════════════════════════════
+PROMPT-QUALITY RULES (Google Flow / VEO / Sora best-practice)
+═══════════════════════════════════════
+Image generators respond best to POSITIVE, SPECIFIC, CONSISTENT prompts.
+Write every per-scene field this way:
+
+- POSITIVE FRAMING ONLY. Say what is IN the frame, never what is
+  missing. Replace "no cars" with "empty street". Replace "not
+  cluttered" with "minimal props: a single mug on a wood table".
+- SPECIFIC DESCRIPTORS, NEVER VAGUE. Replace "beautiful" / "cool" /
+  "atmospheric" with measurable language: "golden-hour 4500K key
+  light from camera-left", "shallow depth-of-field at f/2.0",
+  "marigold-orange sari with kingfisher-blue dupatta".
+- ONE FOCAL ENVIRONMENT per scene. Pick a single setting (e.g.
+  "kitchen counter near a sunlit window"). Avoid sprawling busy
+  backgrounds with multiple competing subjects.
+- LEAN IN ON SPECIFICITY. "subject", "shot", "lighting" should each be
+  8-15 words with a verb + concrete detail. Do NOT over-condense.
+- CONSISTENCY BETWEEN FIELDS. The "subject" + "setting" + "lighting"
+  + character_dna must agree (same time-of-day, same character outfit
+  across consecutive scenes, same vibe). Contradictions confuse the
+  generator and produce inconsistent output.
 
 ═══════════════════════════════════════
 THE NON-NEGOTIABLE: INLINE EVERYTHING

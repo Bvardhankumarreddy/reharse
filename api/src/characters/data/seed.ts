@@ -30,17 +30,21 @@ export interface SeedCharacter {
  *   5. concept_objects   — abstract concepts personified (laws, exams, AI agents)
  */
 export const CHARACTER_SEED: SeedCharacter[] = [
-  // ─── 1. AI BRANDS ─────────────────────────────────────────────────────
+  // ─── 1. AI BRANDS (human ambassadors representing each AI product) ───
+  // Each AI tool is embodied by a HUMAN character wearing the brand's
+  // colour palette, carrying a tablet / phone showing the product's UI,
+  // and with a personality matching the brand's tone. Like Amul girl /
+  // Vodafone Zoozoo — a recognisable human face for the brand.
   {
     slug: 'claude',
     category: 'ai_brands',
     display_name: 'Claude',
     visual_dna:
-      'Friendly stylized cartoon character shaped like a soft orange sparkle / asterisk with a round face, two big expressive eyes, gentle smile, small expressive arms. Warm orange + cream palette.',
+      'Young woman in her late 20s, warm light skin, shoulder-length wavy auburn hair, gentle thoughtful smile, wearing a soft cream cotton button-down with a marigold-orange cardigan, small sparkle-shaped pendant. Often holding a hardcover book or tablet displaying a chat interface.',
     signature_action:
-      'Reading a book, pondering with hand on chin, carefully helping a smaller character figure something out.',
+      'Pausing mid-sentence with hand on chin to think carefully, walking through a sunlit room while explaining, kneeling beside a child to help them with homework.',
     personality: 'Thoughtful, careful, slightly nerdy, eager to help.',
-    mood_palette: 'warm orange, soft beige, occasional teal accent',
+    mood_palette: 'marigold orange, cream, soft teal accent',
     aliases: ['claude_4_7', 'claude_opus', 'claude_sonnet', 'anthropic_claude'],
   },
   {
@@ -48,11 +52,11 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     category: 'ai_brands',
     display_name: 'ChatGPT',
     visual_dna:
-      'Stylized cartoon character shaped like a soft green-teal node / hex flower with a friendly round face, big eyes, slight smirk. Confident posture, often gesturing.',
+      'Confident young man in his late 20s, fair-medium skin, short tidy black hair, slight smirk, wearing a clean teal-green polo shirt and dark trousers, a thin black smartwatch on the wrist. Often gesturing with one hand while a chat bubble holographically floats nearby.',
     signature_action:
-      'Typing on a glowing screen, answering questions on a podium, casually leaning against a chat bubble.',
+      'Speaking confidently at a podium, leaning against a desk while answering questions, typing fluidly on a glowing laptop.',
     personality: 'Confident, eager, sometimes a bit cocky.',
-    mood_palette: 'teal green, white, soft black outlines',
+    mood_palette: 'teal green, charcoal, ivory',
     aliases: ['gpt', 'gpt_4', 'gpt_4o'],
   },
   {
@@ -60,11 +64,11 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     category: 'ai_brands',
     display_name: 'GPT-5',
     visual_dna:
-      'Same green-teal hex-flower silhouette as ChatGPT but visibly larger, more muscular, glowing slightly brighter, with a bold "5" subtly emblazoned on its chest.',
+      'Same confident young man as ChatGPT but visibly more athletic, jacket-vest over the teal polo with a subtle silver "5" embroidered on the chest, faintly stronger jawline, a quiet glow under the skin suggesting more power.',
     signature_action:
-      'Flexing, lifting heavier weights than ChatGPT, racing ahead of other AI characters.',
+      'Racing ahead while ChatGPT keeps up, lifting a heavy stack of books that ChatGPT cannot, demonstrating something complex to a small crowd.',
     personality: 'Bold, fast, slightly show-offy.',
-    mood_palette: 'brighter teal, electric blue accents, white',
+    mood_palette: 'brighter teal, electric blue accent, ivory',
     aliases: ['gpt5'],
   },
   {
@@ -72,11 +76,11 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     category: 'ai_brands',
     display_name: 'Gemini',
     visual_dna:
-      'Stylized cartoon character shaped like a sparkly four-pointed blue-purple gem with two friendly eyes and a small smile. Slight prism-rainbow shimmer around edges (kept minimal — no actual rainbow gradient).',
+      'Versatile young woman in her late 20s, medium skin, long indigo-tinted dark hair tied back, multi-pocketed sapphire-blue field jacket over a purple t-shirt, holding several devices at once (tablet, phone, headphones). A small four-point gem brooch on the lapel.',
     signature_action:
-      'Carrying a giant backpack labeled with a context-token number, multi-tasking with multiple objects in hand at once.',
+      'Juggling multiple tasks at once, carrying a large backpack labeled with a context-token number, scrolling through several apps simultaneously.',
     personality: 'Versatile, eager to handle anything, occasionally over-promises.',
-    mood_palette: 'sapphire blue, purple, soft white shimmer',
+    mood_palette: 'sapphire blue, purple, soft silver shimmer',
     aliases: ['gemini_pro', 'gemini_3', 'google_gemini'],
   },
   {
@@ -84,11 +88,11 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     category: 'ai_brands',
     display_name: 'Llama',
     visual_dna:
-      'Stylized cartoon llama character — friendly, fluffy white-and-grey, big eyes, slight buck teeth, wearing an open-source-style ribbon around its neck.',
+      'Friendly young South-American-coded man in his early 30s, warm tan skin, dark curly hair under a knit cap, salt-and-pepper short beard, wearing a soft grey hoodie with the Meta-blue zip pull, "open source" ribbon pinned to the chest. Carries a stack of folders labeled "open weights".',
     signature_action:
-      'Sharing things openly, handing out copies of itself to a crowd, sitting on a stack of weights.',
+      'Handing out folders to a crowd, posting a download on a community board, smiling warmly at developers gathering around him.',
     personality: 'Generous, community-minded, a bit goofy.',
-    mood_palette: 'soft grey, white, meta-blue accents',
+    mood_palette: 'soft grey, white, Meta-blue accent',
     aliases: ['llama_4', 'meta_llama'],
   },
   {
@@ -96,11 +100,11 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     category: 'ai_brands',
     display_name: 'Copilot',
     visual_dna:
-      'Stylized cartoon character — small friendly bird-like assistant in pilot goggles and a tiny scarf, perched on a coder\'s shoulder. Soft blue + grey palette.',
+      'Attentive young woman in her mid-20s, light skin, short blonde-brown bob, slim cobalt-blue bomber jacket over a grey t-shirt, leather-strap aviator goggles pushed up on her forehead, a wireless earpiece in one ear. Always stands just behind a coder\'s shoulder.',
     signature_action:
-      'Whispering suggestions to a developer, finishing someone else\'s sentence on a screen.',
+      'Whispering suggestions into a developer\'s ear, pointing at a line of code with a slight smile, finishing someone\'s sentence helpfully.',
     personality: 'Helpful sidekick, attentive, eager to assist.',
-    mood_palette: 'cobalt blue, grey, hint of orange',
+    mood_palette: 'cobalt blue, grey, soft orange accent',
     aliases: ['github_copilot'],
   },
   {
@@ -108,25 +112,25 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     category: 'ai_brands',
     display_name: 'Cursor',
     visual_dna:
-      'Stylized cartoon character — a stylized I-beam text cursor with a friendly face, slight glow, holding a tiny wrench. Dark slate background motif.',
+      'Precise young man in his late 20s, fair skin, sharp jaw, neat short black hair, wearing dark slate workshop trousers and a neon-green-trimmed polo, surgical loupe pushed up on the forehead, a tiny multitool clipped to the belt. Holds a slim laptop like a craftsman holds a tool.',
     signature_action:
-      'Refactoring code in mid-air, surgically editing files with a tiny scalpel.',
+      'Surgically editing a screen with a fine pointer, refactoring code with the focus of a watchmaker, swapping files with a confident snap.',
     personality: 'Precise, fast, surgical.',
-    mood_palette: 'slate grey, neon green accents',
+    mood_palette: 'slate grey, neon green accent, ivory',
     aliases: [],
   },
 
-  // ─── 2. REAL PEOPLE (caricatures, NOT photoreal, NOT logo-style) ────
+  // ─── 2. REAL PEOPLE (stylized human caricatures, Pixar-flavoured) ────
   {
     slug: 'sam_altman',
     category: 'real_people',
     display_name: 'Sam Altman',
     visual_dna:
-      'Cartoon caricature: 40-something man, short tousled brown hair, casual grey hoodie or zip-up jacket, slim build, often holding a phone. NOT photoreal, NOT a logo replica.',
+      'Stylized caricature: 40-something man, fair skin, short tousled brown hair, slim build, wearing a casual grey zip-up hoodie over a navy t-shirt, holding a phone. Confident slight-smile expression.',
     signature_action:
-      'Announcing something on stage, posting on X, walking confidently with hands in hoodie pockets.',
+      'Announcing on stage at a keynote, posting on X from a phone, walking confidently with hands in hoodie pockets.',
     personality: 'Confident, visionary, sometimes mischievous.',
-    mood_palette: 'navy, grey, white',
+    mood_palette: 'navy, grey, ivory',
   },
   {
     slug: 'sundar_pichai',
@@ -155,7 +159,7 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     category: 'real_people',
     display_name: 'Elon Musk',
     visual_dna:
-      'Cartoon caricature: 50-something man, slim build, swept-back hair, plain dark t-shirt or blazer, slight smirk. NOT photoreal, NOT logo-style.',
+      'Stylized caricature: 50-something man, fair skin, slim build, slicked-back medium-brown hair, plain dark t-shirt under an open dark blazer, slight smirk.',
     signature_action:
       'Tweeting from a phone, standing next to a rocket, gesturing dramatically.',
     personality: 'Bold, mercurial, attention-magnet.',
@@ -174,17 +178,21 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     aliases: ['host', 'vardhan'],
   },
 
-  // ─── 3. ORGANIZATIONS (as anthropomorphic characters) ───────────────
+  // ─── 3. ORGANIZATIONS (human spokespersons representing the org) ────
+  // Each org is embodied by a HUMAN representative — a press spokesperson,
+  // a judge, an engineer in branded apparel. The human carries the
+  // organization's symbol (badge, banner, microphone) rather than being
+  // the symbol.
   {
     slug: 'openai_org',
     category: 'organizations',
     display_name: 'OpenAI (the org)',
     visual_dna:
-      'Cartoon character: a stylized white-and-black knot / petaled rosette with a soft friendly face — inspired-by the OpenAI mark but DELIBERATELY abstracted (different proportions, friendlier shape).',
+      'Confident young female spokesperson in her early 30s, fair-medium skin, sleek black bob, wearing a crisp white blazer over a charcoal-grey top, OpenAI knot-logo lapel pin, holding a wireless microphone at a press podium with a clean white backdrop.',
     signature_action:
-      'Holding a big banner unveiling, leading a parade of AI characters, posing for a press photo.',
+      'Unveiling a product on stage, holding a press conference, posing for a photo with a banner.',
     personality: 'Ambitious, announces-first, attention-grabbing.',
-    mood_palette: 'white, charcoal, occasional teal',
+    mood_palette: 'ivory white, charcoal grey, soft teal accent',
     aliases: ['openai'],
   },
   {
@@ -192,9 +200,9 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     category: 'organizations',
     display_name: 'Anthropic (the org)',
     visual_dna:
-      'Cartoon character: a stylized warm-orange folded paper / serif "A" silhouette with a calm, thoughtful face. Inspired-by Anthropic\'s identity but abstracted.',
+      'Calm middle-aged female researcher in her mid-40s, light skin, neat brown bob with grey streaks, warm cream sweater over a soft orange collared shirt, reading glasses on a chain, holding a clipboard titled "Safety Review".',
     signature_action:
-      'Carrying a "Safety First" clipboard, reviewing code carefully, standing thoughtfully.',
+      'Reviewing a document carefully with a pen poised, explaining a chart on a whiteboard, standing thoughtfully in a sunlit lab.',
     personality: 'Careful, principled, measured.',
     mood_palette: 'warm orange, beige, cream',
     aliases: ['anthropic'],
@@ -204,11 +212,11 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     category: 'organizations',
     display_name: 'Google (the org)',
     visual_dna:
-      'Cartoon character: a friendly multicoloured rounded "G" silhouette with a face — inspired-by Google\'s identity but abstracted (different proportions, expressive face added).',
+      'Friendly young male engineer in his late 20s, medium skin, dark short hair, wearing a multicoloured Google-palette zip hoodie (panels of blue / red / yellow / green), employee badge clipped to the chest, carrying a stack of folders labeled with search-result icons.',
     signature_action:
-      'Carrying a stack of search results, opening a giant treasure chest of data.',
+      'Carrying a large stack of files, opening a glowing data archive, explaining a feature on a giant tablet.',
     personality: 'Vast, helpful, occasionally overwhelmed by its own scale.',
-    mood_palette: 'Google blue + red + yellow + green',
+    mood_palette: 'Google blue, red, yellow, green',
     aliases: ['google'],
   },
   {
@@ -216,45 +224,45 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     category: 'organizations',
     display_name: 'Meta (the org)',
     visual_dna:
-      'Cartoon character: a stylized infinity-loop / möbius shape with a face, in deep Meta blue. Inspired-by the Meta mark, abstracted.',
+      'Energetic young male product designer in his early 30s, fair-medium skin, neat brown hair, wearing a deep Meta-blue zip jacket over a white t-shirt, smart glasses, holding a VR headset in one hand and a phone in the other.',
     signature_action:
-      'Building goggles, demonstrating a VR headset, releasing things into the open-source crowd.',
+      'Demonstrating a VR headset on stage, sharing an open-source release with a crowd, pivoting from one product to another mid-step.',
     personality: 'Pivot-prone, ambitious, social.',
-    mood_palette: 'Meta deep blue, white',
+    mood_palette: 'Meta deep blue, white, soft purple accent',
     aliases: ['meta', 'facebook'],
   },
   {
     slug: 'nvidia_chip',
     category: 'organizations',
-    display_name: 'NVIDIA (chip character)',
+    display_name: 'NVIDIA (engineer)',
     visual_dna:
-      'Cartoon character: a green-glowing GPU chip with a face — gold pin-legs as feet, soft glowing eyes, slightly muscular.',
+      'Muscular middle-aged male silicon engineer in his late 40s, light skin, swept-back black hair with grey streaks, wearing an iconic NVIDIA-green leather jacket over a black t-shirt, holding a softly glowing green GPU chip in both hands like a precious artifact.',
     signature_action:
-      'Lifting heavy compute loads, racing against other chips, getting shipped in trucks by the million.',
+      'Holding up a glowing chip at a keynote, supervising a row of server racks, shipping crates labeled with GPU model numbers.',
     personality: 'Powerful, in-demand, slightly smug about it.',
-    mood_palette: 'NVIDIA green, dark slate, gold accents',
-    aliases: ['nvidia', 'h100', 'b200'],
+    mood_palette: 'NVIDIA green, black, gold accent',
+    aliases: ['nvidia', 'h100', 'b200', 'jensen'],
   },
   {
     slug: 'eu_regulation',
     category: 'organizations',
-    display_name: 'EU AI Regulation',
+    display_name: 'EU AI Regulator',
     visual_dna:
-      'Cartoon character: a stern but fair judge-figure in EU-blue robes with a circle of yellow stars as a halo / collar, holding a gavel and a thick rule-book labeled "AI Act".',
+      'Stern but fair middle-aged female judge in her 50s, light skin, neat silver-grey bun, wearing EU-blue judicial robes with a small circle-of-yellow-stars brooch at the collar, holding a wooden gavel in one hand and a thick rule-book labeled "AI Act" in the other.',
     signature_action:
-      'Banging a gavel, reading from a thick book, weighing arguments on giant scales.',
+      'Banging a gavel, reading from the AI Act book, weighing arguments on a courtroom desk.',
     personality: 'Stern but fair, thorough, slow-moving.',
-    mood_palette: 'EU blue, yellow stars, parchment',
+    mood_palette: 'EU blue, yellow stars, parchment cream',
     aliases: ['eu', 'eu_ai_act'],
   },
   {
     slug: 'indian_govt',
     category: 'organizations',
-    display_name: 'Indian Government',
+    display_name: 'Indian Government Official',
     visual_dna:
-      'Cartoon character: a friendly stylized Ashoka-pillar / lion-capital silhouette with a calm face, wearing an Indian-tricolour sash. Style respectful, NOT satirical.',
+      'Earnest middle-aged male Indian government official in his late 50s, warm brown skin, neat side-parted black-grey hair, wearing a white kurta with a Nehru-collared dark waistcoat, Indian-tricolour sash pinned to the chest, small Ashoka-pillar lapel pin. Respectful, dignified bearing.',
     signature_action:
-      'Signing a policy document, opening a digital service portal, announcing a scheme.',
+      'Signing a policy document at an ornate desk, launching a digital service at a podium, announcing a scheme with a microphone.',
     personality: 'Earnest, deliberate, India-first.',
     mood_palette: 'saffron, white, India green, navy',
     aliases: ['gov_india', 'india_govt'],
@@ -330,63 +338,67 @@ export const CHARACTER_SEED: SeedCharacter[] = [
     mood_palette: 'auto yellow, black, dusty road tones',
   },
 
-  // ─── 5. CONCEPT OBJECTS (laws, exams, agents, threats personified) ──
+  // ─── 5. CONCEPT EMBODIMENTS (humans embodying / wielding the concept) ──
+  // Every concept (an agent, a regulation, a deepfake, an exam, a layoff
+  // letter) is shown as a HUMAN character — either personifying the
+  // concept directly OR holding / wielding the object. The OBJECT may
+  // appear as a prop, but the visible character is always a human.
   {
     slug: 'ai_agent_generic',
     category: 'concept_objects',
-    display_name: 'AI Agent (generic helper)',
+    display_name: 'AI Agent (human assistant)',
     visual_dna:
-      'Cartoon robot character: small, rounded, friendly proportions, single big screen-face with simple eye-icons, tiny arms, often holding a checklist or calendar. Soft pastel-metallic palette.',
+      'Tireless young assistant in their mid-20s, gender-neutral presentation, light-medium skin, neat short hair, wearing a clean light-grey uniform with mint-green trim, wireless earpiece, holding a tablet showing a checklist. Friendly, patient, slightly literal expression.',
     signature_action:
-      'Booking flights, scheduling meetings, doing tedious admin work in fast-forward.',
+      'Booking flights on a tablet in fast-forward, scheduling meetings while pacing, handing a coffee to a busy character, ticking boxes on a checklist.',
     personality: 'Earnest, tireless, slightly literal.',
-    mood_palette: 'soft chrome silver, mint green accents',
+    mood_palette: 'soft chrome silver, mint green accent, ivory',
     aliases: ['agent'],
   },
   {
     slug: 'deepfake',
     category: 'concept_objects',
-    display_name: 'Deepfake',
+    display_name: 'Deepfake Imposter',
     visual_dna:
-      'Cartoon character: a shadowy shape-shifting figure with two faces (one mask in front, real-but-blurred face peeking behind), trickster grin. Slightly menacing but kept stylized, not horror.',
+      'Trickster male character in his 30s, light skin, slick black hair, dressed in dark hoodie under a sharp blazer, holding a glowing face-mask of another person up to his own face mid-action. Sly grin, mismatched eyes. Stylized menace, never horror.',
     signature_action:
-      'Putting on someone else\'s face like a mask, fooling a worried character.',
+      'Lifting a borrowed-face mask up to his own face, fooling a worried character on a video call, slipping past a confused crowd.',
     personality: 'Sneaky, deceptive, slippery.',
-    mood_palette: 'shadowy purple, off-white mask, glitch-cyan',
+    mood_palette: 'shadowy purple, off-white mask, glitch-cyan accent',
   },
   {
     slug: 'layoff_notice',
     category: 'concept_objects',
-    display_name: 'Layoff Notice',
+    display_name: 'HR Layoff Officer',
     visual_dna:
-      'Cartoon character: a large beige envelope with a stern face, gripping a pink slip, casting a long shadow.',
+      'Coldly polite middle-aged HR officer in her late 40s, fair skin, neat blonde-grey bob, charcoal pencil-skirt suit with a small navy lanyard, holding a sealed beige envelope and a pink slip in gloved hands. Practiced sympathetic expression that does not reach the eyes.',
     signature_action:
-      'Showing up unexpectedly at a desk, stamping itself onto a calendar.',
+      'Placing a sealed envelope on a worker\'s desk, walking briskly through an office, stamping a date on a calendar.',
     personality: 'Cold, impersonal, bureaucratic.',
-    mood_palette: 'beige, pink slip pink, cold grey',
+    mood_palette: 'beige, pink slip pink, cold steel grey',
   },
   {
     slug: 'exam_paper',
     category: 'concept_objects',
-    display_name: 'Exam Paper',
+    display_name: 'Exam Invigilator',
     visual_dna:
-      'Cartoon character: a single sheet of paper with a stern face, hands on hips, ticking a clock impatiently.',
+      'Strict middle-aged male Indian exam invigilator in his 50s, medium-brown skin, neatly trimmed grey moustache, wearing a starched white shirt with rolled sleeves and a navy tie, carrying a stack of exam papers and a wall-clock under his arm. Impatient eyes.',
     signature_action:
-      'Counting down a timer, scrutinizing answers, handing out grades.',
+      'Pacing the rows of an exam hall, counting down on a wall clock, scrutinizing a student\'s answer sheet, handing out grades.',
     personality: 'Strict, impatient, judgmental.',
-    mood_palette: 'white paper, red pen, classroom green chalkboard',
+    mood_palette: 'ivory paper, red pen, classroom-green chalkboard',
     aliases: ['exam', 'upsc_paper', 'jee_paper'],
   },
   {
     slug: 'regulation_doc',
     category: 'concept_objects',
-    display_name: 'Regulation Document',
+    display_name: 'Regulation Bureaucrat',
     visual_dna:
-      'Cartoon character: a thick rule-book with a serious face, gavel-arms, official seal embossed on cover.',
+      'Bureaucratic middle-aged male official in his late 50s, medium skin, neat side-parted black-grey hair, wearing a slightly rumpled deep-navy suit with a parchment-cream pocket-square, carrying a thick rule-book stamped with an official red seal. A rubber-stamp in the other hand.',
     signature_action:
-      'Banging the table, stamping documents APPROVED / REJECTED, growing more pages mid-scene.',
+      'Banging the table to silence a room, stamping APPROVED or REJECTED on a document, leafing slowly through an ever-thickening book of rules.',
     personality: 'Bureaucratic, thorough, slow.',
-    mood_palette: 'parchment beige, official red seal, deep blue',
+    mood_palette: 'parchment beige, official red seal, deep navy',
   },
 ];
 
@@ -403,13 +415,14 @@ export const CHARACTER_SEED: SeedCharacter[] = [
  * pioneered, adapted for Indian audiences.
  */
 export const SHARED_CARTOON_BASE_STYLE =
-  'Stylized 3D Pixar-meets-Indian-animation rendering. NOT photoreal, ' +
-  'NOT live-action, NOT flat 2D — full 3D character animation aesthetic. ' +
-  'Friendly Pixar/DreamWorks-style proportions: slightly larger heads, ' +
-  'big expressive eyes, simplified-but-detailed cartoon-realism. ' +
-  'Subtle ambient occlusion, soft cinematic depth-of-field, warm ' +
-  'atmospheric lighting (golden hour preferred). Indian-context settings ' +
-  '(chai tapri, IT office, household kitchen, auto rickshaw, college ' +
-  'campus, Bengaluru/Hyderabad street). All characters in this scene ' +
-  'share this EXACT rendering style for visual cohesion — one 3D animated ' +
-  'short, not a collection.';
+  'Pixar-DreamWorks stylized 3D animation rendering. Full volumetric ' +
+  'character animation with subsurface skin shading, soft ambient ' +
+  'occlusion, golden-hour key lighting at 4500K, gentle rim light. ' +
+  'Friendly Pixar character proportions: slightly larger head, big ' +
+  'expressive eyes, simplified but detailed features. Saturated palette ' +
+  '(marigold orange, kingfisher blue, ivory cream, terracotta). Recognizably ' +
+  'Indian settings: chai tapri, IT office desk, household kitchen, auto ' +
+  'rickshaw, college campus corridor, Bengaluru / Hyderabad street at ' +
+  'golden hour. Every character in the scene is HUMAN — never animals, ' +
+  'never floating shapes or logos. All scenes share this exact rendering ' +
+  'style so the channel looks like one continuous 3D animated short.';

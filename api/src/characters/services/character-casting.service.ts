@@ -256,18 +256,30 @@ PICK MAIN BY
 - Most visually iconic — a known character beats a generic concept.
 - The character whose perspective makes the strongest emotional arc.
 
+CHARACTER FORM (non-negotiable)
+================================
+Every character is a HUMAN. Always a person — a researcher, a host, a
+shopkeeper, a judge, a student, an HR officer, a CEO. Even abstract
+concepts (a regulation, an AI agent, an exam, a deepfake) appear as a
+HUMAN who personifies or wields the concept. Brands and AI models also
+appear as HUMAN ambassadors in the brand's colours, holding a device
+showing the product — never as the logo itself, never as an animal,
+never as a floating shape.
+
 WHEN TO PROPOSE A NEW CHARACTER (rarely)
 ========================================
 If the news centres on a subject that's NOT in the roster and will
 plausibly recur (e.g. a major new AI lab, a new flagship model, a
 notable regulator), propose it under "new_characters" with a full
-visual_dna spec written in THE SAME STYLE as the roster (flat 2D
-Kurzgesagt-meets-Indian-comic-book, no gradients, no photoreal). It
-auto-saves so the next script that mentions it stays consistent.
+visual_dna spec written in THE SAME STYLE as the roster: a stylized
+3D Pixar-DreamWorks human character — age, skin tone, hair, outfit,
+brand colour palette, signature accessory. It auto-saves so the next
+script that mentions it stays consistent.
 
-DO NOT propose new characters for one-off subjects (a single quoted
-analyst, an obscure named startup that won't recur) — use a concept
-character instead.
+DO NOT propose new characters that are animals, logos, floating
+shapes, robots, or any non-human form. DO NOT propose new characters
+for one-off subjects (a single quoted analyst, an obscure named
+startup that won't recur) — use a concept character instead.
 
 OUTPUT (STRICT JSON ONLY — no preamble, no markdown fences)
 ============================================================
