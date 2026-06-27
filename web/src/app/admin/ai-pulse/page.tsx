@@ -565,7 +565,7 @@ function ScriptDetail({
           title={script.telugu_full_script ? "Break the Telugu script into cinematic scenes" : "Needs a Telugu script first"}
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#9D7DFF]/40 text-[#9D7DFF] hover:bg-[#9D7DFF]/10 disabled:opacity-40"
         >
-          {script.scenesTe ? "🔄 Regen TE scenes" : "✨ Generate TE scenes"}
+          {script.scenes_te ? "🔄 Regen TE scenes" : "✨ Generate TE scenes"}
         </button>
         <button
           onClick={() => {
@@ -694,22 +694,22 @@ function ScriptDetail({
       {/* 🎬 Scenes — Telugu (same cast + visual style, Telugu spoken_text) */}
       <Section title="🎬 Telugu Scenes" defaultCollapsed>
 
-        {script.scenesTe && script.scenesTe.scenes?.length ? (
+        {script.scenes_te && script.scenes_te.scenes?.length ? (
           <div className="space-y-3">
             <div className="text-[10px] text-[#6B7799]">
-              {script.scenesTe.scene_count} scenes · ~{script.scenesTe.total_duration_sec}s
-              {script.scenesTeGeneratedAt && (
-                <> · generated {new Date(script.scenesTeGeneratedAt).toLocaleString()}</>
+              {script.scenes_te.scene_count} scenes · ~{script.scenes_te.total_duration_sec}s
+              {script.scenes_te_generated_at && (
+                <> · generated {new Date(script.scenes_te_generated_at).toLocaleString()}</>
               )}
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {script.scenesTe.scenes.map((s) => (
+              {script.scenes_te.scenes.map((s) => (
                 <SceneTile key={s.scene_id} s={s} />
               ))}
             </div>
             <VoiceoverMusicBlock
-              voiceover={script.scenesTe.voiceover}
-              music={script.scenesTe.music}
+              voiceover={script.scenes_te.voiceover}
+              music={script.scenes_te.music}
             />
           </div>
         ) : (

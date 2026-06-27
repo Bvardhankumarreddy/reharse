@@ -166,10 +166,12 @@ export interface Script {
   scenes: AiPulseScenesPayload | null;
   scenes_generated_at: string | null;
   scenes_cost_usd: number | string;
-  // Telugu parallel — same payload shape, Telugu spoken_text
-  scenesTe: AiPulseScenesPayload | null;
-  scenesTeGeneratedAt: string | null;
-  scenesTeCostUsd: number | string;
+  // Telugu parallel — same payload shape, Telugu spoken_text.
+  // Field names match the snake_case entity property names so the API
+  // response shape lines up without a rename layer.
+  scenes_te: AiPulseScenesPayload | null;
+  scenes_te_generated_at: string | null;
+  scenes_te_cost_usd: number | string;
   approval_status: 'pending_review' | 'approved' | 'rejected' | 'published';
   approved_by: string | null;
   approved_at: string | null;
