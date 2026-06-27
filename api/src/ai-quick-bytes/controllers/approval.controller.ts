@@ -51,6 +51,21 @@ export class ApprovalController {
     const limit = Math.max(
       1, Math.min(500, Number(limitQ) || 200),
     );
+    // Dedupe by news_item_id: regen creates a NEW script row (doesn't
+    // mutate the old), so a news item can have multiple drafts in the
+    // queue (e.g. old pre-cast draft + new post-cast draft after
+    // regenerating). Show only the LATEST draft per news item — older
+    // drafts stay in the DB for audit but disappear from the queue.
+    const latestIds = (await this.scriptRepo
+      .createQueryBuilder('inner_s')
+      .select('DISTINCT ON (inner_s."newsItemId") inner_s.id', 'id')
+      .addSelect('inner_s."createdAt"', 'createdAt')
+      .where('inner_s.status = :status', { status: 'draft' })
+      .orderBy('inner_s."newsItemId"')
+      .addOrderBy('inner_s."createdAt"', 'DESC')
+      .getRawMany<{ id: string }>())
+      .map((r) => r.id);
+    if (latestIds.length === 0) return [];
     // .limit() (not .take()) — joins here are OneToOne/ManyToOne with no row
     // fan-out, and it avoids TypeORM's take()+join+orderBy crash.
     return this.scriptRepo
@@ -58,7 +73,7 @@ export class ApprovalController {
       .leftJoinAndSelect('script.newsItem', 'item')
       .leftJoinAndSelect('item.source', 'source')
       .leftJoinAndSelect('item.score', 'score')
-      .where('script.status = :status', { status: 'draft' })
+      .where('script.id IN (:...ids)', { ids: latestIds })
       .orderBy('script.dayNumber', 'ASC', 'NULLS LAST')
       .addOrderBy('score.compositeScore', 'DESC')
       .limit(limit)
