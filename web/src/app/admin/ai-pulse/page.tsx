@@ -446,7 +446,7 @@ function ScriptDetail({
   ) => {
     if (!pkg) {
       return (
-        <Section title={sectionTitle}>
+        <Section title={sectionTitle} defaultCollapsed>
           <div className={`text-[11px] text-[#6B7799] border border-dashed ${accent} rounded-lg p-3`}>
             Not generated yet. Use the regen button above to create it.
           </div>
@@ -454,7 +454,7 @@ function ScriptDetail({
       );
     }
     return (
-      <Section title={sectionTitle}>
+      <Section title={sectionTitle} defaultCollapsed>
         <div className="space-y-3">
           {pkg.youtube && (
             <PlatformBlock title="▶️ YouTube" onCopy={(v) => copyToClipboard(v, "YouTube")}>
@@ -613,7 +613,8 @@ function ScriptDetail({
 
       {/* Telugu script */}
       {script.telugu_full_script && (
-        <Section title="🇮🇳 Telugu script" onCopy={() => copyToClipboard(script.telugu_full_script ?? "", "Telugu script")}>
+        <Section title="🇮🇳 Telugu script" onCopy={() => copyToClipboard(script.telugu_full_script ?? "", "Telugu script")} defaultCollapsed>
+
           <div className="text-[12px] text-[#B8C5E0] mb-1">
             Hook: <span className="text-white">{script.telugu_hook ?? "—"}</span>
           </div>
@@ -627,7 +628,8 @@ function ScriptDetail({
       )}
 
       {/* Thumbnails */}
-      <Section title={`🎨 Thumbnail prompts (${script.thumbnail_prompts?.length ?? 0})`}>
+      <Section title={`🎨 Thumbnail prompts (${script.thumbnail_prompts?.length ?? 0})`} defaultCollapsed>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {(script.thumbnail_prompts ?? []).map((t, i) => (
             <div key={i} className="bg-[#0A0E27] border border-white/10 rounded-xl p-3 text-[12px] space-y-2">
@@ -661,7 +663,8 @@ function ScriptDetail({
         renderDistribution(distTe, "📦 Telugu distribution", "border-[#FFB020]/30")}
 
       {/* 🎬 Scenes — English */}
-      <Section title="🎬 English Scenes">
+      <Section title="🎬 English Scenes" defaultCollapsed>
+
         {script.scenes && script.scenes.scenes?.length ? (
           <div className="space-y-3">
             <div className="text-[10px] text-[#6B7799]">
@@ -689,7 +692,8 @@ function ScriptDetail({
       </Section>
 
       {/* 🎬 Scenes — Telugu (same cast + visual style, Telugu spoken_text) */}
-      <Section title="🎬 Telugu Scenes">
+      <Section title="🎬 Telugu Scenes" defaultCollapsed>
+
         {script.scenesTe && script.scenesTe.scenes?.length ? (
           <div className="space-y-3">
             <div className="text-[10px] text-[#6B7799]">
@@ -970,18 +974,34 @@ function summariseSweep(kind: string, r: unknown): string {
 }
 
 // ── Small UI primitives ─────────────────────────────────────────────────
-function Section({ title, onCopy, children }: { title: string; onCopy?: () => void; children: React.ReactNode }) {
+function Section({
+  title, onCopy, children, defaultCollapsed = false,
+}: {
+  title: string;
+  onCopy?: () => void;
+  children: React.ReactNode;
+  /** Heavy sections (Scenes, Distribution) default-collapsed so the page
+   *  isn't a long scroll. Lighter sections (Script, Source) stay expanded. */
+  defaultCollapsed?: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-bold uppercase tracking-wide text-[#B8C5E0]">{title}</h3>
-        {onCopy && (
+        <button
+          onClick={() => setCollapsed((v) => !v)}
+          className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#B8C5E0] hover:text-white transition"
+        >
+          <span className="text-[9px] text-[#6B7799]">{collapsed ? "▶" : "▼"}</span>
+          {title}
+        </button>
+        {!collapsed && onCopy && (
           <button onClick={onCopy} className="text-[10px] font-semibold text-[#00D4FF] hover:underline">
             Copy
           </button>
         )}
       </div>
-      {children}
+      {!collapsed && children}
     </div>
   );
 }
