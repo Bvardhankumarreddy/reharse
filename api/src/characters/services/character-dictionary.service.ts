@@ -28,13 +28,27 @@ export class CharacterDictionaryService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    await this.seedIfMissing();
+    // Alias map is built from in-memory CHARACTER_SEED — always works
+    // even when the DB table doesn't exist yet (first deploy, pre-migration).
     this.buildAliasMap();
+    // Seed is best-effort — must NOT crash the pod when the migration
+    // is pending. Without seed, dictionary lookups return null and the
+    // casting service soft-fails; script gen still runs (scene gen
+    // throws an explicit error which the operator can act on).
+    try {
+      await this.seedIfMissing();
+    } catch (e) {
+      this.logger.warn(
+        `Character seed skipped — table likely missing (run migration-001-characters.sql). ` +
+        `Error: ${(e as Error).message}`,
+      );
+    }
   }
 
   /** Idempotent seed — upserts every CHARACTER_SEED row, only updates
    *  source='seed' rows (never overwrites operator-edited or
-   *  auto_generated entries). */
+   *  auto_generated entries). Throws if the `characters` table doesn't
+   *  exist; caller wraps in try/catch so boot survives a pending migration. */
   private async seedIfMissing(): Promise<void> {
     for (const s of CHARACTER_SEED) {
       const existing = await this.repo.findOne({ where: { slug: s.slug } });
