@@ -668,6 +668,22 @@ function ScriptCard({ script, onAct }: {
                 />
               </>
             )}
+            {/* Regen script — queues a fresh generation pass for the same
+                news item, picking up the latest casting + prompt updates.
+                Creates a NEW script row (old one stays); queue dedup hides
+                the old draft so curator only sees the latest. */}
+            {script.newsItemId && (
+              <Btn
+                label="🔁 Regen Script"
+                accent="#9D7DFF"
+                onClick={() => {
+                  if (!confirm("Queue a fresh script for this news item? Creates a new draft row; the current one stays in DB but disappears from the queue (latest-per-news-item dedup).")) return;
+                  void onAct(script.id, "Script regen queued", (t) =>
+                    api(t, `/scripts/generate/${script.newsItemId}`, { method: "POST" }),
+                  );
+                }}
+              />
+            )}
             {script.status !== "published" && script.status !== "rejected" && (
               <Btn
                 label="📲 Mark Published"
