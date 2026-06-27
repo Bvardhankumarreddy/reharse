@@ -16,17 +16,19 @@ import { Character } from '../../characters/entities/character.entity';
 
 /**
  * Cartoon-first brand style for AI Pulse scenes. Mirrors the AQB cartoon
- * brand style — both modules share one cinematic universe of flat 2D
- * cartoon characters; only the per-vertical accent overlay differs.
+ * brand style — both modules share one stylized 3D Pixar-Indian cinematic
+ * universe; only the per-vertical accent overlay differs.
  */
 const AI_PULSE_CARTOON_BRAND_STYLE =
-  'CARTOON ILLUSTRATION ONLY — NOT photoreal, NOT cinematic film, NOT live-action. ' +
-  'Style: flat 2D vector illustration, Kurzgesagt-meets-Indian-comic-book. ' +
-  'Clean bold outlines, solid fill colours, NO gradients, NO realistic skin/hair detail, ' +
-  'NO photographic depth-of-field, NO film grain. Expressive cartoon faces with simple geometry. ' +
-  'Vibrant balanced palette, soft single-direction shadows only. ' +
-  '9:16 vertical aspect ratio for Shorts. Channel identity: AetherStackAI cartoon universe — ' +
-  'every scene must look like it came from the SAME 2D animated short.';
+  'STYLIZED 3D ANIMATION ONLY — NOT photoreal, NOT live-action. ' +
+  'Style: stylized 3D Pixar-meets-Indian-animation rendering. ' +
+  'Friendly Pixar/DreamWorks-style proportions — slightly larger heads, big expressive eyes, ' +
+  'simplified-but-detailed cartoon-realism. Full 3D character animation with subtle ambient occlusion, ' +
+  'soft cinematic depth-of-field, warm atmospheric lighting (golden hour preferred). ' +
+  'Recognizably Indian context: chai tapri, IT office, household kitchen, auto rickshaw, ' +
+  'Bengaluru/Hyderabad street, college campus. ' +
+  '9:16 vertical aspect ratio for Shorts. Channel identity: AetherStackAI 3D cartoon universe — ' +
+  'every scene must look like it came from the SAME 3D animated short.';
 
 // ── Types (parallel to AQB scenes; same blueprint shape) ────────────────
 

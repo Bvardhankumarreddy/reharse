@@ -15,15 +15,22 @@ import { Character } from '../../characters/entities/character.entity';
  * "style" field. MUST agree with the cartoon DNAs the casting system
  * injects — otherwise image gen / HeyGen Avatar IV sees mixed signals
  * (cartoon character + realistic cinematography) and defaults to realism.
+ *
+ * Current aesthetic: stylized 3D Pixar-meets-Indian-animation. Full 3D
+ * rendering, not flat 2D. Cinematic depth-of-field + warm atmospheric
+ * lighting + recognizably Indian settings. Reference style: Pixar /
+ * DreamWorks / Disney 3D animation adapted for Indian audiences.
  */
 const AQB_CARTOON_BRAND_STYLE =
-  'CARTOON ILLUSTRATION ONLY — NOT photoreal, NOT cinematic film, NOT live-action. ' +
-  'Style: flat 2D vector illustration, Kurzgesagt-meets-Indian-comic-book. ' +
-  'Clean bold outlines, solid fill colours, NO gradients, NO realistic skin/hair detail, ' +
-  'NO photographic depth-of-field, NO film grain. Expressive cartoon faces with simple geometry. ' +
-  'Vibrant balanced palette, soft single-direction shadows only. ' +
-  '9:16 vertical aspect ratio for Shorts. Channel identity: AetherStackAI cartoon universe — ' +
-  'every scene must look like it came from the SAME 2D animated short.';
+  'STYLIZED 3D ANIMATION ONLY — NOT photoreal, NOT live-action. ' +
+  'Style: stylized 3D Pixar-meets-Indian-animation rendering. ' +
+  'Friendly Pixar/DreamWorks-style proportions — slightly larger heads, big expressive eyes, ' +
+  'simplified-but-detailed cartoon-realism. Full 3D character animation with subtle ambient occlusion, ' +
+  'soft cinematic depth-of-field, warm atmospheric lighting (golden hour preferred). ' +
+  'Recognizably Indian context: chai tapri, IT office, household kitchen, auto rickshaw, ' +
+  'Bengaluru/Hyderabad street, college campus. ' +
+  '9:16 vertical aspect ratio for Shorts. Channel identity: AetherStackAI 3D cartoon universe — ' +
+  'every scene must look like it came from the SAME 3D animated short.';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
