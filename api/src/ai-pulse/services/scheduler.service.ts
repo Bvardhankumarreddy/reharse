@@ -209,7 +209,11 @@ export class AiPulseSchedulerService implements OnModuleInit {
       try {
         const script = await this.scriptGen.generateScript(item.id);
         await this.thumbnails.generatePrompts(script.id);
-        await this.distribution.generatePackage(script.id);
+        // Distribution is INTENTIONALLY NOT auto-generated here. The
+        // curator may post to only 2-3 platforms (not all 5), and any
+        // rejected scripts would waste the ~$0.04/call. Curator triggers
+        // per-platform generation manually from the admin UI's distribution
+        // controls. Mirrors AQB's pattern (which has never auto-genned).
         out.push({ newsItemId: item.id, scriptId: script.id, headline: item.headline });
         this.logger.log(`[generate] +1 script ${script.id} for "${item.headline.slice(0, 60)}…"`);
       } catch (e) {
