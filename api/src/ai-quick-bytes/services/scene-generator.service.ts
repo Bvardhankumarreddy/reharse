@@ -371,6 +371,41 @@ DURATION + COVERAGE DISCIPLINE
 - Total of all "duration_seconds" ≈ script's spoken duration (±3s OK).
 
 ═══════════════════════════════════════
+SCENE BOUNDARY RULE — first word of every scene matters
+═══════════════════════════════════════
+HOW you split decides retention. Each scene's "spoken_text" MUST start
+with a HIGH-IMPACT word — a named character, a concrete noun, a strong
+verb, a number, or a question word. Never start a scene on a
+connector or filler that the viewer can't anchor on.
+
+WEAK first words to AVOID at the start of any scene's spoken_text:
+  And, But, So, Then, Now, Also, However, Because, While, When, If,
+  As, Or, Yet, Plus, The (when it's just filler — "The thing is…"),
+  Actually, Basically, Essentially, Anyway, Well, You see, You know
+
+If a natural sentence break in the script puts a connector at the
+start of the next chunk, MOVE that connector to the END of the
+previous scene's spoken_text. Example:
+
+  WRONG:
+    Scene 4 spoken_text: "She refreshes the inbox at 3 a.m."
+    Scene 5 spoken_text: "And then the offer appears."
+
+  RIGHT (connector moved):
+    Scene 4 spoken_text: "She refreshes the inbox at 3 a.m. And then…"
+    Scene 5 spoken_text: "the offer appears."
+
+  BETTER (recompose the slice for harder impact):
+    Scene 4 spoken_text: "She refreshes the inbox at 3 a.m."
+    Scene 5 spoken_text: "Bing. The offer appears."  (only allowed if the
+                          script already contains those words; if not, fall
+                          back to the previous rewrite — never invent words)
+
+Hook discipline: scene 1's first word is the channel's first impression.
+Pick a scene boundary that lets it land on the strongest possible word
+in the script — a name, a number, a verb, a vivid image.
+
+═══════════════════════════════════════
 SHOT VARIETY (USE A MIX)
 ═══════════════════════════════════════
 - Wide establishing (office at dusk, city window, workspace overhead)
