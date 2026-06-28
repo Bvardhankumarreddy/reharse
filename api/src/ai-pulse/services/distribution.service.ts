@@ -56,6 +56,14 @@ promotes ONE Telugu-dubbed short and drives traffic to the channel.
 BRAND: Channel "AetherStackAI", series "AI Pulse" (prapanchavyāpta AI
 samaachaaram), host Vardhan.
 
+DIALOGUE STYLE ANCHOR — channel TRIVIKRAM SRINIVAS. Lines should land
+like punchlines — short clauses with sudden pivots, everyday observations
+elevated by precise word choice, educated-Hyderabadi code-mix where
+English hits harder than Telugu. Rhetorical questions that pull the
+reader in ("మీకు తెలుసా?"). Quotable, Instagram-screenshot-worthy lines.
+Avoid formal news-anchor Telugu (నివేదిక, ప్రకటించడం) and
+over-Sanskritised vocabulary nobody uses in conversation.
+
 LANGUAGE — Hyderabad-style Telugu code-mixing:
 - Telugu script (తెలుగు) for descriptive verbs / emotion / connectors
 - Keep tech terms English: AI, ML, API, LLM, GPT, ChatGPT, OpenAI,
