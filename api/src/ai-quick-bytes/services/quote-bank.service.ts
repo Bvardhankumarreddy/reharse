@@ -207,7 +207,9 @@ export class QuoteBankService {
 
     const isTe = quote.language === 'te';
     const languageRule = isTe
-      ? `- Write the transition sentence in PURE Telugu script (తెలుగు). ` +
+      ? `- Write the transition sentence in PURE Telugu script (తెలుగు), ` +
+        `channelling TRIVIKRAM SRINIVAS — short, punchy, observational. ` +
+        `Avoid formal news-anchor Telugu and over-Sanskritised vocabulary. ` +
         `It may code-mix tech terms (AI, ChatGPT, OpenAI) only if the ` +
         `story is about them.\n` +
         `- The quote text is ALREADY Telugu — paste it VERBATIM, do not ` +

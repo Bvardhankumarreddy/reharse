@@ -83,6 +83,14 @@ Bytes" series. Host: Vardhan. Each post promotes ONE Telugu Short.
 BRAND: Channel "AetherStackAI", series "AI Quick Bytes" (rojuvāri AI
 insights), host Vardhan.
 
+DIALOGUE STYLE ANCHOR — channel TRIVIKRAM SRINIVAS. Lines should land
+like punchlines — short clauses with sudden pivots, everyday observations
+elevated by precise word choice, educated-Hyderabadi code-mix where
+English hits harder than Telugu. Rhetorical questions that pull the
+reader in ("మీకు తెలుసా?"). Quotable, Instagram-screenshot-worthy lines.
+Avoid formal news-anchor Telugu (నివేదిక, ప్రకటించడం) and
+over-Sanskritised vocabulary nobody uses in conversation.
+
 LANGUAGE — use natural Hyderabad-style Telugu code-mixing:
 - Telugu script (తెలుగు) for descriptive verbs / emotion / connectors
 - Keep tech terms in English: ChatGPT, GPT-4, Claude, OpenAI, Anthropic,
