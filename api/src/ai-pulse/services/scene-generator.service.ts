@@ -26,8 +26,6 @@ const AI_PULSE_CARTOON_BRAND_STYLE =
   'gentle rim light camera-left. Friendly Pixar character proportions: ' +
   'slightly larger head, big expressive eyes, simplified but detailed features. ' +
   'Saturated palette (marigold orange, kingfisher blue, ivory cream, terracotta). ' +
-  'Recognizably Indian setting: chai tapri / IT office desk / household kitchen / ' +
-  'auto rickshaw / college campus corridor / Bengaluru-Hyderabad street at golden hour. ' +
   '9:16 vertical aspect ratio, 1080x1920. Every character is HUMAN. ' +
   'Channel identity: AetherStackAI 3D cartoon universe — every scene reads as ' +
   'one continuous 3D animated short.';
@@ -322,6 +320,18 @@ Write every per-scene field this way:
   + character_dna must agree (same time-of-day, same character outfit
   across consecutive scenes, same vibe). Contradictions confuse the
   generator and produce inconsistent output.
+- SETTING IS DERIVED FROM THE SCRIPT, NOT A DEFAULT. The "setting"
+  field MUST come from the story's actual narrative — where these
+  specific characters would plausibly be in this specific beat (the
+  newsroom where the story breaks, the courtroom where the verdict
+  lands, the lab where the model is trained, the boardroom where the
+  deal closes, the bedroom at 3 a.m., the temple courtyard, the
+  Mumbai local at rush hour, the Hyderabad biryani shop, the Delhi
+  metro platform, an exam hall, a kirana store, a server room, a
+  monsoon-soaked porch — whatever the SCRIPT puts them in). Do NOT
+  default to "chai tapri" or "Bengaluru street at golden hour" unless
+  the script genuinely takes place there. Vary settings across scenes
+  in the same script; vary across scripts on the channel.
 
 ═══════════════════════════════════════
 THE NON-NEGOTIABLE: INLINE EVERYTHING
