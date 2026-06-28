@@ -199,11 +199,12 @@ export class SceneGeneratorService {
 
     let parsed: AqbScenesPayload;
     try {
-      parsed = JSON.parse(raw || '{}') as AqbScenesPayload;
+      parsed = parseScenesJson(raw || '{}');
     } catch (e) {
       this.logger.error(
         `Scene-gen LLM returned non-JSON for script ${scriptId}: ` +
-        `head="${(raw ?? '').slice(0, 200)}"`,
+        `head="${(raw ?? '').slice(0, 200)}" ` +
+        `tail="${(raw ?? '').slice(-200)}"`,
       );
       throw new BadRequestException(
         `Scene generator returned malformed JSON. Retry usually fixes it. ${(e as Error).message}`,
@@ -494,6 +495,17 @@ Your response MUST start with "{" and contain ONLY:
   "voiceover": { "full_text": "…", "voice_style": "…", "pacing_notes": "…" },
   "music":     { "style": "…", "tempo": "…", "mood": "…", "minimax_prompt": "…" }
 }
+
+JSON-SAFETY RULES (parser will reject otherwise):
+- Every double-quote that appears INSIDE a string value MUST be escaped
+  as \\". For example, a Telugu spoken_text containing the dialogue
+  మీకు తెలుసా? must be written without internal double-quotes, or
+  every such quote MUST be backslash-escaped.
+- Prefer using SINGLE quotes inside string values when you need to
+  show speech ('మీకు తెలుసా?' instead of "మీకు తెలుసా?").
+- No trailing commas after the last element of any array or object.
+- No comments (// or /* */) anywhere in the output.
+- No markdown fences, no preamble — start the response with "{".
 `.trim();
   }
 
@@ -639,4 +651,80 @@ function isHostScene(s: Partial<AqbScene>): boolean {
     s.subject, s.character_dna, s.reference_image_url,
   ].filter(Boolean).join(' ').toLowerCase();
   return /\b(host|vardhan)\b/.test(blob);
+}
+
+/**
+ * Defensive JSON parse for scene-gen LLM output. Recovery layers:
+ *   1. Plain JSON.parse (fast path — well-formed outputs work in <1ms)
+ *   2. Strip markdown fences (```json … ```) and re-parse
+ *   3. Extract substring between first '{' and last '}', re-parse
+ *      (handles trailing prose like "Here are the scenes:")
+ *   4. Repair unescaped double-quotes inside string values — the most
+ *      common failure when Telugu spoken_text contains dialogue marks
+ *      like "మీకు తెలుసా?". Walks chars; inside a string value, any "
+ *      that's NOT immediately followed by `,`, `}`, `]`, `:` or
+ *      whitespace+one-of-those gets escaped.
+ * On total failure throws original error so the caller can log head/tail. */
+function parseScenesJson(raw: string): AqbScenesPayload {
+  const tryParse = (s: string): AqbScenesPayload | null => {
+    try { return JSON.parse(s) as AqbScenesPayload; } catch { return null; }
+  };
+  // 1. Fast path
+  let parsed = tryParse(raw);
+  if (parsed) return parsed;
+
+  // 2. Strip markdown fences
+  const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+  parsed = tryParse(cleaned);
+  if (parsed) return parsed;
+
+  // 3. Brace extract — handles leading / trailing prose
+  const first = cleaned.indexOf('{');
+  const last  = cleaned.lastIndexOf('}');
+  if (first >= 0 && last > first) {
+    const slice = cleaned.slice(first, last + 1);
+    parsed = tryParse(slice);
+    if (parsed) return parsed;
+
+    // 4. Repair unescaped quotes inside string values. Heuristic state
+    //    machine: track whether we're inside a string; when we see a "
+    //    inside a string, peek ahead — if the next non-whitespace char
+    //    is a JSON structural char (, } ] :), it's a real closer; else
+    //    it's a stray quote and we escape it.
+    const repaired = repairUnescapedQuotes(slice);
+    parsed = tryParse(repaired);
+    if (parsed) return parsed;
+  }
+  // Total failure — bubble up the most informative error.
+  return JSON.parse(raw) as AqbScenesPayload; // throws
+}
+
+function repairUnescapedQuotes(s: string): string {
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '\\') {
+      out += ch + (s[i + 1] ?? '');
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      if (!inString) { inString = true; out += ch; continue; }
+      // Peek ahead past whitespace for a structural closer.
+      let j = i + 1;
+      while (j < s.length && /\s/.test(s[j])) j++;
+      const next = s[j];
+      if (next === ',' || next === '}' || next === ']' || next === ':' || next === undefined) {
+        inString = false;
+        out += ch;
+      } else {
+        // Stray quote inside string — escape it.
+        out += '\\"';
+      }
+      continue;
+    }
+    out += ch;
+  }
+  return out;
 }

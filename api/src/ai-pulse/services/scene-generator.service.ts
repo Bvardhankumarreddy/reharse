@@ -195,11 +195,12 @@ export class AiPulseSceneGeneratorService {
     const raw = completion.choices[0]?.message?.content ?? '{}';
     let parsed: AiPulseScenesPayload;
     try {
-      parsed = JSON.parse(raw) as AiPulseScenesPayload;
+      parsed = parseScenesJson(raw);
     } catch (e) {
       this.logger.error(
         `Scene-gen LLM returned non-JSON for script ${scriptId}: ` +
-        `head="${(raw ?? '').slice(0, 200)}"`,
+        `head="${(raw ?? '').slice(0, 200)}" ` +
+        `tail="${(raw ?? '').slice(-200)}"`,
       );
       throw new BadRequestException(
         `Scene generator returned malformed JSON. Retry usually fixes it. ${(e as Error).message}`,
@@ -489,6 +490,17 @@ Your response MUST start with "{" and contain ONLY:
   "voiceover": { "full_text": "…", "voice_style": "…", "pacing_notes": "…" },
   "music":     { "style": "…", "tempo": "…", "mood": "…", "minimax_prompt": "…" }
 }
+
+JSON-SAFETY RULES (parser will reject otherwise):
+- Every double-quote that appears INSIDE a string value MUST be escaped
+  as \\". A Telugu spoken_text containing the dialogue మీకు తెలుసా?
+  must be written without internal double-quotes, or every such quote
+  MUST be backslash-escaped.
+- Prefer using SINGLE quotes inside string values when you need to
+  show speech ('మీకు తెలుసా?' instead of "మీకు తెలుసా?").
+- No trailing commas after the last element of any array or object.
+- No comments (// or /* */) anywhere in the output.
+- No markdown fences, no preamble — start the response with "{".
 `.trim();
   }
 
@@ -609,4 +621,66 @@ function isHostScene(s: Partial<AiPulseScene>): boolean {
     s.subject, s.character_dna, s.reference_image_url,
   ].filter(Boolean).join(' ').toLowerCase();
   return /\b(host|vardhan)\b/.test(blob);
+}
+
+/**
+ * Defensive scene JSON parser — mirror of the AQB version. Recovery:
+ *   1. Plain JSON.parse fast path
+ *   2. Strip ```json fences
+ *   3. Extract between first '{' and last '}' (handles trailing prose)
+ *   4. Repair unescaped quotes inside string values (most common
+ *      failure when Telugu spoken_text contains dialogue marks like
+ *      "మీకు తెలుసా?")
+ */
+function parseScenesJson(raw: string): AiPulseScenesPayload {
+  const tryParse = (s: string): AiPulseScenesPayload | null => {
+    try { return JSON.parse(s) as AiPulseScenesPayload; } catch { return null; }
+  };
+  let parsed = tryParse(raw);
+  if (parsed) return parsed;
+
+  const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+  parsed = tryParse(cleaned);
+  if (parsed) return parsed;
+
+  const first = cleaned.indexOf('{');
+  const last  = cleaned.lastIndexOf('}');
+  if (first >= 0 && last > first) {
+    const slice = cleaned.slice(first, last + 1);
+    parsed = tryParse(slice);
+    if (parsed) return parsed;
+
+    const repaired = repairUnescapedQuotes(slice);
+    parsed = tryParse(repaired);
+    if (parsed) return parsed;
+  }
+  return JSON.parse(raw) as AiPulseScenesPayload;
+}
+
+function repairUnescapedQuotes(s: string): string {
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '\\') {
+      out += ch + (s[i + 1] ?? '');
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      if (!inString) { inString = true; out += ch; continue; }
+      let j = i + 1;
+      while (j < s.length && /\s/.test(s[j])) j++;
+      const next = s[j];
+      if (next === ',' || next === '}' || next === ']' || next === ':' || next === undefined) {
+        inString = false;
+        out += ch;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+    out += ch;
+  }
+  return out;
 }
