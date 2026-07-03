@@ -410,10 +410,14 @@ export const CHARACTER_SEED: SeedCharacter[] = [
  *
  * Current target: stylized 3D Pixar-meets-Indian-animation. Full 3D
  * character rendering with cinematic depth-of-field, warm atmospheric
- * lighting, and recognizably Indian settings (chai tapri, IT office,
- * household kitchen, auto rickshaw, college campus). NOT flat 2D, NOT
- * photoreal — the stylized-3D middle that Pixar / Dreamworks / Disney
- * pioneered, adapted for Indian audiences.
+ * lighting. NOT flat 2D, NOT photoreal — the stylized-3D middle that
+ * Pixar / Dreamworks / Disney pioneered, adapted for Indian audiences.
+ *
+ * IMPORTANT: this base style prescribes only the LOOK (rendering,
+ * palette, humans-only, aspect ratio). The WHERE (setting) is decided
+ * per scene by the scene generator based on the script's narrative.
+ * Do NOT re-add example settings here — that biases the LLM into
+ * treating them as a menu and every scene ends up in the same place.
  */
 export const SHARED_CARTOON_BASE_STYLE =
   'Pixar-DreamWorks stylized 3D animation rendering. Full volumetric ' +
