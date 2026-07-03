@@ -318,13 +318,14 @@ export const CHARACTER_SEED: SeedCharacter[] = [
   {
     slug: 'bangalore_techie',
     category: 'indian_archetypes',
-    display_name: 'Bangalore Techie',
+    display_name: 'Indian Techie',
     visual_dna:
-      'Cartoon Indian software engineer, late 20s, casual hoodie or company t-shirt, hipster glasses, holding a cold coffee, mild perpetual sleep-deprivation.',
+      'Cartoon Indian software engineer, late 20s, casual hoodie or company t-shirt, hipster glasses, holding a cold coffee, mild perpetual sleep-deprivation. Geography-agnostic — could be based in any Indian metro or tier-2 city; the scene setting decides where.',
     signature_action:
-      'Working from a HSR / Koramangala cafe, attending standups on laptop, racing through Bangalore traffic on an electric scooter.',
+      'Working from a cafe on a laptop, attending standups over video, racing through city traffic on an electric scooter, debugging late into the night.',
     personality: 'Witty, cynical-with-warmth, well-paid but disillusioned.',
     mood_palette: 'cafe browns, laptop screen blue, urban grey',
+    aliases: ['indian_techie', 'techie', 'software_engineer'],
   },
   {
     slug: 'auto_driver',
@@ -420,9 +421,9 @@ export const SHARED_CARTOON_BASE_STYLE =
   'occlusion, golden-hour key lighting at 4500K, gentle rim light. ' +
   'Friendly Pixar character proportions: slightly larger head, big ' +
   'expressive eyes, simplified but detailed features. Saturated palette ' +
-  '(marigold orange, kingfisher blue, ivory cream, terracotta). Recognizably ' +
-  'Indian settings: chai tapri, IT office desk, household kitchen, auto ' +
-  'rickshaw, college campus corridor, Bengaluru / Hyderabad street at ' +
-  'golden hour. Every character in the scene is HUMAN — never animals, ' +
-  'never floating shapes or logos. All scenes share this exact rendering ' +
-  'style so the channel looks like one continuous 3D animated short.';
+  '(marigold orange, kingfisher blue, ivory cream, terracotta). Every ' +
+  'character in the scene is HUMAN — never animals, never floating shapes ' +
+  'or logos. All scenes share this exact rendering style so the channel ' +
+  'looks like one continuous 3D animated short. Setting is decided per ' +
+  'scene by the scene generator based on the script’s narrative — ' +
+  'this base style prescribes only the LOOK, never the WHERE.';

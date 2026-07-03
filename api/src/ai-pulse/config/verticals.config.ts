@@ -124,7 +124,7 @@ export const VERTICAL_SCENE_ACCENTS: Record<AiPulseVertical, VerticalSceneAccent
   },
   tech_industry: {
     palette:    'deep navy + cyan glow + cool fluorescent overhead with warm accent lamps',
-    settings:   'open-plan tech offices late at night, server rooms with cool lighting, home workstations in apartments, cafés with laptops, Bengaluru / Hyderabad skylines',
+    settings:   'open-plan tech offices late at night, server rooms with cool lighting, home workstations in apartments, cafés with laptops, Indian metro / tier-2 city skylines (any city — Bengaluru, Hyderabad, Pune, Chennai, Gurugram, Noida, Kochi, Ahmedabad, Indore — vary by story)',
     props:      'multi-monitor setups, mechanical keyboards, sticky-noted dashboards, ID badges, coffee cups, ramen, code on screens, salary spreadsheets',
     character_archetypes: 'the engineer (late 20s-30s, hoodie or polo, glasses), the recruiter (anonymous LinkedIn-shape), the laid-off worker (closed laptop, packed box)',
     mood_default: 'measured, career-stakes, slightly weary but determined',
