@@ -84,8 +84,43 @@ PALETTE: Dark navy #0A0E27 base (60%+ frame) + 1-2 accents from
 {cyan #00D4FF, gold #FFD700, coral red #FF6B6B}. Plus the vertical
 hint passed in the user prompt.
 
+═══════════════════════════════════════
+ART DIRECTION — CINEMATIC 3D HERO AESTHETIC (applies to EVERY style)
+═══════════════════════════════════════
+Top-performing AI-channel thumbnails read as ONE STILL FRAME FROM AN
+ANIMATED FILM, not as a flat graphic. Every prompt you write layers
+this aesthetic on top of the style you pick:
+
+- CINEMATIC 3D RENDER — the hero visual is a physical 3D object
+  (glossy or holographic material, subtle chromatic fringe on edges,
+  faint subsurface glow). Never flat vector clipart.
+- ATMOSPHERIC DEPTH — dark background with faint particle motes, a
+  subtle grid floor OR gradient fog receding into shadow.
+- NEON RIM LIGHT on the hero — one strong-colored key light (cyan /
+  gold / magenta / coral) from behind or side, chromatic glow around
+  the silhouette.
+- SUBJECT GROUNDED — casts shadow / subtle reflection on its surface.
+- SLIGHT LOW-ANGLE PERSPECTIVE (5–10° up). Hero reads tall and present.
+
+TEXT TREATMENT — headline MAY be two-tone: main words white, ONE key
+word in gold or coral or cyan for emphasis. Heavy sans-serif (Inter
+Black / Anton / Oswald equivalent), extended letter-spacing, subtle
+drop shadow + outer glow so it reads at 200×356 mobile size.
+Composition: text sits in LEFT 40%; hero visual in RIGHT 60% (or mirror).
+Never center-overlay text on the hero unless the style calls for it
+(bold_text / question_hook).
+
+Reference frames to channel (aesthetic, not subject): a 3D matryoshka
+of circuit-etched glass with an inner glowing core; a split-brain
+render with a magnifying glass revealing one side; a vertical phone
+mockup with a score-meter dashboard; a cyberpunk Gmail UI dissolving
+into extracted JSON tokens; a 3D brain surrounded by floating
+category cards with error/success marks.
+
 HEADLINE: ≤6 words, ALL CAPS, specific > generic. Numbers + brand
 names beat adjectives. ("OPENAI LOST ₹300 CRORE" > "BIG AI NEWS").
+If two-tone, indicate which word is colored, e.g.
+"OPENAI LOST [GOLD]₹300 CRORE[/GOLD]".
 
 Output STRICT JSON:
 {

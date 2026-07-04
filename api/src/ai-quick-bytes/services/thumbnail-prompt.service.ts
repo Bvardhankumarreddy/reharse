@@ -53,6 +53,70 @@ GOLDEN RULES (NON-NEGOTIABLE)
 ❌ NO "shocked face" unless the story genuinely warrants it (≤1 of 4)
 
 ═══════════════════════════════════════
+ART DIRECTION — CINEMATIC 3D HERO AESTHETIC (applies to EVERY style)
+═══════════════════════════════════════
+Reference frame: top-performing AI-channel thumbnails read as ONE STILL
+FRAME FROM AN ANIMATED FILM, not as a flat graphic. Every prompt you
+write must target this aesthetic — layer it on top of the style you
+pick from the 9-style menu below.
+
+- CINEMATIC 3D RENDER — the hero visual is a physical 3D object in a
+  shallow-depth scene, not a flat vector illustration. Glossy or
+  holographic material, subtle chromatic fringe on edges, faint
+  subsurface glow. Think Pixar / Cyberpunk 2077 title-card, not
+  PowerPoint clipart.
+- ATMOSPHERIC DEPTH — dark cinematic background with faint particle
+  motes, a subtle grid floor OR gradient fog receding into shadow.
+  Subject is lit; background stays dark and quiet so nothing competes.
+- NEON RIM LIGHT on the hero — one strong-colored key light (cyan /
+  gold / magenta / coral) from behind or side, casting a chromatic
+  glow around the silhouette.
+- SUBJECT GROUNDED IN SPACE — the object casts a shadow or subtle
+  reflection on the surface it sits on. Makes it feel photographed,
+  not stickered on.
+- SLIGHT LOW-ANGLE PERSPECTIVE — 5–10° up. Hero reads as tall and
+  present, never flat / catalog.
+- HIGH PRODUCTION VALUE. Reads as "AI channel with 500K subs," never
+  as "amateur slide deck."
+
+TEXT TREATMENT (multi-tone allowed and encouraged):
+- The headline MAY use TWO tones for emphasis — main words in white,
+  ONE key word in gold #FFD700 or coral #FF6B6B or cyan #00D4FF.
+  Example headlines that use this well:
+    "TRAIN AI [GOLD]RIGHT[/GOLD] NOT [RED]WRONG[/RED]"
+    "SAME AI. [GOLD]DIFFERENT RESULTS[/GOLD]."
+    "500 LINES. [CYAN]6 FIELDS.[/CYAN]"
+  In the image prompt, describe the color-emphasis explicitly.
+- Text is HEAVY sans-serif (Inter Black / Anton / Oswald / Bebas Neue
+  equivalent). Extended letter-spacing, subtle drop shadow, faint
+  outer glow so it stays readable at 200×356 mobile size.
+- Composition: text sits in LEFT 40% of the frame; hero visual in the
+  RIGHT 60% (or mirror for the opposite split). Never center-overlay
+  text on the hero unless the style explicitly calls for it
+  (bold_text, question_hook).
+
+REFERENCE FRAMES (channel the aesthetic, do NOT copy the subject):
+1. A stylized 3D matryoshka nesting doll made of circuit-etched glass
+   with an inner glowing green core, cyan+gold rim light, dark grid
+   floor, headline "CLICKED!" in bold white.
+2. A split-brain 3D render — one hemisphere neuronal blue, the other
+   golden particle-storm — magnifying glass revealing detail on one
+   side, dark starfield background, headline with "DIFFERENT RESULTS"
+   in gold.
+3. A vertical phone mockup showing an AI feedback dashboard (score
+   meter, checkmarked features in green/blue/purple), a glowing mic
+   icon lower-left, dark background with faint app-store shine.
+4. A cyberpunk Gmail UI dissolving into extracted JSON fields, blue
+   + red neon, headline "500 LINES. 6 FIELDS." with "6 FIELDS." in
+   cyan.
+5. A 3D brain surrounded by floating pet-photo cards (some marked with
+   red error boxes, others green ticks), warm rim light, headline
+   "TRAIN AI RIGHT NOT WRONG" with "RIGHT" in gold and "WRONG" in
+   coral.
+
+Internalize the aesthetic. Apply it to THIS story's visual metaphor.
+
+═══════════════════════════════════════
 BRAND PALETTE (PICK 2, NEVER ALL 4)
 ═══════════════════════════════════════
 - Dark Navy #0A0E27   (background, always)
@@ -121,12 +185,18 @@ AVATAR (use ONLY when the style genuinely calls for a face):
    (model release, scandal, sudden reversal).
    USE WHEN: rare — and only if the news truly is shocking.
 
-▶️ "brand_signature" — Richer AetherStackAI house look. Dark navy
-   with subtle glowing tech particles, cyan+gold neon accents,
-   futuristic game-show energy. ONE striking focal subject (avatar
-   or hero prop) tied to topic. Tasteful HUD/glow accents allowed
-   here only. 60-120 word prompt.
-   USE WHEN: you want one premium-feeling option in the set.
+▶️ "brand_signature" — The house AetherStackAI look at its most
+   cinematic. Full 3D-render aesthetic per the ART DIRECTION block:
+   one hero object (topic-relevant — a glowing chip, a translucent
+   book, a holographic UI panel, a neon-etched matryoshka, a floating
+   AI model card, etc.) in the right 55–60% of the frame; heavy sans-
+   serif headline in the left 40% with one word in gold or cyan.
+   Deep navy background with cyan+gold rim light on the hero, dark
+   grid floor or particle field beneath, subtle chromatic fringe on
+   the hero's edges. Slight low-angle. Reads like a Cyberpunk 2077
+   loading screen for AI news. 100–150 word prompt.
+   USE WHEN: you want one premium 3D-cinematic option in the set —
+   this is the workhorse for hero stories.
 
 ═══════════════════════════════════════
 STORY-TYPE HEURISTIC (helps you pick the 4)
@@ -167,7 +237,12 @@ Length: 100-150 words per prompt (brand_signature: 60-120 ok).
 FINAL CHECK per variation:
 - ONE focal point clear in 0.3s?
 - Headline ≤6 words, specific (number/name), readable tiny?
+- Multi-tone text emphasis if it lands harder (one key word colored)?
 - Style fits THIS story (not pasted from default)?
+- 3D-rendered hero + atmospheric depth + neon rim light per the ART
+  DIRECTION block? (Skip only for identity_target / question_hook /
+  bold_text where typography IS the design.)
+- Grounded subject (shadow / reflection) + slight low-angle perspective?
 - ≤2 accent colors? No HUD clutter?
 - ≤1 shocked_reaction across the whole set?
 If any "no" → fix it.

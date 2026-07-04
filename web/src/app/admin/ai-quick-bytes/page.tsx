@@ -422,6 +422,7 @@ function ScriptCard({ script, onAct }: {
   const [showDist, setShowDist] = useState(false);
   const [dist, setDist] = useState<DistributionResp | null>(null);
   const [thumb, setThumb] = useState<ThumbnailPromptResp | null>(null);
+  const [thumbBusy, setThumbBusy] = useState(false);
   const [distBusy, setDistBusy] = useState(false);
   const [showTelugu, setShowTelugu] = useState(false);
   const [telugu, setTelugu] = useState<TeluguResp | null>(null);
@@ -495,6 +496,19 @@ function ScriptCard({ script, onAct }: {
       await loadDist();
     } finally {
       setDistBusy(false);
+    }
+  }
+
+  async function regenerateThumbnail() {
+    setThumbBusy(true);
+    const token = await fetchToken();
+    if (!token) { setThumbBusy(false); return; }
+    try {
+      await api(token, `/approval/${script.id}/thumbnail/regenerate`, { method: "POST" });
+      const t = await api<ThumbnailPromptResp>(token, `/approval/${script.id}/thumbnail`);
+      setThumb(t);
+    } finally {
+      setThumbBusy(false);
     }
   }
 
@@ -765,13 +779,35 @@ function ScriptCard({ script, onAct }: {
                 })}
               </div>
 
-              {/* Thumbnail prompts — 3 clean MrBeast-style variations */}
+              {/* Thumbnail prompts — 3-4 cinematic variations */}
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[#8B95B0] text-xs">
+                  {thumb?.thumbnailPrompt && "variations" in thumb.thumbnailPrompt
+                    ? `🖼 ${thumb.thumbnailPrompt.variations.length} thumbnail variations ready`
+                    : thumb?.thumbnailPrompt && "prompt" in thumb.thumbnailPrompt
+                    ? "🖼 Legacy thumbnail — regen for cinematic variations"
+                    : "🖼 No thumbnail yet"}
+                </span>
+                <button
+                  onClick={() => void regenerateThumbnail()}
+                  disabled={thumbBusy}
+                  className={
+                    "px-2.5 py-1 text-[11px] font-semibold rounded-md border transition " +
+                    (thumbBusy
+                      ? "bg-white/5 border-white/10 text-[#4A5470] cursor-not-allowed"
+                      : "bg-[#FFD700]/10 border-[#FFD700]/40 text-[#FFD700] hover:bg-[#FFD700]/20")
+                  }
+                  title="Regenerate thumbnail prompts with the latest art-direction rules"
+                >
+                  {thumbBusy ? "Regenerating…" : "🔁 Regen thumbnail"}
+                </button>
+              </div>
               {thumb?.thumbnailPrompt && "variations" in thumb.thumbnailPrompt ? (
                 <Block title="🖼 Thumbnail variations (pick one, paste into ChatGPT/DALL-E)">
                   <ThumbnailVariations variations={thumb.thumbnailPrompt.variations} />
                 </Block>
               ) : thumb?.thumbnailPrompt && "prompt" in thumb.thumbnailPrompt ? (
-                <Block title="🖼 Thumbnail prompt (legacy — regenerate for 3 clean variations)">
+                <Block title="🖼 Thumbnail prompt (legacy — regenerate for cinematic variations)">
                   <CopyField label="Overlay text" value={thumb.thumbnailPrompt.overlayText} />
                   <CopyField label="Image prompt" value={thumb.thumbnailPrompt.prompt} multiline />
                 </Block>
