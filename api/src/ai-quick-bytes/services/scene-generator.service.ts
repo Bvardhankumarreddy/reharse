@@ -452,7 +452,7 @@ SHOT VARIETY (USE A MIX)
 - Medium / three-quarter back of protagonist
 - Close-up on hands (typing, holding paper, pouring coffee)
 - Over-the-shoulder of a screen (code, chat window, dashboard)
-- Environmental detail (lamp, rain on window, empty chair)
+- Environmental detail (desk lamp glow, rain on window, empty chair, cracked-open laptop)
 - Reaction shot (eyes lit by monitor glow, small smile, sigh)
 - Symbolic still life (clock at 2 a.m., closed door, stacked notebooks)
 
@@ -460,10 +460,43 @@ SHOT VARIETY (USE A MIX)
 SPECIAL SCENES (REQUIRED)
 ═══════════════════════════════════════
 - QUOTE SCENE: the penultimate beat where the closing motivational
-  quote is voiced. Set subject = pure still-life or abstract metaphor
-  matched to the quote's tone (single lamp in dark, doorway opening
-  to sunrise, ink drying on paper). character_dna = "(no human
-  characters in this scene)". reference_image_url = null.
+  quote is voiced. The still-life MUST be DERIVED from the specific
+  quote's own imagery — pull a noun / metaphor / mood directly from
+  the quote's words. It is NOT a fixed template. character_dna =
+  "(no human characters in this scene)". reference_image_url = null.
+
+  HOW to derive: read the quote, pick one concrete noun it invokes
+  (or one implicit metaphor), and stage that as a still-life. If the
+  quote mentions "code", show a scrolling terminal. If it says
+  "build", show hands mid-work on a keyboard. If it invokes "time",
+  show a clock at an odd hour. If it's about "start", show a chalk
+  first mark on a blackboard. Match the mood — sharp for challenge
+  quotes, warm for hope, cool for craft, tense for pressure.
+
+  BANNED CLICHÉS (do NOT default to these unless the quote is
+  literally about that theme):
+  - Diya / earthen oil lamp / any Indian ritual lamp (this has
+    become our channel's most-overused closing shot — avoid unless
+    the quote is explicitly about faith, festival, ritual, or light)
+  - A single candle in the dark
+  - A generic sunrise / sunset landscape
+  - Ink drying on paper
+  - Feathered quill on parchment
+
+  Preferred palette of quote-scene still-lifes (rotate — never repeat
+  the same one within 5 scripts): scrolling terminal on a dark
+  monitor at 3 a.m., a stack of dog-eared notebooks under a desk
+  lamp, a whiteboard mid-equation, a chalkboard with one line
+  written, a keyboard with hands mid-strike, a coffee cup steaming
+  at a wooden desk, a phone lock-screen showing a single notification,
+  a stopwatch mid-tick, a paper airplane on a wet windowsill, a
+  bookshelf with one book pulled forward, a laptop-lid crack of light
+  in a dark room, a whiteboard eraser leaving one word behind, a
+  half-open door with light spilling from the next room, a keychain
+  on a bare wooden table, a sticky-note wall with one note pulled off.
+
+  If none of those fit the quote's specific words, INVENT a still-life
+  from the quote's own noun — but never fall back to a diya.
 - CTA SCENE: the final scene, host direct-address. Warm natural light,
   subtle smile. Use reference_image_url per host rules above.
 
