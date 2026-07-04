@@ -533,6 +533,19 @@ function ScriptDetail({
           🔁 Regen thumbnails
         </button>
         <button
+          onClick={() => action("Regenerated Telugu translation",
+            () => api(token, `/approval/${scriptId}/regenerate-translation`, { method: "POST" }))}
+          disabled={!!busy || !script.english_full_script}
+          title={
+            script.english_full_script
+              ? "Regenerate only the Telugu translation (leaves English + cast untouched; wipes existing Telugu scenes)"
+              : "Needs English script first"
+          }
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#FFB020]/30 text-[#FFB020] hover:bg-[#FFB020]/10 disabled:opacity-40"
+        >
+          🔁 Regen Telugu translation
+        </button>
+        <button
           onClick={() => action("Regenerated EN distribution",
             () => api(token, `/approval/${scriptId}/regenerate-distribution`, { method: "POST" }))}
           disabled={!!busy}

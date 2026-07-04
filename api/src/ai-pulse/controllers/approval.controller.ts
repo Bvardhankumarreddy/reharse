@@ -120,6 +120,17 @@ export class AiPulseApprovalController {
   }
 
   /**
+   * Regenerate ONLY the Telugu translation for an existing script.
+   * Leaves English + character_cast untouched, and wipes scenes_te
+   * (they were sliced from the old Telugu text). Use when you want a
+   * fresh Telugu without churning a polished English script.
+   */
+  @Post(':id/regenerate-translation')
+  async regenerateTranslation(@Param('id') id: string) {
+    return this.scriptGen.translateToTelugu(id);
+  }
+
+  /**
    * Regenerate the distribution package. Defaults to English for
    * back-compat; pass ?lang=te to generate / refresh the Telugu mirror.
    * Telugu requires the script's telugu_full_script to be present

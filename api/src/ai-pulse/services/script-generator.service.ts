@@ -394,6 +394,74 @@ export class AiPulseScriptGeneratorService {
     if (!refreshed) throw new Error('Script vanished after save');
     return refreshed;
   }
+
+  /**
+   * Regenerate ONLY the Telugu translation for an existing script.
+   * English text and character_cast are left untouched. Used by the
+   * admin "Regen Telugu" button so operators can refresh the Telugu
+   * mirror without churning a polished English script. Mirrors the
+   * AQB /telugu/regenerate-translation pattern.
+   */
+  async translateToTelugu(scriptId: string): Promise<AiPulseScript> {
+    if (!this.openai) throw new Error('OPENAI_API_KEY not configured');
+    const script = await this.scripts.findOne({ where: { id: scriptId } });
+    if (!script) throw new Error(`script not found: ${scriptId}`);
+    if (!script.english_full_script?.trim()) {
+      throw new Error(
+        'script has no english_full_script — nothing to translate. ' +
+        'Regenerate the script first.',
+      );
+    }
+
+    const teUser =
+      `Translate this AetherStackAI short into Telugu per the rules.\n\n` +
+      `══════════════════════════════════════\n` +
+      `ENGLISH TITLE: ${script.english_title ?? ''}\n\n` +
+      `ENGLISH HOOK: ${script.english_hook ?? ''}\n\n` +
+      `ENGLISH FULL SCRIPT (preserve pause markers + final citation line):\n${script.english_full_script}\n` +
+      `══════════════════════════════════════\nOutput strict JSON only.`;
+
+    const teCompletion = await this.openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: TELUGU_SYSTEM },
+        { role: 'user',   content: teUser },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      max_tokens: 1400,
+    });
+    const teParsed = JSON.parse(teCompletion.choices[0]?.message?.content ?? '{}') as {
+      telugu_title?: string; telugu_hook?: string; telugu_full_script?: string;
+    };
+    const teScript = (teParsed.telugu_full_script ?? '').trim();
+    const teCost = costFor(teCompletion.usage, 'gpt-4o');
+
+    await this.scripts.update(scriptId, {
+      telugu_title: (teParsed.telugu_title ?? script.english_title ?? '').slice(0, 500),
+      telugu_hook: teParsed.telugu_hook ?? null,
+      telugu_full_script: teScript || null,
+      telugu_word_count: teScript ? teScript.trim().split(/\s+/).filter(Boolean).length : null,
+      llm_cost_usd: Number(script.llm_cost_usd ?? 0) + teCost,
+    });
+
+    // Regenerating Telugu invalidates any Telugu scenes we'd already
+    // generated (spoken_text was sliced from the old translation).
+    // Wipe them so the operator regens against the new Telugu text.
+    if (script.scenes_te) {
+      await this.scripts.update(scriptId, {
+        scenes_te: null,
+        scenes_te_generated_at: null,
+      });
+    }
+
+    this.logger.log(
+      `Telugu re-translation done for ${scriptId} ($${teCost.toFixed(4)})`,
+    );
+    const refreshed = await this.scripts.findOne({ where: { id: scriptId } });
+    if (!refreshed) throw new Error('Script vanished after Telugu update');
+    return refreshed;
+  }
 }
 
 function costFor(
