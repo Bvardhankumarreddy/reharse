@@ -396,6 +396,152 @@ export class AiPulseScriptGeneratorService {
   }
 
   /**
+   * Re-roll English + Telugu + character cast on an EXISTING script row.
+   * The row's id, approval_status, approved_by, approved_at, video
+   * artifacts (HeyGen ids, YouTube video ids, live snippets) all stay
+   * put. Script-derived assets (scenes, scenes_te, thumbnail_prompts,
+   * distribution packages) are wiped because they were computed from
+   * the previous script text — the operator regenerates them from the
+   * per-asset buttons once the new script text has landed.
+   *
+   * Used by the admin "Regen Script" button. Curators pick this instead
+   * of a "duplicate row" flow so the same UUID keeps referencing the
+   * same news item throughout its lifecycle — no split-brain across an
+   * old-approved row and a new-pending row.
+   */
+  async regenerateInPlace(scriptId: string): Promise<AiPulseScript> {
+    if (!this.openai) throw new Error('OPENAI_API_KEY not configured');
+    const existing = await this.scripts.findOne({ where: { id: scriptId } });
+    if (!existing) throw new NotFoundException(`script not found: ${scriptId}`);
+    const item = await this.news.findOne({ where: { id: existing.news_item_id } });
+    if (!item) throw new NotFoundException('news item not found');
+    const systemPrompt = VERTICAL_PROMPTS[item.vertical];
+    if (!systemPrompt) throw new Error(`No system prompt for vertical ${item.vertical}`);
+
+    const memoryBlock = this.memorySvc.format(
+      await this.memorySvc.relevantFor(item.vertical, 'script', 6),
+    );
+
+    const casting: CastingResult | null = await this.casting.castForNews({
+      title:    item.headline,
+      summary:  item.summary ?? '',
+      vertical: item.vertical,
+    });
+    const castBlock = casting ? formatAiPulseCastBlock(casting) : '';
+
+    // ── English ─────────────────────────────────────────────────────
+    const enUser =
+      `NEWS:\nHeadline: ${item.headline}\nSummary: ${item.summary ?? '(none)'}\n` +
+      `Source name (use this VERBATIM in the final-line citation): ${item.source_name}\n` +
+      `Source URL: ${item.source_url}\nPublished: ${item.published_at?.toISOString() ?? 'unknown'}\n\n` +
+      (castBlock   ? `${castBlock}\n\n`   : '') +
+      (memoryBlock ? `${memoryBlock}\n\n` : '') +
+      `Generate the script per the system prompt format. The LAST LINE of ` +
+      `english_full_script MUST be exactly:\n` +
+      `  Source: ${item.source_name}. Link in description.`;
+
+    const enCompletion = await this.openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: enUser },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+      max_tokens: 1200,
+    });
+    const enParsed = JSON.parse(enCompletion.choices[0]?.message?.content ?? '{}') as {
+      english_title?: string; english_hook?: string; english_full_script?: string;
+    };
+    const enScript = (enParsed.english_full_script ?? '').trim();
+    if (!enScript) throw new Error('Empty english_full_script from LLM');
+    const citation = `Source: ${item.source_name}. Link in description.`;
+    const enWithCitation = enScript.endsWith(citation)
+      ? enScript
+      : `${enScript}\n${citation}`;
+    const enWordCount = enWithCitation.trim().split(/\s+/).filter(Boolean).length;
+    const enCost = costFor(enCompletion.usage, 'gpt-4o');
+
+    // In-place update — preserves approval_status, approved_by,
+    // approved_at, rejection_reason, all video artifacts (video ids,
+    // urls, live_youtube snippets), and llm_model. Refreshes content +
+    // wipes script-derived assets so nothing points at stale text.
+    await this.scripts.update(scriptId, {
+      english_title: (enParsed.english_title ?? item.headline).slice(0, 500),
+      english_hook: enParsed.english_hook ?? null,
+      english_full_script: enWithCitation,
+      english_word_count: enWordCount,
+      character_cast: casting ? {
+        main:       casting.main.slug,
+        supporting: casting.supporting.map((c) => c.slug),
+        cameo:      casting.cameo.map((c) => c.slug),
+        reasoning:  casting.reasoning,
+      } : null,
+      llm_cost_usd: Number(existing.llm_cost_usd ?? 0) + enCost,
+      // Wipe stale Telugu — filled in by the try/catch below (best-effort).
+      telugu_title: null,
+      telugu_hook: null,
+      telugu_full_script: null,
+      telugu_word_count: null,
+      // Wipe script-derived assets — they were computed off the old
+      // script and would ship as mismatched content otherwise.
+      scenes: null,
+      scenes_generated_at: null,
+      scenes_te: null,
+      scenes_te_generated_at: null,
+      thumbnail_prompts: [],
+      distribution_package: null,
+      telugu_distribution_package: null,
+    });
+    this.logger.log(
+      `AI Pulse script re-rolled in place for ${scriptId} — ${enWordCount} words ` +
+      `($${enCost.toFixed(4)})`,
+    );
+
+    // ── Telugu translation (non-fatal — English ships if this fails) ─
+    try {
+      const teUser =
+        `Translate this AetherStackAI short into Telugu per the rules.\n\n` +
+        `══════════════════════════════════════\n` +
+        `ENGLISH TITLE: ${(enParsed.english_title ?? item.headline).slice(0, 500)}\n\n` +
+        `ENGLISH HOOK: ${enParsed.english_hook ?? ''}\n\n` +
+        `ENGLISH FULL SCRIPT (preserve pause markers + final citation line):\n${enWithCitation}\n` +
+        `══════════════════════════════════════\nOutput strict JSON only.`;
+
+      const teCompletion = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: TELUGU_SYSTEM },
+          { role: 'user',   content: teUser },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.3,
+        max_tokens: 1400,
+      });
+      const teParsed = JSON.parse(teCompletion.choices[0]?.message?.content ?? '{}') as {
+        telugu_title?: string; telugu_hook?: string; telugu_full_script?: string;
+      };
+      const teScript = (teParsed.telugu_full_script ?? '').trim();
+      const teCost = costFor(teCompletion.usage, 'gpt-4o');
+      const running = await this.scripts.findOne({ where: { id: scriptId } });
+      await this.scripts.update(scriptId, {
+        telugu_title: (teParsed.telugu_title ?? enParsed.english_title ?? item.headline).slice(0, 500),
+        telugu_hook: teParsed.telugu_hook ?? null,
+        telugu_full_script: teScript || null,
+        telugu_word_count: teScript ? teScript.trim().split(/\s+/).filter(Boolean).length : null,
+        llm_cost_usd: Number(running?.llm_cost_usd ?? 0) + teCost,
+      });
+      this.logger.log(`Telugu translation done for ${scriptId} ($${teCost.toFixed(4)})`);
+    } catch (e) {
+      this.logger.warn(`Telugu translation failed for ${scriptId}: ${(e as Error).message} — EN script saved`);
+    }
+
+    const refreshed = await this.scripts.findOne({ where: { id: scriptId } });
+    if (!refreshed) throw new Error('Script vanished after in-place regen');
+    return refreshed;
+  }
+
+  /**
    * Regenerate ONLY the Telugu translation for an existing script.
    * English text and character_cast are left untouched. Used by the
    * admin "Regen Telugu" button so operators can refresh the Telugu
