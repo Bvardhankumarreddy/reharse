@@ -53,34 +53,86 @@ export class AiPulseApprovalController {
       ? null
       : (ALLOWED.includes(effectiveStatus) ? effectiveStatus : 'pending_review');
 
+    // Partition dedup by (news_item_id, approval_status) so an approved
+    // script and a newly-regenerated pending_review script for the same
+    // news item can BOTH surface at once — the operator needs to see the
+    // currently-live approved version alongside the new candidate to
+    // decide whether to approve the new one or stick with the old.
+    //
+    // For the pending_review filter specifically we also include any
+    // approved scripts that share a news_item with a pending one, so the
+    // default workflow view shows the full "you have a live version + a
+    // new candidate" pair. Approved scripts WITHOUT a pending regen stay
+    // in the dedicated `?status=approved` view and don't clutter the
+    // pending queue.
     const params: unknown[] = [];
     const conds: string[] = [];
-    if (statusFilter) { params.push(statusFilter); conds.push(`s.approval_status = $${params.length}`); }
-    if (vertical)     { params.push(vertical);     conds.push(`s.vertical = $${params.length}`); }
+    if (statusFilter === 'pending_review') {
+      conds.push(
+        `(s.approval_status = 'pending_review' OR ` +
+        ` (s.approval_status = 'approved' AND EXISTS (` +
+        `   SELECT 1 FROM ai_pulse_scripts p ` +
+        `   WHERE p.news_item_id = s.news_item_id ` +
+        `     AND p.approval_status = 'pending_review'` +
+        ` )))`,
+      );
+    } else if (statusFilter) {
+      params.push(statusFilter);
+      conds.push(`s.approval_status = $${params.length}`);
+    }
+    if (vertical) { params.push(vertical); conds.push(`s.vertical = $${params.length}`); }
     // Always hide scripts whose underlying news item was flagged as a
     // duplicate — the operator has decided they never want to look at
-    // it again in the workflow. Older versions of the same script that
-    // predate the flag also disappear because we join on news_item_id.
+    // it again in the workflow.
     conds.push(`n.status <> 'duplicate'`);
     const whereSql = `WHERE ${conds.join(' AND ')}`;
     const latestRows = await this.scripts.query<{ id: string }[]>(
-      `SELECT DISTINCT ON (s.news_item_id) s.id
+      `SELECT DISTINCT ON (s.news_item_id, s.approval_status) s.id
          FROM ai_pulse_scripts s
          JOIN ai_pulse_news_items n ON n.id = s.news_item_id
          ${whereSql}
-         ORDER BY s.news_item_id, s.created_at DESC`,
+         ORDER BY s.news_item_id, s.approval_status, s.created_at DESC`,
       params,
     );
     const latestIds = latestRows.map((r) => r.id);
     if (latestIds.length === 0) return [];
 
-    return this.scripts
+    const rows = await this.scripts
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.news_item', 'n')
       .where('s.id IN (:...ids)', { ids: latestIds })
-      .orderBy('s.created_at', 'DESC')
-      .limit(50)
       .getMany();
+
+    // Keep scripts for the same news_item adjacent so the operator can
+    // see an in-review pending regen right next to its currently-live
+    // approved counterpart. Group by news_item_id, order groups by the
+    // most-recent activity in the group, then within a group show the
+    // pending_review row before the approved one so the new candidate is
+    // on top of the pair.
+    const groupNewness = new Map<string, number>();
+    for (const r of rows) {
+      const t = new Date(r.created_at).getTime();
+      groupNewness.set(
+        r.news_item_id,
+        Math.max(groupNewness.get(r.news_item_id) ?? 0, t),
+      );
+    }
+    const statusPriority: Record<string, number> = {
+      pending_review: 0, approved: 1, published: 2, rejected: 3,
+    };
+    rows.sort((a, b) => {
+      const groupDelta = (groupNewness.get(b.news_item_id) ?? 0)
+        - (groupNewness.get(a.news_item_id) ?? 0);
+      if (groupDelta !== 0) return groupDelta;
+      if (a.news_item_id !== b.news_item_id) {
+        return a.news_item_id.localeCompare(b.news_item_id);
+      }
+      const p = (statusPriority[a.approval_status] ?? 9)
+        - (statusPriority[b.approval_status] ?? 9);
+      if (p !== 0) return p;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    return rows.slice(0, 50);
   }
 
   /** Single script detail. */
