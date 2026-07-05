@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { AiPulseScript, AiPulseDistributionPackage } from '../entities/news-script.entity';
 import { AiPulseNewsItem } from '../entities/news-item.entity';
+import { VERTICALS } from '../config/verticals.config';
 
 export type AiPulseDistLanguage = 'en' | 'te';
 
@@ -15,28 +16,140 @@ Host: Vardhan. Each post promotes ONE short and drives traffic to the channel.
 URL PLACEHOLDERS — use {{SOURCE_URL}} for the full source link. Do NOT
 write any other real URLs.
 
-HARD REQUIREMENTS (non-negotiable):
+═══════════════════════════════════════
+TITLE PLAYBOOK (YouTube) — HOW to write titles that stop the scroll
+═══════════════════════════════════════
+This is the biggest CTR lever. Pick the strongest pattern for THIS story:
+
+▶ "<BRAND / PERSON> just <SURPRISING VERB> <SPECIFIC THING>"
+  ✅ "OpenAI just leaked its next model's context window"
+  ✅ "Sundar Pichai just admitted Gemini's real weakness"
+
+▶ "<NUMBER> + <CONCRETE NOUN> + <TIME/OUTCOME>"
+  ✅ "$500B in AI hires. In 90 days."
+  ✅ "3 lines of Python replaced a whole team"
+
+▶ "<QUESTION that reframes the story>"
+  ✅ "Is Claude actually smarter than GPT-5 now?"
+  ✅ "Why did Anthropic hide this benchmark?"
+
+▶ "<CONTROVERSY / REVERSAL>"
+  ✅ "Meta open-sourced the model Google was hiding"
+  ✅ "The AI startup that just killed its own product"
+
+▶ "<IDENTITY CALLOUT + PAYOFF>"
+  ✅ "For Indian engineers: OpenAI's new pricing tier"
+  ✅ "If you use Cursor, read this"
+
+TITLE HARD RULES:
+- 60-90 chars (YouTube truncates at ~100 on mobile — leave room for
+  the "#Shorts" tag). Never exceed 100.
+- MUST end with " #Shorts" (that exact casing, YouTube ranks it).
+- MAY prepend 1-2 lowercase topical hashtags before "#Shorts"
+  (e.g. "…for Rs 4 crore #ai #openai #Shorts").
+- FRONT-LOAD the interesting thing in the first 5 words — the mobile
+  feed truncates mid-title. If the story's payoff is a name, number,
+  or verb, that word goes first.
+- SPECIFIC beats vague every time. Real brand / person / product /
+  number > "AI just did something". Use the actual entities from the
+  news item (they're passed in the user prompt).
+- BANNED words that read as clickbait and get punished by the algo:
+  "shocking", "you won't believe", "insane", "crazy", "mind-blown",
+  "this changes everything", "gone wrong", "reacts to".
+
+═══════════════════════════════════════
+DESCRIPTION PLAYBOOK (YouTube) — first 2 lines are the SEO gold
+═══════════════════════════════════════
+Structure (in order):
+  LINE 1 (hook, ≤120 chars — this is what shows in search snippets):
+    Re-phrase the title with the ONE concrete fact that makes this
+    interesting. NOT a re-copy of the title.
+  LINE 2 (blank).
+  LINES 3-5 (what it covers, 2-4 sentences):
+    Plain English, no jargon. Tell the viewer what they'll learn.
+    Weave brand / product / person names naturally — YouTube indexes
+    these for search.
+  LINE 6 (blank).
+  LINE 7: "Read more: {SOURCE_NAME} → {{SOURCE_URL}}"
+  LINE 8 (blank).
+  LINE 9 (hashtag block, 5-8 hashtags): mix per HASHTAG PLAYBOOK below.
+
+Description hard rules:
+- 150-400 words TOTAL. Not padded, not one-liner.
+- No emoji spam. 0-2 emoji max, and only if they earn their place.
+- Never repeat the title verbatim in the description.
+
+═══════════════════════════════════════
+YOUTUBE TAGS PLAYBOOK (the 10-15 strings, no # prefix)
+═══════════════════════════════════════
+Layered mix — use ALL three layers, never just one:
+
+  LAYER 1 — Broad topical (3-4 tags): "ai news", "ai shorts",
+  "artificial intelligence", "tech news 2026". Always include the
+  channel-brand seed "aetherstackai".
+
+  LAYER 2 — Specific brand / product / person (5-7 tags): pull these
+  DIRECTLY from the news item's entities. Company names ("openai",
+  "anthropic", "google deepmind"), product names ("chatgpt", "claude
+  opus", "gemini 3", "cursor ide"), person names ("sam altman",
+  "sundar pichai") — always exactly as they'd be searched.
+
+  LAYER 3 — Long-tail search phrases (3-4 tags): what a viewer would
+  actually type into YouTube search: "openai new model 2026",
+  "claude vs gpt", "ai layoffs india", "chatgpt free plan india".
+
+Tag hard rules:
+- All lowercase, no # prefix.
+- 10-15 total (YouTube caps at ~500 chars aggregate; 15 short tags fits).
+- No duplicates, no near-duplicates ("chatgpt" AND "chat gpt" is waste).
+- If the news item's entities were passed in, USE them verbatim in
+  Layer 2 — they are the highest-CTR signal you have.
+
+═══════════════════════════════════════
+HASHTAG PLAYBOOK (Instagram / LinkedIn / body-inline)
+═══════════════════════════════════════
+Same 3-layer strategy as YouTube tags but WITH the # prefix:
+
+  LAYER 1 — Broad discovery (3-4): #ai #artificialintelligence
+    #aishorts #techindia
+  LAYER 2 — Specific brand / product / person (6-8): #openai #chatgpt
+    #anthropic #claude #cursorai #geminiai — pull from news entities.
+  LAYER 3 — Audience identity (2-3): #indianengineers #btech
+    #techprofessionals #startupindia
+
+Hashtag hard rules:
+- ALL LOWERCASE always. #ai not #AI. #chatgpt not #ChatGPT.
+- Instagram: 12-15 total. LinkedIn: 4-6 total (LinkedIn punishes
+  hashtag spam — quality beats quantity).
+- Never write hashtags with numbers unless the number is part of a
+  known brand (#gpt5, #openai — fine; #ai2026 — bad, reads as bot).
+
+═══════════════════════════════════════
+HARD REQUIREMENTS (non-negotiable)
+═══════════════════════════════════════
 - EVERY platform's main text MUST contain the full source URL
   (use the {{SOURCE_URL}} placeholder — the system will replace it).
-- EVERY platform MUST also generate a pinned_comment field that
-  carries the full source URL on its own line, formatted as:
-    Source: {SOURCE_NAME} — {{SOURCE_URL}}
-- ALL HASHTAGS must be lowercase across every platform.
+- EVERY platform MUST generate a pinned_comment field carrying the
+  source URL formatted as: Source: {SOURCE_NAME} — {{SOURCE_URL}}
+- ALL HASHTAGS lowercase across every platform.
 
-PLATFORM RULES:
-- youtube: title ≤100 chars ending "#Shorts"; description = hook +
-  what it covers + "Read more: {SOURCE_NAME} → {{SOURCE_URL}}" + 5-8
-  lowercase hashtags; tags = 10-15 lowercase SEO strings (no #).
-- instagram: bold hook, 2-3 punchy lines, CTA, "Source: {SOURCE_NAME} →
-  {{SOURCE_URL}}"; 12-15 lowercase hashtags; full_text = caption +
-  blank line + hashtags joined by spaces.
+═══════════════════════════════════════
+PLATFORM RULES (structure — the playbooks above tell you HOW)
+═══════════════════════════════════════
+- youtube: title per TITLE PLAYBOOK; description per DESCRIPTION
+  PLAYBOOK; tags per YOUTUBE TAGS PLAYBOOK.
+- instagram: bold hook, 2-3 punchy lines, CTA, "Source: {SOURCE_NAME}
+  → {{SOURCE_URL}}"; 12-15 hashtags per HASHTAG PLAYBOOK; full_text
+  = caption + blank line + hashtags joined by spaces.
 - linkedin: 100-200 words, professional, insight + why it matters +
-  question + "Source: {SOURCE_NAME} — {{SOURCE_URL}}" + "Follow Vardhan
-  for daily AI insights"; 4-6 lowercase hashtags; full_text = body +
-  blank line + hashtags.
-- whatsapp_channel: 60-100 words, WhatsApp formatting (*bold*), emoji
-  opener, source line "Watch: {{SOURCE_URL}}", signature "— Vardhan".
-- whatsapp_status: ≤50 words, 1 emoji, 1-line hook, "Read → {{SOURCE_URL}}".
+  question + "Source: {SOURCE_NAME} — {{SOURCE_URL}}" + "Follow
+  Vardhan for daily AI insights"; 4-6 hashtags per HASHTAG PLAYBOOK;
+  full_text = body + blank line + hashtags.
+- whatsapp_channel: 60-100 words, WhatsApp formatting (*bold*),
+  emoji opener, source line "Watch: {{SOURCE_URL}}", signature
+  "— Vardhan".
+- whatsapp_status: ≤50 words, 1 emoji, 1-line hook, "Read →
+  {{SOURCE_URL}}".
 
 Output STRICT JSON only:
 {
@@ -87,20 +200,80 @@ HARD REQUIREMENTS (non-negotiable):
   source URL formatted as: Source: {SOURCE_NAME} — {{SOURCE_URL}}
 - ALL HASHTAGS lowercase across every platform.
 
-PLATFORM RULES (Telugu copy, same structure as English):
-- youtube: title ≤100 chars ending "#Shorts" (title may be code-mixed
-  Telugu+English); description = Telugu hook + what it covers + "Read
-  more: {SOURCE_NAME} → {{SOURCE_URL}}" + 5-8 lowercase hashtags;
-  tags = 10-15 lowercase SEO strings (no #), include Telugu-audience
-  tags like teluguai, telugutech, teluguai news.
+═══════════════════════════════════════
+TITLE PLAYBOOK (Telugu YouTube) — same patterns as English, code-mixed
+═══════════════════════════════════════
+Trivikram-style punchlines, code-mixed. Pick ONE pattern per title:
+
+▶ "<BRAND> just <VERB> <THING> — <TELUGU HOOK>"
+  ✅ "OpenAI ఇప్పుడు మనకి ఇచ్చిన trick తెలుసా?"
+  ✅ "ChatGPT free planlo ఏమి మార్చింది?"
+▶ "<NUMBER + CONCRETE THING>"
+  ✅ "Rs 400 crore. 90 rojullo."
+  ✅ "3 lines Python. Whole team gone."
+▶ "<Trivikram-style question>"
+  ✅ "మీకు తెలుసా Claude ఏమి చేసిందో?"
+  ✅ "Cursor use చేస్తున్నారా? ఇది చూడండి."
+
+TITLE HARD RULES (Telugu):
+- 60-90 chars ending " #Shorts". FRONT-LOAD the interesting Telugu
+  or English word (not "మీరు వార్త వినారా" style filler).
+- Brand / product / person names stay in English exactly as searched
+  (OpenAI, ChatGPT, Sam Altman, Gemini — no తెలుగీకరణ).
+- Numbers stay as digits (Rs 4 crore, not నాలుగు కోట్లు).
+- MAY prepend 1-2 lowercase hashtags before "#Shorts"
+  (e.g. "…news #teluguai #openai #Shorts").
+
+═══════════════════════════════════════
+DESCRIPTION PLAYBOOK (Telugu YouTube)
+═══════════════════════════════════════
+Structure:
+  LINE 1 (Telugu hook re-phrased with the ONE key fact, ≤120 chars).
+  LINE 2 blank.
+  LINES 3-5 (Telugu code-mixed, 2-4 sentences): what viewers will
+    learn. Weave brand / product names in English inline (they're
+    the SEO signal too).
+  LINE 6 blank.
+  LINE 7: "Read more: {SOURCE_NAME} → {{SOURCE_URL}}"
+  LINE 8 blank.
+  LINE 9 (5-8 hashtags, mix per HASHTAG PLAYBOOK below).
+
+═══════════════════════════════════════
+YOUTUBE TAGS PLAYBOOK (Telugu — 10-15, no # prefix)
+═══════════════════════════════════════
+Three layers, same strategy as English but with Telugu-audience overlay:
+
+  LAYER 1 — Broad Telugu-AI (3-4): "teluguai", "telugutech", "telugu
+  ai news", "aetherstackai"
+  LAYER 2 — Specific brand / product / person (5-7): pulled from
+  news entities exactly as searched — "openai", "chatgpt", "sam
+  altman", "cursor ide", "gemini 3", etc. English names, verbatim.
+  LAYER 3 — Long-tail (3-4): "openai new model telugu", "chatgpt
+  telugu ki ela", "ai news telugu"
+
+═══════════════════════════════════════
+HASHTAG PLAYBOOK (Telugu)
+═══════════════════════════════════════
+  LAYER 1 — Broad (3-4): #teluguai #telugutech #ai #hyderabad
+  LAYER 2 — Brand / product / person (6-8): #openai #chatgpt #gpt5
+    #anthropic #claude #geminiai — pulled from news entities.
+  LAYER 3 — Audience identity (2-3): #teluguengineers #teluguyt
+    #teluguviewers
+
+Same casing rule: ALL LOWERCASE always.
+
+═══════════════════════════════════════
+PLATFORM RULES (Telugu copy, same structure)
+═══════════════════════════════════════
+- youtube: title per TITLE PLAYBOOK; description per DESCRIPTION
+  PLAYBOOK; tags per YOUTUBE TAGS PLAYBOOK.
 - instagram: bold Telugu hook, 2-3 punchy lines code-mixed, CTA,
-  "Source: {SOURCE_NAME} → {{SOURCE_URL}}"; 12-15 lowercase hashtags
-  (include #teluguai #telugutech #hyderabad); full_text = caption +
-  blank line + hashtags joined by spaces.
+  "Source: {SOURCE_NAME} → {{SOURCE_URL}}"; 12-15 hashtags per
+  HASHTAG PLAYBOOK; full_text = caption + blank line + hashtags.
 - linkedin: 100-200 words, professional code-mixed Telugu, insight +
   ఎందుకు important + question + "Source: {SOURCE_NAME} — {{SOURCE_URL}}"
-  + "Follow Vardhan for daily AI insights in Telugu"; 4-6 lowercase
-  hashtags; full_text = body + blank line + hashtags.
+  + "Follow Vardhan for daily AI insights in Telugu"; 4-6 hashtags
+  per HASHTAG PLAYBOOK; full_text = body + blank line + hashtags.
 - whatsapp_channel: 60-100 words Telugu, *bold* formatting, emoji
   opener, source line "Watch: {{SOURCE_URL}}", signature "— Vardhan".
 - whatsapp_status: ≤50 words Telugu, 1 emoji, 1-line hook, "Read →
@@ -153,12 +326,40 @@ export class AiPulseDistributionService {
     const hook  = (isTe ? script.telugu_hook  : script.english_hook ) ?? '';
     const full  = (isTe ? script.telugu_full_script : script.english_full_script) ?? '';
 
+    // Load the vertical spec so we can hand the LLM the human-readable
+    // label + audience + tone + style keywords. Without this the LLM sees
+    // "ai_business" as a raw enum and can't reason about who it's writing
+    // for — the outputs come back generic.
+    const verticalSpec = VERTICALS[script.vertical];
+    const verticalBlock = verticalSpec
+      ? `VERTICAL: ${verticalSpec.display_name}\n` +
+        `  Description: ${verticalSpec.description}\n` +
+        `  Target audience: ${verticalSpec.target_audience}\n` +
+        `  Tone: ${verticalSpec.tone}\n` +
+        `  Style keywords to weave into tags / hashtags: ${verticalSpec.style_keywords.join(', ')}\n`
+      : `VERTICAL: ${script.vertical}\n`;
+
+    // Extract named entities from the ingested news item — real
+    // company / product / person / regulation names. These are the
+    // highest-CTR Layer-2 seeds for tags + hashtags. Deduped by kind so
+    // the LLM sees them grouped ("companies: openai, anthropic; people:
+    // sam altman, dario amodei; products: gpt-5, claude opus 4.5").
+    const entityBlock = formatEntitiesForPrompt(item.entities ?? []);
+
     const user =
-      `SCRIPT\nVertical: ${script.vertical} | Title: ${title}\n` +
-      `Hook: ${hook}\nFull script: ${full}\n\n` +
-      `SOURCE\nName: ${item.source_name}\nURL: ${item.source_url}\nHeadline: ${item.headline}\n\n` +
+      `${verticalBlock}\n` +
+      `SCRIPT\nTitle: ${title}\n` +
+      `Hook: ${hook}\n` +
+      `Full script: ${full}\n\n` +
+      `SOURCE\nName: ${item.source_name}\nURL: ${item.source_url}\n` +
+      `Original headline: ${item.headline}\n` +
+      (item.summary ? `Summary: ${item.summary.slice(0, 500)}\n` : '') +
+      `\n${entityBlock}` +
       `Use the {{SOURCE_URL}} placeholder — the runtime will inject ${item.source_url}.\n` +
-      `Output strict JSON per the system prompt.`;
+      `Output strict JSON per the system prompt. Follow the TITLE / ` +
+      `DESCRIPTION / TAGS / HASHTAG playbooks — do NOT default to generic ` +
+      `"ai news" copy. Use the named entities above verbatim in Layer 2 ` +
+      `of every tag/hashtag list.`;
 
     // Telugu output is encoded as ~2-3× more tokens than English (Indic
     // script) — bump the cap so the response doesn't truncate mid-string
@@ -316,4 +517,34 @@ function injectMandatoryHashtagsInto(pkg: AiPulseDistributionPackage, tags: stri
   if (pkg.whatsapp_channel?.full_text) {
     pkg.whatsapp_channel.full_text = appendInline(pkg.whatsapp_channel.full_text);
   }
+}
+
+/**
+ * Group entities from a news item by kind (company / person / product /
+ * regulation / etc.) into a readable block for the distribution LLM. The
+ * block feeds Layer-2 of tags + hashtags — real names beat generic
+ * "ai news" every time. Empty when the ingestion pipeline didn't extract
+ * any entities, so callers can safely concat the result.
+ */
+function formatEntitiesForPrompt(
+  entities: Array<{ kind: string; value: string }>,
+): string {
+  if (!entities || entities.length === 0) return '';
+  const byKind = new Map<string, string[]>();
+  for (const e of entities) {
+    const kind = (e?.kind ?? '').trim().toLowerCase();
+    const value = (e?.value ?? '').trim();
+    if (!kind || !value) continue;
+    const bucket = byKind.get(kind) ?? [];
+    if (!bucket.some((v) => v.toLowerCase() === value.toLowerCase())) {
+      bucket.push(value);
+      byKind.set(kind, bucket);
+    }
+  }
+  if (byKind.size === 0) return '';
+  const lines = ['NAMED ENTITIES (use these VERBATIM in Layer-2 tags + hashtags):'];
+  for (const [kind, values] of byKind.entries()) {
+    lines.push(`  ${kind}: ${values.slice(0, 8).join(', ')}`);
+  }
+  return `${lines.join('\n')}\n\n`;
 }
