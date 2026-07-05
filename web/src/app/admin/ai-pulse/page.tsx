@@ -517,6 +517,28 @@ function ScriptDetail({
           ✕ Reject
         </button>
         <button
+          onClick={() => {
+            if (!confirm(
+              "Mark this news item as a DUPLICATE?\n\n" +
+              "It will disappear from the queue permanently along with " +
+              "every past + future script generated from the same news item.",
+            )) return;
+            const canonical = prompt(
+              "Optional — paste the UUID of the canonical news_item this duplicates (leave blank if unknown):",
+            )?.trim() ?? "";
+            void action("Marked as duplicate",
+              () => api(token, `/approval/${scriptId}/mark-duplicate`, {
+                method: "POST",
+                body: JSON.stringify(canonical ? { duplicate_of: canonical } : {}),
+              }));
+          }}
+          disabled={!!busy}
+          title="Flag the underlying news item as a duplicate — hides it and every script from it out of the queue"
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-500/10 border border-purple-500/40 text-purple-300 hover:bg-purple-500/20 disabled:opacity-40"
+        >
+          🚫 Duplicate
+        </button>
+        <button
           onClick={() => action("Regenerated script",
             () => api(token, `/approval/${scriptId}/regenerate-script`, { method: "POST" }))}
           disabled={!!busy}

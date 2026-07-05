@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AdminGuard } from '../../auth/admin.guard';
 import { AiPulseScript } from '../entities/news-script.entity';
+import { AiPulseNewsItem } from '../entities/news-item.entity';
 import { AiPulseScriptGeneratorService } from '../services/script-generator.service';
 import { AiPulseThumbnailService } from '../services/thumbnail.service';
 import { AiPulseDistributionService } from '../services/distribution.service';
@@ -18,6 +19,8 @@ export class AiPulseApprovalController {
   constructor(
     @InjectRepository(AiPulseScript)
     private readonly scripts: Repository<AiPulseScript>,
+    @InjectRepository(AiPulseNewsItem)
+    private readonly newsItems: Repository<AiPulseNewsItem>,
     private readonly scriptGen: AiPulseScriptGeneratorService,
     private readonly thumbnails: AiPulseThumbnailService,
     private readonly distribution: AiPulseDistributionService,
@@ -52,14 +55,20 @@ export class AiPulseApprovalController {
 
     const params: unknown[] = [];
     const conds: string[] = [];
-    if (statusFilter) { params.push(statusFilter); conds.push(`approval_status = $${params.length}`); }
-    if (vertical)     { params.push(vertical);     conds.push(`vertical = $${params.length}`); }
-    const whereSql = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+    if (statusFilter) { params.push(statusFilter); conds.push(`s.approval_status = $${params.length}`); }
+    if (vertical)     { params.push(vertical);     conds.push(`s.vertical = $${params.length}`); }
+    // Always hide scripts whose underlying news item was flagged as a
+    // duplicate — the operator has decided they never want to look at
+    // it again in the workflow. Older versions of the same script that
+    // predate the flag also disappear because we join on news_item_id.
+    conds.push(`n.status <> 'duplicate'`);
+    const whereSql = `WHERE ${conds.join(' AND ')}`;
     const latestRows = await this.scripts.query<{ id: string }[]>(
-      `SELECT DISTINCT ON (news_item_id) id
-         FROM ai_pulse_scripts
+      `SELECT DISTINCT ON (s.news_item_id) s.id
+         FROM ai_pulse_scripts s
+         JOIN ai_pulse_news_items n ON n.id = s.news_item_id
          ${whereSql}
-         ORDER BY news_item_id, created_at DESC`,
+         ORDER BY s.news_item_id, s.created_at DESC`,
       params,
     );
     const latestIds = latestRows.map((r) => r.id);
@@ -104,6 +113,49 @@ export class AiPulseApprovalController {
     script.approval_status = 'rejected';
     script.rejection_reason = (body.reason ?? '').slice(0, 1000) || null;
     return this.scripts.save(script);
+  }
+
+  /**
+   * Flag the underlying news item as a duplicate. Hides it (and every
+   * script generated from it, past + future) from the workflow queue.
+   * If body.duplicate_of is a valid news_item UUID, we record the
+   * canonical article; otherwise the flag stands on its own.
+   * Also rejects the current script (with reason "duplicate") so any
+   * downstream that reads approval_status also skips it.
+   */
+  @Post(':id/mark-duplicate')
+  async markDuplicate(
+    @Param('id') id: string,
+    @Body() body: { duplicate_of?: string },
+  ) {
+    const script = await this.scripts.findOne({ where: { id } });
+    if (!script) throw new NotFoundException('script not found');
+
+    // If a canonical target was passed, validate it exists — never
+    // link a duplicate flag to a phantom UUID.
+    let canonicalId: string | null = null;
+    if (body.duplicate_of) {
+      const canonical = await this.newsItems.findOne({
+        where: { id: body.duplicate_of },
+      });
+      if (!canonical) {
+        throw new NotFoundException(
+          `duplicate_of news item ${body.duplicate_of} not found`,
+        );
+      }
+      canonicalId = canonical.id;
+    }
+
+    await this.newsItems.update(script.news_item_id, {
+      status: 'duplicate',
+      duplicate_of: canonicalId,
+    });
+
+    script.approval_status = 'rejected';
+    script.rejection_reason = 'Marked as duplicate';
+    await this.scripts.save(script);
+
+    return { success: true, news_item_id: script.news_item_id, duplicate_of: canonicalId };
   }
 
   /** Re-roll the script (English + Telugu) for the same news item. */

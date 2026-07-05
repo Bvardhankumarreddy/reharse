@@ -11,7 +11,7 @@ export type AiPulseVertical =
   | 'ai_society';
 
 export type AiPulseNewsStatus =
-  | 'pending' | 'scored' | 'selected' | 'rejected' | 'processed';
+  | 'pending' | 'scored' | 'selected' | 'rejected' | 'processed' | 'duplicate';
 
 @Entity('ai_pulse_news_items')
 @Unique('uq_pulse_news_source_extid', ['source_name', 'external_id'])
