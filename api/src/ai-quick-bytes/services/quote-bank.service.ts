@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, LessThan, Or, Repository } from 'typeorm';
+import { IsNull, LessThan, Not, Or, Repository, In } from 'typeorm';
 import { AqbQuote, AqbQuoteLanguage } from '../entities/aqb-quote.entity';
 import { AnthropicClientService } from './anthropic-client.service';
 
@@ -150,24 +150,53 @@ export class QuoteBankService {
   ): Promise<AqbQuote | null> {
     const cutoff = new Date(Date.now() - QuoteBankService.RECENT_WINDOW_DAYS * 86400_000);
 
+    // Hard-exclude the last 5 picked quotes across ALL bank sizes so
+    // rotation still works when the bank is smaller than the recency
+    // window can enforce. Without this the fallback path (step 2 below)
+    // picked the same low-count quote repeatedly for topically-similar
+    // stories — the operator was seeing "same quote every time."
+    const recentlyPickedIds = (await this.quotes.find({
+      where: { language, isActive: true, lastUsedAt: Not(IsNull()) },
+      order: { lastUsedAt: 'DESC' },
+      take:  5,
+      select: ['id'],
+    })).map((q) => q.id);
+    const excludeIds = recentlyPickedIds.length ? { id: Not(In(recentlyPickedIds)) } : {};
+
     // Step 1: prefer quotes either never used or not used in the last 30 days.
     let pool = await this.quotes.find({
       where: {
         language,
         isActive:   true,
         lastUsedAt: Or(IsNull(), LessThan(cutoff)),
+        ...excludeIds,
       },
       order: { lastUsedAt: 'ASC' },   // NULLS FIRST in Postgres ASC default
       take:  50,
     });
 
-    // Step 2: bank too small to rotate? Drop the recency rule.
+    // Step 2: bank too small to rotate? Drop the 30-day recency rule
+    // but KEEP the last-5-picked exclusion — small banks still deserve
+    // rotation. If even that leaves the pool empty (bank is smaller than
+    // the exclusion window), fall all the way back to any active quote.
     if (pool.length < QuoteBankService.MIN_POOL_TO_ENFORCE_RECENCY) {
       pool = await this.quotes.find({
-        where: { language, isActive: true },
+        where: { language, isActive: true, ...excludeIds },
         order: { timesUsed: 'ASC', lastUsedAt: 'ASC' },
         take:  50,
       });
+      if (pool.length === 0) {
+        this.logger.warn(
+          `Quote bank ${language} exhausted — all quotes are in the ` +
+          `last-5-picked window. Add more quotes to the bank to enable ` +
+          `proper rotation.`,
+        );
+        pool = await this.quotes.find({
+          where: { language, isActive: true },
+          order: { timesUsed: 'ASC', lastUsedAt: 'ASC' },
+          take:  50,
+        });
+      }
     }
     if (pool.length === 0) return null;
 
@@ -345,6 +374,34 @@ export class QuoteBankService {
       ? `\nFavour quotes that touch these themes: ${opts.themesHint.join(', ')}.\n`
       : '';
 
+    // Bias sources by language: English scripts close on English-tradition
+    // poets; Telugu scripts close on Telugu poets. The operator explicitly
+    // asked for this pairing so the closing quote feels like it belongs
+    // to the culture of the language it's spoken in.
+    const sourceBiasBlock = language === 'te'
+      ? `Prefer TELUGU POETS as the primary source (≥ 70% of the batch): ` +
+        `Vemana, Sumati (Baddena Bhupala), Annamayya (Annamacharya), ` +
+        `Bammera Pothana, Yerra Pragada, Nannaya, Tikkana, Tikkavarapu ` +
+        `Ramireddy, Sri Sri (Srirangam Srinivasa Rao), Devulapalli Krishna ` +
+        `Sastri, Gurram Jashuva, Kaloji Narayana Rao, Dasarathi ` +
+        `Krishnamacharyulu, C. Narayana Reddy, Viswanatha Satyanarayana. ` +
+        `Their quotes may be in Telugu script or transliterated Telugu — ` +
+        `whichever is closer to the original wording. Fill the remaining ` +
+        `slots with Telugu philosophers / spiritual thinkers (Ramana ` +
+        `Maharshi, Nagarjuna) or, sparingly, universal poets translated ` +
+        `to Telugu. AVOID tech-CEO or Western-motivational quotes — this ` +
+        `bank is culturally-Telugu.`
+      : `Prefer ENGLISH-LANGUAGE POETS as the primary source (≥ 70% of ` +
+        `the batch): Robert Frost, Emily Dickinson, Walt Whitman, William ` +
+        `Wordsworth, Rudyard Kipling, W.H. Auden, T.S. Eliot, Mary Oliver, ` +
+        `Rilke (Bly / Kinnell translations), Rumi (Coleman Barks / Nicholson ` +
+        `translations), Tagore (self-translation), Kabir (Bly translation), ` +
+        `Wendell Berry, Seamus Heaney, Maya Angelou. Fill the remaining ` +
+        `slots with LITERARY essayists whose lines read as poetry (Emerson, ` +
+        `Thoreau, Annie Dillard, David Whyte). AVOID tech-CEO one-liners ` +
+        `("stay hungry", "move fast") and avoid corporate-motivational ` +
+        `speakers — this bank is poet-first.`;
+
     const system =
       `You curate a bank of motivational quotes for "AI Quick Bytes", a ` +
       `daily AI shorts channel for educated Indian tech viewers. ` +
@@ -357,11 +414,10 @@ export class QuoteBankService {
       `{"quotes": [{"text":"...", "author":"...", "source":"<book/speech/film or null>", "themes":["..."]}]}`;
     const user =
       `Propose ${count} short, screenshot-shareable quotes in ${language === 'te' ? 'Telugu (పూర్తి తెలుగు script — author name may stay in English)' : 'English'}. ` +
-      `Targeted at engineers / founders / students. Mix sources: ` +
-      `tech leaders, writers, thinkers, philosophers. Avoid clichés ` +
-      `("be yourself", "follow your passion") and avoid any quote ` +
-      `whose attribution is contested. ` +
-      `Each must be at most 25 words. ` +
+      `Targeted at engineers / founders / students. ` +
+      `\n\n${sourceBiasBlock}\n\n` +
+      `Avoid clichés ("be yourself", "follow your passion") and avoid any ` +
+      `quote whose attribution is contested. Each must be at most 25 words. ` +
       `Tag 1-3 themes per quote from: perseverance, learning, change, ` +
       `innovation, ethics, courage, ambition, focus, simplicity, ` +
       `humility, ownership, curiosity, resilience, craftsmanship.` +
