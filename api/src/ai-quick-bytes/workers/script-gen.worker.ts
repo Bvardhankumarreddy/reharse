@@ -46,8 +46,10 @@ export class ScriptGenWorker implements OnModuleInit {
   }
 
   @Process('generate-one')
-  async generateOne(job: Job<{ newsItemId: string }>) {
-    const script = await this.scriptGen.generateScript(job.data.newsItemId);
+  async generateOne(job: Job<{ newsItemId: string; existingScriptId?: string }>) {
+    const script = await this.scriptGen.generateScript(job.data.newsItemId, {
+      existingScriptId: job.data.existingScriptId,
+    });
     return { scriptId: script.id };
   }
 }

@@ -373,15 +373,31 @@ export class ScriptGeneratorService {
     private readonly casting: CharacterCastingService,
   ) {}
 
-  async generateScript(itemId: string): Promise<ShortScript> {
+  async generateScript(
+    itemId: string,
+    opts?: { existingScriptId?: string },
+  ): Promise<ShortScript> {
     const item = await this.itemRepo.findOne({
       where: { id: itemId },
       relations: ['source'],
     });
     if (!item) throw new Error(`News item ${itemId} not found`);
 
+    // In-place regen: preserve the existing row's workflow state (status,
+    // approval metadata, video artifacts, YouTube ids, dayNumber) and just
+    // refresh the content. Script-derived assets (scenes, distribution) are
+    // wiped a few lines below since they'd ship as mismatched otherwise.
+    const existing = opts?.existingScriptId
+      ? await this.scriptRepo.findOne({ where: { id: opts.existingScriptId } })
+      : null;
+    if (opts?.existingScriptId && !existing) {
+      throw new Error(`script not found for in-place regen: ${opts.existingScriptId}`);
+    }
+
     const score = await this.scoreRepo.findOne({ where: { newsItemId: itemId } });
-    const dayNumber = await this.getNextDayNumber();
+    // Reuse the existing dayNumber so day-N ordering stays stable across
+    // regens; only allocate a fresh one when this is a brand-new script.
+    const dayNumber = existing?.dayNumber ?? await this.getNextDayNumber();
 
     // Learning-loop block (empty until AqbMemory has script patterns).
     // ── Idea selection (content strategy) ─────────────────────────────
@@ -444,37 +460,83 @@ export class ScriptGeneratorService {
         .filter(Boolean)
         .join('\n\n');
 
-    const script = await this.scriptRepo.save(this.scriptRepo.create({
-      newsItemId: itemId,
-      dayNumber,
+    const contentFields = {
       hook: parsed.hook,
       body: parsed.body,
       cta: parsed.cta,
       fullScript,
       durationEstimateSeconds: parsed.duration_estimate ?? null,
-      avatarId,
-      voiceId: this.config.get<string>('aiQuickBytes.heygen.voiceClone.vardhan') ?? null,
       brandVoiceScore: parsed.brand_voice_score ?? null,
-      // Story-mode metadata — null when LLM didn't emit (legacy newsbyte
-      // mode or older Anthropic returns); silently persisted otherwise.
       protagonist:          parsed.protagonist?.trim()           || null,
       emotionalProgression: parsed.emotional_progression?.trim() || null,
       coreMessage:          parsed.core_message?.trim()          || null,
-      // Cast — persisted so scene gen can read it without re-running
-      // the casting LLM. Null when casting failed; scene gen will then
-      // refuse to run and ask the operator to regenerate the script.
-      // Field named characterCast (not cast) — see entity comment.
       characterCast: casting ? {
         main:       casting.main.slug,
         supporting: casting.supporting.map((c) => c.slug),
         cameo:      casting.cameo.map((c) => c.slug),
         reasoning:  casting.reasoning,
       } : null,
-      status: 'draft',
-      costUsd: cost,
-    }));
+    };
 
-    await this.itemRepo.update(itemId, { status: 'scripted' });
+    let script: ShortScript;
+    if (existing) {
+      // In-place update: refresh content, wipe stale telugu (regenerated in
+      // the try/catch below), wipe script-derived assets that were computed
+      // off the old script text. Preserve workflow state (status, approval
+      // metadata, video artifacts, YouTube ids, live_youtube snippets).
+      Object.assign(existing, contentFields);
+      existing.costUsd = Number(existing.costUsd ?? 0) + cost;
+
+      // Stale Telugu — will be repopulated below (best-effort).
+      existing.teluguHook = null;
+      existing.teluguBody = null;
+      existing.teluguCta = null;
+      existing.teluguFullScript = null;
+      existing.teluguTranslationModel = null;
+      existing.teluguTranslationCostUsd = 0;
+      existing.teluguTranslatedAt = null;
+
+      // Stale closing quotes — regenerated at the tail of this method.
+      existing.closingQuoteId = null;
+      existing.closingQuoteText = null;
+      existing.closingQuoteAuthor = null;
+      existing.teluguClosingQuoteId = null;
+      existing.teluguClosingQuoteText = null;
+      existing.teluguClosingQuoteAuthor = null;
+
+      // Stale thumbnail — regenerated in the try block below.
+      existing.thumbnailPrompt = null;
+      existing.thumbnailGeneratedAt = null;
+
+      // Wipe script-derived assets — the operator regenerates each from
+      // its own dedicated button once the new script text has landed.
+      existing.scenes = null;
+      existing.scenesGeneratedAt = null;
+      existing.scenesCostUsd = 0;
+      existing.scenesTe = null;
+      existing.scenesTeGeneratedAt = null;
+      existing.scenesTeCostUsd = 0;
+      existing.distributionPackage = null;
+      existing.distributionGeneratedAt = null;
+      existing.teluguDistributionPackage = null;
+      script = await this.scriptRepo.save(existing);
+    } else {
+      script = await this.scriptRepo.save(this.scriptRepo.create({
+        newsItemId: itemId,
+        dayNumber,
+        ...contentFields,
+        avatarId,
+        voiceId: this.config.get<string>('aiQuickBytes.heygen.voiceClone.vardhan') ?? null,
+        status: 'draft',
+        costUsd: cost,
+      }));
+    }
+
+    // Only bump the news item's status on FIRST script creation. In-place
+    // regens leave the news_item status as-is (already 'scripted').
+    if (!existing) {
+      await this.itemRepo.update(itemId, { status: 'scripted' });
+    }
 
     const pickCtx = {
       title: item.title,

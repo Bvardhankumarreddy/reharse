@@ -52,10 +52,22 @@ export class ScriptsController {
     return { jobId: job.id, status: 'queued' };
   }
 
-  /** Generate a script for one specific news item. */
+  /**
+   * Generate a script for one specific news item.
+   * When `?existingScriptId=<uuid>` is passed, the worker updates that
+   * row in place (preserves status/approval/video artifacts, refreshes
+   * script content, wipes derived assets). Without it, a new draft row
+   * is created — used by the initial ingestion flow.
+   */
   @Post('generate/:newsItemId')
-  async generateOne(@Param('newsItemId') newsItemId: string) {
-    const job = await this.scriptQueue.add('generate-one', { newsItemId });
+  async generateOne(
+    @Param('newsItemId') newsItemId: string,
+    @Query('existingScriptId') existingScriptId?: string,
+  ) {
+    const job = await this.scriptQueue.add('generate-one', {
+      newsItemId,
+      existingScriptId: existingScriptId?.trim() || undefined,
+    });
     return { jobId: job.id, status: 'queued' };
   }
 }

@@ -682,18 +682,27 @@ function ScriptCard({ script, onAct }: {
                 />
               </>
             )}
-            {/* Regen script — queues a fresh generation pass for the same
-                news item, picking up the latest casting + prompt updates.
-                Creates a NEW script row (old one stays); queue dedup hides
-                the old draft so curator only sees the latest. */}
+            {/* Regen script — refreshes the SAME script row in place.
+                Preserves status (approved stays approved), approval
+                metadata, HeyGen video artifacts, and YouTube ids. Wipes
+                derived assets (scenes, thumbnail, distribution) so they
+                can be regenerated to match the new script text. */}
             {script.newsItemId && (
               <Btn
                 label="🔁 Regen Script"
                 accent="#9D7DFF"
                 onClick={() => {
-                  if (!confirm("Queue a fresh script for this news item? Creates a new draft row; the current one stays in DB but disappears from the queue (latest-per-news-item dedup).")) return;
-                  void onAct(script.id, "Script regen queued", (t) =>
-                    api(t, `/scripts/generate/${script.newsItemId}`, { method: "POST" }),
+                  if (!confirm(
+                    "Re-roll this script in place?\n\n" +
+                    "The same script row is refreshed (id + status + video artifacts preserved). " +
+                    "Scenes, thumbnails, and distribution are wiped — regenerate each from its own button after."
+                  )) return;
+                  void onAct(script.id, "Script regen queued (in-place)", (t) =>
+                    api(
+                      t,
+                      `/scripts/generate/${script.newsItemId}?existingScriptId=${script.id}`,
+                      { method: "POST" },
+                    ),
                   );
                 }}
               />
