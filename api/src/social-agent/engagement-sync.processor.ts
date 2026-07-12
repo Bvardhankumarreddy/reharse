@@ -8,6 +8,7 @@ import { SocialPost } from './social-post.entity';
 import { PostEngagement } from './post-engagement.entity';
 import { LinkedInService, type EngagementStats } from './linkedin.service';
 import { InstagramService } from './instagram.service';
+import { CronGateService } from '../system/services/cron-gate.service';
 
 export const ENGAGEMENT_SYNC_QUEUE = 'social-engagement-sync';
 export const ENGAGEMENT_SYNC_JOB = 'tick';
@@ -23,6 +24,7 @@ export class EngagementSyncProcessor implements OnModuleInit {
     @InjectQueue(ENGAGEMENT_SYNC_QUEUE) private readonly queue: Queue,
     private readonly linkedin: LinkedInService,
     private readonly instagram: InstagramService,
+    private readonly cronGate: CronGateService,
   ) {}
 
   async onModuleInit() {
@@ -46,6 +48,10 @@ export class EngagementSyncProcessor implements OnModuleInit {
   /** Pull stats for posts published in the last 30 days, save daily snapshot */
   @Process(ENGAGEMENT_SYNC_JOB)
   async tick(_job: Job): Promise<{ synced: number; skipped: number }> {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('Skipped — global cron gate is PAUSED');
+      return { synced: 0, skipped: 0 };
+    }
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400 * 1000);
     const due = await this.posts.find({
       where: {

@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
 import contentStudioConfig from './config/content-studio.config';
 import { AdminModule } from '../admin/admin.module';
+import { SystemModule } from '../system/system.module';
 
 import { Brand } from './entities/brand.entity';
 import { Channel } from './entities/channel.entity';
@@ -114,6 +115,7 @@ import { ContentStudioController } from './content-studio.controller';
       { name: CS_INTELLIGENCE_QUEUE },
     ),
     AdminModule,
+    SystemModule,
   ],
   controllers: [ContentStudioController],
   providers: [

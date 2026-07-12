@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Queue, Job } from 'bull';
 import { SocialInsight, type InsightType } from './social-insight.entity';
 import { AnalyticsService } from './analytics.service';
+import { CronGateService } from '../system/services/cron-gate.service';
 
 export const INSIGHTS_QUEUE = 'social-insights';
 export const INSIGHTS_JOB = 'tick';
@@ -29,6 +30,7 @@ export class InsightsProcessor implements OnModuleInit {
     @InjectQueue(INSIGHTS_QUEUE) private readonly queue: Queue,
     private readonly analytics: AnalyticsService,
     private readonly config: ConfigService,
+    private readonly cronGate: CronGateService,
   ) {}
 
   async onModuleInit() {
@@ -52,6 +54,10 @@ export class InsightsProcessor implements OnModuleInit {
   /** Pull a 30-day summary, ask Claude (via AI engine) for insights, save them */
   @Process(INSIGHTS_JOB)
   async tick(_job: Job): Promise<{ generated: number }> {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('Skipped — global cron gate is PAUSED');
+      return { generated: 0 };
+    }
     const summary = await this.analytics.buildClaudeSummary();
     if (summary.total_posts < 3) {
       this.logger.log('Skipping insights run — too few posts (<3) for meaningful analysis');

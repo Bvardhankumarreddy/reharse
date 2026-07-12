@@ -5,6 +5,7 @@ import { BullModule } from '@nestjs/bull';
 import careersConfig from './config/careers.config';
 import { User } from '../users/user.entity';
 import { AdminModule } from '../admin/admin.module';
+import { SystemModule } from '../system/system.module';
 
 import { CareerCompany } from './entities/career-company.entity';
 import { JobListing } from './entities/job-listing.entity';
@@ -40,6 +41,7 @@ import { CareersAdminController } from './careers-admin.controller';
     TypeOrmModule.forFeature([CareerCompany, JobListing, JobMatch, User]),
     BullModule.registerQueue({ name: CAREERS_INGESTION_QUEUE }),
     AdminModule,
+    SystemModule,
   ],
   controllers: [CareersController, CareersAdminController],
   providers: [

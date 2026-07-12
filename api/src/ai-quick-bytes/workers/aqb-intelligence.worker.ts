@@ -6,6 +6,7 @@ import axios from 'axios';
 import { AqbMetricsFetcherService } from '../services/aqb-metrics-fetcher.service';
 import { AqbPostmortemAgent } from '../agents/aqb-postmortem.agent';
 import { AqbImprovementAgent } from '../agents/aqb-improvement.agent';
+import { CronGateService } from '../../system/services/cron-gate.service';
 
 export const AQB_INTELLIGENCE_QUEUE = 'aqb-intelligence';
 
@@ -34,6 +35,7 @@ export class AqbIntelligenceWorker implements OnModuleInit {
     private readonly metrics: AqbMetricsFetcherService,
     private readonly postmortem: AqbPostmortemAgent,
     private readonly improvement: AqbImprovementAgent,
+    private readonly cronGate: CronGateService,
     @InjectQueue(AQB_INTELLIGENCE_QUEUE) private readonly queue: Queue,
   ) {
     this.slackUrl = this.config.get<string>('CS_SLACK_WEBHOOK_URL');
@@ -102,6 +104,10 @@ export class AqbIntelligenceWorker implements OnModuleInit {
 
   @Process('aqb-metrics-sweep')
   async metricsSweep() {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('aqb-metrics-sweep skipped — global cron gate is PAUSED');
+      return { skipped: true };
+    }
     const r = await this.metrics.fetchAll();
     if (r.saved > 0) {
       await this.notify(`:zap: aqb · metrics-sweep · ${r.saved} snapshot(s) across ${r.scanned} short(s)`);
@@ -111,6 +117,10 @@ export class AqbIntelligenceWorker implements OnModuleInit {
 
   @Process('aqb-postmortem-sweep')
   async postmortemSweep() {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('aqb-postmortem-sweep skipped — global cron gate is PAUSED');
+      return { skipped: true };
+    }
     const r = await this.postmortem.runDailyBatch();
     if (r.generated > 0) {
       await this.notify(`:zap: aqb · postmortem-sweep · ${r.generated}/${r.scanned} written`);
@@ -120,6 +130,10 @@ export class AqbIntelligenceWorker implements OnModuleInit {
 
   @Process('aqb-improvement-sweep')
   async improvementSweep() {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('aqb-improvement-sweep skipped — global cron gate is PAUSED');
+      return { skipped: true };
+    }
     const r = await this.improvement.runWeekly();
     if (r.promoted > 0) {
       await this.notify(

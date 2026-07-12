@@ -8,6 +8,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { User } from '../users/user.entity';
 import { Session } from '../sessions/session.entity';
 import { QUEUES, DIGEST_JOBS, DIGEST_SEND_OPTIONS } from './queue.constants';
+import { CronGateService } from '../system/services/cron-gate.service';
 
 // ── Job payloads ──────────────────────────────────────────────────────────────
 
@@ -213,12 +214,17 @@ export class DigestProcessor {
     @InjectRepository(Session) private readonly sessionRepo: Repository<Session>,
     @InjectQueue(QUEUES.DIGEST) private readonly digestQueue: Queue,
     private readonly config: ConfigService,
+    private readonly cronGate: CronGateService,
   ) {}
 
   /** Fan-out: runs on a cron schedule (wired in jobs.module.ts).
    *  Queries all users active in the last 30 days, enqueues one WEEKLY_USER job each. */
   @Process(DIGEST_JOBS.WEEKLY_FANOUT)
   async fanout(job: Job<DigestFanoutData>) {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log(`[Digest fanout ${job.id}] Skipped — global cron gate is PAUSED`);
+      return { skipped: true };
+    }
     this.logger.log(`[Digest fanout ${job.id}] Scanning active users…`);
 
     const thirtyDaysAgo = new Date();

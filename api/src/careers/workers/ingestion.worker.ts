@@ -2,6 +2,7 @@ import { Processor, Process, InjectQueue } from '@nestjs/bull';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Queue } from 'bull';
 import { CareersIngestionService } from '../services/ingestion.service';
+import { CronGateService } from '../../system/services/cron-gate.service';
 
 export const CAREERS_INGESTION_QUEUE = 'careers-ingestion';
 const TICK = 'tick';
@@ -13,6 +14,7 @@ export class CareersIngestionWorker implements OnModuleInit {
 
   constructor(
     private readonly ingestion: CareersIngestionService,
+    private readonly cronGate: CronGateService,
     @InjectQueue(CAREERS_INGESTION_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -32,6 +34,10 @@ export class CareersIngestionWorker implements OnModuleInit {
 
   @Process(TICK)
   async tick() {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('Skipped — global cron gate is PAUSED');
+      return { skipped: true };
+    }
     this.logger.log('Careers ingestion starting…');
     const expired = await this.ingestion.expireStale();
     const result = await this.ingestion.fetchAll();

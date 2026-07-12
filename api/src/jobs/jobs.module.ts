@@ -8,6 +8,7 @@ import { QUEUES, EVALUATE_JOB_OPTIONS } from './queue.constants';
 import { FeedbackModule }    from '../feedback/feedback.module';
 import { InterviewModule }   from '../interview/interview.module';
 import { UsersModule }       from '../users/users.module';
+import { SystemModule }      from '../system/system.module';
 import { User }              from '../users/user.entity';
 import { Session }           from '../sessions/session.entity';
 
@@ -30,6 +31,7 @@ import { Session }           from '../sessions/session.entity';
     FeedbackModule,
     InterviewModule,
     UsersModule,
+    SystemModule,
 
     // ── Entity access for DigestProcessor ───────────────────────────────────
     TypeOrmModule.forFeature([User, Session]),

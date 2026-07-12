@@ -5,6 +5,7 @@ import { BullModule } from '@nestjs/bull';
 
 import { AdminModule } from '../admin/admin.module';
 import { CharactersModule } from '../characters/characters.module';
+import { SystemModule } from '../system/system.module';
 import { AI_PULSE_QUEUE } from './services/scheduler.service';
 
 import { AiPulseNewsItem } from './entities/news-item.entity';
@@ -51,6 +52,7 @@ import { AiPulseApprovalController } from './controllers/approval.controller';
     ]),
     AdminModule,
     CharactersModule,
+    SystemModule,
   ],
   providers: [
     AiPulseIngestionService,

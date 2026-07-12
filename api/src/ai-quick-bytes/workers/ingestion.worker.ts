@@ -2,6 +2,7 @@ import { Processor, Process, InjectQueue } from '@nestjs/bull';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Queue, Job } from 'bull';
 import { IngestionService } from '../services/ingestion.service';
+import { CronGateService } from '../../system/services/cron-gate.service';
 
 export const AQB_INGESTION_QUEUE = 'aqb-ingestion';
 const TICK = 'tick';
@@ -13,6 +14,7 @@ export class IngestionWorker implements OnModuleInit {
 
   constructor(
     private readonly ingestion: IngestionService,
+    private readonly cronGate: CronGateService,
     @InjectQueue(AQB_INGESTION_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -32,6 +34,10 @@ export class IngestionWorker implements OnModuleInit {
 
   @Process(TICK)
   async tick() {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('Skipped — global cron gate is PAUSED');
+      return { skipped: true };
+    }
     this.logger.log('Scheduled news fetch starting…');
     const result = await this.ingestion.fetchAllSources();
     this.logger.log(`Fetch complete: ${result.total} new items`);

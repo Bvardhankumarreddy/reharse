@@ -14,6 +14,7 @@ import { AqbMemory } from './entities/aqb-memory.entity';
 import { AqbQuote } from './entities/aqb-quote.entity';
 import { AdminModule } from '../admin/admin.module';
 import { CharactersModule } from '../characters/characters.module';
+import { SystemModule } from '../system/system.module';
 
 import { OpenAIClientService } from './services/openai-client.service';
 import { AnthropicClientService } from './services/anthropic-client.service';
@@ -77,6 +78,7 @@ import { SceneGeneratorService } from './services/scene-generator.service';
     ),
     AdminModule,
     CharactersModule,
+    SystemModule,
   ],
   controllers: [
     NewsController,

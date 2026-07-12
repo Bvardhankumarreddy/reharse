@@ -17,6 +17,7 @@ import { QuizResultsService } from './quiz-results.service';
 import { QuizNotifierWorker, QUIZ_NOTIFIER_QUEUE } from './quiz-notifier.worker';
 import { AdminModule } from '../admin/admin.module';
 import { TrustSafetyModule } from '../trust-safety/trust-safety.module';
+import { SystemModule } from '../system/system.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { TrustSafetyModule } from '../trust-safety/trust-safety.module';
     BullModule.registerQueue({ name: QUIZ_NOTIFIER_QUEUE }),
     AdminModule, // for AdminGuard
     TrustSafetyModule, // FingerprintService + UniqueQuestionService
+    SystemModule,
   ],
   controllers: [QuizPublicController, QuizAdminController],
   providers: [QuizService, QuizSubscriberService, QuizMailerService, QuizResultsService, QuizNotifierWorker],

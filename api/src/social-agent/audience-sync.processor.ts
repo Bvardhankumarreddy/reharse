@@ -8,6 +8,7 @@ import type { Queue, Job } from 'bull';
 import { SocialPlatformConnection } from './social-platform-connection.entity';
 import { AudienceSnapshot } from './audience-snapshot.entity';
 import { SocialAgentEncryptionService } from './encryption.service';
+import { CronGateService } from '../system/services/cron-gate.service';
 
 export const AUDIENCE_SYNC_QUEUE = 'social-audience-sync';
 export const AUDIENCE_SYNC_JOB = 'tick';
@@ -27,6 +28,7 @@ export class AudienceSyncProcessor implements OnModuleInit {
     @InjectQueue(AUDIENCE_SYNC_QUEUE) private readonly queue: Queue,
     private readonly enc: SocialAgentEncryptionService,
     private readonly config: ConfigService,
+    private readonly cronGate: CronGateService,
   ) {
     void this.config; // (kept for future YouTube extension)
   }
@@ -51,6 +53,10 @@ export class AudienceSyncProcessor implements OnModuleInit {
 
   @Process(AUDIENCE_SYNC_JOB)
   async tick(_job: Job): Promise<{ snapshots: number }> {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('Skipped — global cron gate is PAUSED');
+      return { snapshots: 0 };
+    }
     let saved = 0;
     saved += (await this.syncInstagram()) ? 1 : 0;
     // LinkedIn requires Marketing Developer Platform tier (paid) — skip for now

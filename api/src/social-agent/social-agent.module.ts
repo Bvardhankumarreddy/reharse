@@ -21,6 +21,7 @@ import { SocialInsight } from './social-insight.entity';
 import { AudienceSnapshot } from './audience-snapshot.entity';
 import { CompetitorChannel, CompetitorNote } from './competitor.entity';
 import { AdminModule } from '../admin/admin.module';
+import { SystemModule } from '../system/system.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AdminModule } from '../admin/admin.module';
       { name: AUDIENCE_SYNC_QUEUE },
     ),
     AdminModule,
+    SystemModule,
   ],
   controllers: [SocialAgentController, SocialAgentOAuthController],
   providers: [

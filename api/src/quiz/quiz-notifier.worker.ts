@@ -2,6 +2,7 @@ import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Queue } from 'bull';
 import { QuizSubscriberService } from './quiz-subscriber.service';
+import { CronGateService } from '../system/services/cron-gate.service';
 
 export const QUIZ_NOTIFIER_QUEUE = 'quiz-notifier';
 
@@ -12,6 +13,7 @@ export class QuizNotifierWorker implements OnModuleInit {
 
   constructor(
     private readonly subscribers: QuizSubscriberService,
+    private readonly cronGate: CronGateService,
     @InjectQueue(QUIZ_NOTIFIER_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -53,11 +55,19 @@ export class QuizNotifierWorker implements OnModuleInit {
 
   @Process('notify-due')
   async runNotify() {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('notify-due skipped — global cron gate is PAUSED');
+      return { skipped: true };
+    }
     return this.subscribers.runDueNotificationsBatch();
   }
 
   @Process('prune-notified-log')
   async runPrune() {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('prune-notified-log skipped — global cron gate is PAUSED');
+      return { skipped: true };
+    }
     return this.subscribers.pruneStaleNotificationLogs();
   }
 }

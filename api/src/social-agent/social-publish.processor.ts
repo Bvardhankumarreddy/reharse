@@ -7,6 +7,7 @@ import type { Queue, Job } from 'bull';
 import { SocialPost } from './social-post.entity';
 import { LinkedInService } from './linkedin.service';
 import { InstagramService, AUTO_PUBLISH_PLATFORMS } from './instagram.service';
+import { CronGateService } from '../system/services/cron-gate.service';
 
 export const SOCIAL_PUBLISH_QUEUE = 'social-publish';
 export const SOCIAL_PUBLISH_JOB = 'tick';
@@ -23,6 +24,7 @@ export class SocialPublishProcessor implements OnModuleInit {
     @InjectQueue(SOCIAL_PUBLISH_QUEUE) private readonly queue: Queue,
     private readonly linkedin: LinkedInService,
     private readonly instagram: InstagramService,
+    private readonly cronGate: CronGateService,
   ) {}
 
   async onModuleInit() {
@@ -47,6 +49,10 @@ export class SocialPublishProcessor implements OnModuleInit {
   /** Runs every minute — find approved posts whose scheduledAt has passed and publish them */
   @Process(SOCIAL_PUBLISH_JOB)
   async tick(_job: Job): Promise<{ processed: number; results: Array<{ id: string; ok: boolean; error?: string }> }> {
+    if (await this.cronGate.isPaused()) {
+      this.logger.log('Skipped — global cron gate is PAUSED');
+      return { processed: 0, results: [] };
+    }
     const due = await this.posts.find({
       where: {
         status: 'approved',

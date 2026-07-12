@@ -28,6 +28,7 @@ import { CareersModule } from './careers/careers.module';
 import { ContentStudioModule } from './content-studio/content-studio.module';
 import { TrustSafetyModule } from './trust-safety/trust-safety.module';
 import { AiPulseModule } from './ai-pulse/ai-pulse.module';
+import { SystemModule } from './system/system.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { AiPulseModule } from './ai-pulse/ai-pulse.module';
     CareersModule,
     ContentStudioModule,
     AiPulseModule,
+    SystemModule,
   ],
   controllers: [HealthController],
 })
