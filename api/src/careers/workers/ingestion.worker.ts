@@ -3,6 +3,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Queue } from 'bull';
 import { CareersIngestionService } from '../services/ingestion.service';
 import { CronGateService } from '../../system/services/cron-gate.service';
+import { CRON_KEYS } from '../../system/constants/cron-registry';
 
 export const CAREERS_INGESTION_QUEUE = 'careers-ingestion';
 const TICK = 'tick';
@@ -34,8 +35,8 @@ export class CareersIngestionWorker implements OnModuleInit {
 
   @Process(TICK)
   async tick() {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('Skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.CAREERS_INGESTION)) {
+      this.logger.log(`Skipped — cron '${CRON_KEYS.CAREERS_INGESTION}' is PAUSED`);
       return { skipped: true };
     }
     this.logger.log('Careers ingestion starting…');

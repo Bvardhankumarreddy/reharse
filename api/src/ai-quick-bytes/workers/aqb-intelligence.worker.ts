@@ -7,6 +7,7 @@ import { AqbMetricsFetcherService } from '../services/aqb-metrics-fetcher.servic
 import { AqbPostmortemAgent } from '../agents/aqb-postmortem.agent';
 import { AqbImprovementAgent } from '../agents/aqb-improvement.agent';
 import { CronGateService } from '../../system/services/cron-gate.service';
+import { CRON_KEYS } from '../../system/constants/cron-registry';
 
 export const AQB_INTELLIGENCE_QUEUE = 'aqb-intelligence';
 
@@ -104,8 +105,8 @@ export class AqbIntelligenceWorker implements OnModuleInit {
 
   @Process('aqb-metrics-sweep')
   async metricsSweep() {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('aqb-metrics-sweep skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.AQB_METRICS)) {
+      this.logger.log(`aqb-metrics-sweep skipped — cron '${CRON_KEYS.AQB_METRICS}' is PAUSED`);
       return { skipped: true };
     }
     const r = await this.metrics.fetchAll();
@@ -117,8 +118,8 @@ export class AqbIntelligenceWorker implements OnModuleInit {
 
   @Process('aqb-postmortem-sweep')
   async postmortemSweep() {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('aqb-postmortem-sweep skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.AQB_POSTMORTEM)) {
+      this.logger.log(`aqb-postmortem-sweep skipped — cron '${CRON_KEYS.AQB_POSTMORTEM}' is PAUSED`);
       return { skipped: true };
     }
     const r = await this.postmortem.runDailyBatch();
@@ -130,8 +131,8 @@ export class AqbIntelligenceWorker implements OnModuleInit {
 
   @Process('aqb-improvement-sweep')
   async improvementSweep() {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('aqb-improvement-sweep skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.AQB_IMPROVEMENT)) {
+      this.logger.log(`aqb-improvement-sweep skipped — cron '${CRON_KEYS.AQB_IMPROVEMENT}' is PAUSED`);
       return { skipped: true };
     }
     const r = await this.improvement.runWeekly();

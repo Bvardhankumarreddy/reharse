@@ -9,6 +9,7 @@ import { SocialPlatformConnection } from './social-platform-connection.entity';
 import { AudienceSnapshot } from './audience-snapshot.entity';
 import { SocialAgentEncryptionService } from './encryption.service';
 import { CronGateService } from '../system/services/cron-gate.service';
+import { CRON_KEYS } from '../system/constants/cron-registry';
 
 export const AUDIENCE_SYNC_QUEUE = 'social-audience-sync';
 export const AUDIENCE_SYNC_JOB = 'tick';
@@ -53,8 +54,8 @@ export class AudienceSyncProcessor implements OnModuleInit {
 
   @Process(AUDIENCE_SYNC_JOB)
   async tick(_job: Job): Promise<{ snapshots: number }> {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('Skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.SOCIAL_AUDIENCE)) {
+      this.logger.log(`Skipped — cron '${CRON_KEYS.SOCIAL_AUDIENCE}' is PAUSED`);
       return { snapshots: 0 };
     }
     let saved = 0;

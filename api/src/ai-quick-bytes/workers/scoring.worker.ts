@@ -3,6 +3,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Queue, Job } from 'bull';
 import { ScoringService } from '../services/scoring.service';
 import { CronGateService } from '../../system/services/cron-gate.service';
+import { CRON_KEYS } from '../../system/constants/cron-registry';
 
 export const AQB_SCORING_QUEUE = 'aqb-scoring';
 const TICK = 'tick';
@@ -35,8 +36,8 @@ export class ScoringWorker implements OnModuleInit {
 
   @Process(TICK)
   async tick() {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('Skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.AQB_SCORING)) {
+      this.logger.log(`Skipped — cron '${CRON_KEYS.AQB_SCORING}' is PAUSED`);
       return { skipped: true };
     }
     const scored = await this.scoring.scoreUnscoredItems();

@@ -16,6 +16,7 @@ import { AiPulseImprovementService } from './improvement.service';
 import { DAY_VERTICAL_MAP, VERTICALS } from '../config/verticals.config';
 import { AiPulseVertical } from '../entities/news-item.entity';
 import { CronGateService } from '../../system/services/cron-gate.service';
+import { CRON_KEYS } from '../../system/constants/cron-registry';
 
 export const AI_PULSE_QUEUE = 'ai-pulse';
 
@@ -96,9 +97,9 @@ export class AiPulseSchedulerService implements OnModuleInit {
     }
   }
 
-  private async isPausedLog(name: string): Promise<boolean> {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log(`[cron] ${name} skipped — global cron gate is PAUSED`);
+  private async isPausedLog(name: string, cronKey: string): Promise<boolean> {
+    if (await this.cronGate.isPaused(cronKey)) {
+      this.logger.log(`[cron] ${name} skipped — cron '${cronKey}' is PAUSED`);
       return true;
     }
     return false;
@@ -106,7 +107,7 @@ export class AiPulseSchedulerService implements OnModuleInit {
 
   @Process('ingest')
   async cronIngest() {
-    if (await this.isPausedLog('ingest')) return { skipped: true };
+    if (await this.isPausedLog('ingest', CRON_KEYS.AI_PULSE_INGEST)) return { skipped: true };
     try {
       const r = await this.ingestion.ingestAll();
       this.logger.log(`[cron] ingest: ${r.new} new / ${r.duplicates} dup / ${r.total} total`);
@@ -119,7 +120,7 @@ export class AiPulseSchedulerService implements OnModuleInit {
 
   @Process('metrics-sweep')
   async cronMetrics() {
-    if (await this.isPausedLog('metrics-sweep')) return { skipped: true };
+    if (await this.isPausedLog('metrics-sweep', CRON_KEYS.AI_PULSE_METRICS)) return { skipped: true };
     try {
       const r = await this.metricsFetcher.fetchAll();
       this.logger.log(`[cron] metrics: ${r.saved} snapshots / ${r.scanned} shorts`);
@@ -132,7 +133,7 @@ export class AiPulseSchedulerService implements OnModuleInit {
 
   @Process('postmortem-sweep')
   async cronPostmortem() {
-    if (await this.isPausedLog('postmortem-sweep')) return { skipped: true };
+    if (await this.isPausedLog('postmortem-sweep', CRON_KEYS.AI_PULSE_POSTMORTEM)) return { skipped: true };
     try {
       const r = await this.postmortem.runDailyBatch();
       this.logger.log(`[cron] postmortem: ${r.generated}/${r.scanned} written`);
@@ -145,7 +146,7 @@ export class AiPulseSchedulerService implements OnModuleInit {
 
   @Process('improvement-sweep')
   async cronImprovement() {
-    if (await this.isPausedLog('improvement-sweep')) return { skipped: true };
+    if (await this.isPausedLog('improvement-sweep', CRON_KEYS.AI_PULSE_IMPROVEMENT)) return { skipped: true };
     try {
       const r = await this.improvement.runDaily();
       this.logger.log(
@@ -160,7 +161,7 @@ export class AiPulseSchedulerService implements OnModuleInit {
 
   @Process('generate')
   async cronGenerate() {
-    if (await this.isPausedLog('generate')) return { totalGenerated: 0, verticals: {}, skipped: true };
+    if (await this.isPausedLog('generate', CRON_KEYS.AI_PULSE_GENERATE)) return { totalGenerated: 0, verticals: {}, skipped: true };
     // EVERY DAY across EVERY ENABLED vertical (not just the day-of-week
     // mapped one). The day_of_week column in VERTICALS / DB stays as
     // documentation; the cron now ignores it. Per-vertical errors are

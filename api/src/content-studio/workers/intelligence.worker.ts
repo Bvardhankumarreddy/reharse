@@ -9,6 +9,7 @@ import { ImprovementAgent } from '../agents/improvement.agent';
 import { NotificationService } from '../services/notification.service';
 import { QuizRetentionService } from '../services/quiz-retention.service';
 import { CronGateService } from '../../system/services/cron-gate.service';
+import { CRON_KEYS } from '../../system/constants/cron-registry';
 
 export const CS_INTELLIGENCE_QUEUE = 'content-studio-intelligence';
 
@@ -42,9 +43,9 @@ export class IntelligenceWorker implements OnModuleInit {
     @InjectQueue(CS_INTELLIGENCE_QUEUE) private readonly queue: Queue,
   ) {}
 
-  private async isPausedLog(name: string): Promise<boolean> {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log(`${name} skipped — global cron gate is PAUSED`);
+  private async isPausedLog(name: string, cronKey: string): Promise<boolean> {
+    if (await this.cronGate.isPaused(cronKey)) {
+      this.logger.log(`${name} skipped — cron '${cronKey}' is PAUSED`);
       return true;
     }
     return false;
@@ -96,7 +97,7 @@ export class IntelligenceWorker implements OnModuleInit {
 
   @Process('competitor-sweep')
   async competitorSweep() {
-    if (await this.isPausedLog('competitor-sweep')) return { skipped: true };
+    if (await this.isPausedLog('competitor-sweep', CRON_KEYS.CS_COMPETITOR)) return { skipped: true };
     const r = await this.competitor.fetchAll();
     if (r.saved > 0) {
       await this.notify.notify(
@@ -108,7 +109,7 @@ export class IntelligenceWorker implements OnModuleInit {
 
   @Process('channel-sweep')
   async channelSweep() {
-    if (await this.isPausedLog('channel-sweep')) return { skipped: true };
+    if (await this.isPausedLog('channel-sweep', CRON_KEYS.CS_CHANNEL)) return { skipped: true };
     const r = await this.channelVideos.fetchAll();
     if (r.saved > 0) {
       await this.notify.notify(
@@ -120,7 +121,7 @@ export class IntelligenceWorker implements OnModuleInit {
 
   @Process('metrics-sweep')
   async metricsSweep() {
-    if (await this.isPausedLog('metrics-sweep')) return { skipped: true };
+    if (await this.isPausedLog('metrics-sweep', CRON_KEYS.CS_METRICS)) return { skipped: true };
     const r = await this.metrics.fetchAll();
     if (r.saved > 0) {
       await this.notify.notify(
@@ -132,7 +133,7 @@ export class IntelligenceWorker implements OnModuleInit {
 
   @Process('postmortem-sweep')
   async postmortemSweep() {
-    if (await this.isPausedLog('postmortem-sweep')) return { skipped: true };
+    if (await this.isPausedLog('postmortem-sweep', CRON_KEYS.CS_POSTMORTEM)) return { skipped: true };
     const r = await this.postmortem.runDailyBatch();
     if (r.generated > 0) {
       await this.notify.notify(
@@ -144,7 +145,7 @@ export class IntelligenceWorker implements OnModuleInit {
 
   @Process('retention-purge')
   async retentionPurge() {
-    if (await this.isPausedLog('retention-purge')) return { skipped: true };
+    if (await this.isPausedLog('retention-purge', CRON_KEYS.CS_RETENTION)) return { skipped: true };
     // Cron always archives — never silently delete production data.
     // If the storage Lambda isn't configured, the call throws and the
     // sweep no-ops for the week (caught by the job-failure handler).
@@ -180,7 +181,7 @@ export class IntelligenceWorker implements OnModuleInit {
 
   @Process('improvement-sweep')
   async improvementSweep() {
-    if (await this.isPausedLog('improvement-sweep')) return { skipped: true };
+    if (await this.isPausedLog('improvement-sweep', CRON_KEYS.CS_IMPROVEMENT)) return { skipped: true };
     const r = await this.improvement.runForAllBrands();
     // Only notify when something actually got promoted — a "0 promoted" run is
     // the normal state until published lessons accrue YouTube metrics, so it's

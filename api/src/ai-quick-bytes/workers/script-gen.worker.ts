@@ -3,6 +3,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Queue, Job } from 'bull';
 import { ScriptGeneratorService } from '../services/script-generator.service';
 import { CronGateService } from '../../system/services/cron-gate.service';
+import { CRON_KEYS } from '../../system/constants/cron-registry';
 
 export const AQB_SCRIPT_GEN_QUEUE = 'aqb-script-gen';
 const TICK = 'tick';
@@ -35,8 +36,8 @@ export class ScriptGenWorker implements OnModuleInit {
 
   @Process(TICK)
   async tick() {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('Skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.AQB_SCRIPT_GEN)) {
+      this.logger.log(`Skipped — cron '${CRON_KEYS.AQB_SCRIPT_GEN}' is PAUSED`);
       return { skipped: true };
     }
     const generated = await this.scriptGen.generateForTopStories();

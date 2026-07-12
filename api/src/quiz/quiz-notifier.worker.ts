@@ -3,6 +3,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Queue } from 'bull';
 import { QuizSubscriberService } from './quiz-subscriber.service';
 import { CronGateService } from '../system/services/cron-gate.service';
+import { CRON_KEYS } from '../system/constants/cron-registry';
 
 export const QUIZ_NOTIFIER_QUEUE = 'quiz-notifier';
 
@@ -55,8 +56,8 @@ export class QuizNotifierWorker implements OnModuleInit {
 
   @Process('notify-due')
   async runNotify() {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('notify-due skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.QUIZ_NOTIFY)) {
+      this.logger.log(`notify-due skipped — cron '${CRON_KEYS.QUIZ_NOTIFY}' is PAUSED`);
       return { skipped: true };
     }
     return this.subscribers.runDueNotificationsBatch();
@@ -64,8 +65,8 @@ export class QuizNotifierWorker implements OnModuleInit {
 
   @Process('prune-notified-log')
   async runPrune() {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('prune-notified-log skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.QUIZ_PRUNE)) {
+      this.logger.log(`prune-notified-log skipped — cron '${CRON_KEYS.QUIZ_PRUNE}' is PAUSED`);
       return { skipped: true };
     }
     return this.subscribers.pruneStaleNotificationLogs();

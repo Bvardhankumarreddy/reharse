@@ -1,29 +1,33 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { SystemSetting } from '../entities/system-setting.entity';
+import { CRON_REGISTRY } from '../constants/cron-registry';
 
-const KEY = 'crons.paused';
+const KEY_PREFIX = 'cron.';
 const CACHE_TTL_MS = 30_000;
 
 /**
- * Global kill-switch for scheduled (cron) work across the platform.
+ * Per-cron kill-switch. Every scheduled TICK handler passes its own
+ * cron key (from CRON_KEYS) to isPaused(); the flag is stored per-key
+ * so operators can pause individual crons — e.g. stop AQB script-gen
+ * while leaving AI Pulse ingestion running.
  *
- * When paused, every worker's cron TICK handler checks isPaused() at the
- * top and returns early. Manual admin actions (regen script, generate
- * scenes, publish, etc.) are NOT gated — the operator still controls
- * those individually. Only scheduled repeaters idle out.
+ * DB keys are 'cron.<key>' (e.g. 'cron.aqb.script-gen'). Kept in the
+ * same system_settings table as any future scalar setting; the prefix
+ * lets us slice cron-related rows out in one query for the admin list.
  *
- * Uses a 30-second in-memory cache so a heavy cron minute (many
- * repeaters firing at :00) doesn't hammer Postgres. Cache invalidates
- * immediately when setPaused() runs in the same process; other pods pick
- * up the flip within the TTL. Acceptable trade-off — a 30s lag on a
- * kill-switch is fine for cron work.
+ * Manual admin actions (Regen Script, Generate Scenes, publish endpoints)
+ * are NEVER gated — they bypass this service entirely.
+ *
+ * A single-row full-map cache (30s TTL) means the busy :00 cron minute
+ * doesn't hammer Postgres; a lookup is a Map hit. Set-side flips bust
+ * the same-process cache immediately.
  */
 @Injectable()
 export class CronGateService implements OnModuleInit {
   private readonly logger = new Logger(CronGateService.name);
-  private cached: { value: boolean; loadedAt: number } | null = null;
+  private cache: { map: Map<string, boolean>; loadedAt: number } | null = null;
 
   constructor(
     @InjectRepository(SystemSetting)
@@ -31,76 +35,109 @@ export class CronGateService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    // Warm the cache and log initial state so pod boot logs show the
-    // gate's current position.
     try {
-      const paused = await this.isPaused();
+      const map = await this.loadAll();
+      const paused = [...map.entries()].filter(([, v]) => v).map(([k]) => k);
       this.logger.log(
-        `CronGate initialised — crons ${paused ? 'PAUSED (manual only)' : 'RUNNING'}`,
+        paused.length === 0
+          ? `CronGate initialised — 0 crons paused, ${CRON_REGISTRY.length} running`
+          : `CronGate initialised — ${paused.length} paused: ${paused.join(', ')}`,
       );
     } catch (e) {
-      // Table may not exist yet on a very first deploy before the migration
-      // has been applied. Fail open (crons run) so we don't accidentally
-      // stall the whole platform on a missing table.
       this.logger.warn(
         `CronGate init skipped — table likely missing ` +
         `(run migration-001-system-settings.sql). ` +
-        `Failing OPEN: crons will run. Error: ${(e as Error).message}`,
+        `Failing OPEN: all crons will run. Error: ${(e as Error).message}`,
       );
     }
   }
 
-  async isPaused(): Promise<boolean> {
-    if (
-      this.cached &&
-      Date.now() - this.cached.loadedAt < CACHE_TTL_MS
-    ) {
-      return this.cached.value;
-    }
-    let value = false;
-    try {
-      const row = await this.repo.findOne({ where: { key: KEY } });
-      value = Boolean(row?.value);
-    } catch {
-      // Fail open on any DB error — a broken system_settings table must
-      // not turn every cron into a no-op.
-      value = false;
-    }
-    this.cached = { value, loadedAt: Date.now() };
-    return value;
+  /** Fast per-key check; cache-first, DB fallback on miss. */
+  async isPaused(cronKey: string): Promise<boolean> {
+    const map = await this.getMap();
+    return map.get(cronKey) ?? false;
   }
 
-  async setPaused(paused: boolean, actor: string | null): Promise<void> {
-    const existing = await this.repo.findOne({ where: { key: KEY } });
+  async setPaused(
+    cronKey: string,
+    paused: boolean,
+    actor: string | null,
+  ): Promise<void> {
+    if (!CRON_REGISTRY.some((c) => c.key === cronKey)) {
+      throw new Error(`Unknown cron key: ${cronKey}`);
+    }
+    const dbKey = KEY_PREFIX + cronKey;
+    const existing = await this.repo.findOne({ where: { key: dbKey } });
     if (existing) {
       existing.value = paused;
       existing.updated_by = actor;
       await this.repo.save(existing);
     } else {
       await this.repo.save(this.repo.create({
-        key: KEY,
+        key: dbKey,
         value: paused,
         updated_by: actor,
       }));
     }
-    // Bust local cache immediately so the same-process operator sees the
-    // flip on the next isPaused() call.
-    this.cached = { value: paused, loadedAt: Date.now() };
+    // Update the in-process cache immediately so this pod's next
+    // isPaused() call sees the change without waiting for the TTL.
+    if (this.cache) this.cache.map.set(cronKey, paused);
     this.logger.log(
-      `Crons ${paused ? 'PAUSED' : 'RESUMED'} by ${actor ?? 'system'}`,
+      `Cron '${cronKey}' ${paused ? 'PAUSED' : 'RESUMED'} by ${actor ?? 'system'}`,
     );
   }
 
-  async status(): Promise<{
-    paused: boolean;
+  /** Returns the full status list joined against the registry, for the
+   *  admin UI. Rows missing from the DB default to paused=false. */
+  async listStatus(): Promise<Array<{
+    key:        string;
+    label:      string;
+    module:     string;
+    schedule:   string;
+    paused:     boolean;
     updated_at: Date | null;
     updated_by: string | null;
-  }> {
-    const row = await this.repo.findOne({ where: { key: KEY } });
-    return {
-      paused: Boolean(row?.value),
-      updated_at: row?.updated_at ?? null,
-      updated_by: row?.updated_by ?? null,
-    };
+  }>> {
+    const rows = await this.repo.find({
+      where: { key: In(CRON_REGISTRY.map((c) => KEY_PREFIX + c.key)) },
+    });
+    const byKey = new Map<string, SystemSetting>(
+      rows.map((r) => [r.key.slice(KEY_PREFIX.length), r]),
+    );
+    return CRON_REGISTRY.map((c) => {
+      const row = byKey.get(c.key);
+      return {
+        key:        c.key,
+        label:      c.label,
+        module:     c.module,
+        schedule:   c.schedule,
+        paused:     Boolean(row?.value),
+        updated_at: row?.updated_at ?? null,
+        updated_by: row?.updated_by ?? null,
+      };
+    });
+  }
+
+  private async getMap(): Promise<Map<string, boolean>> {
+    if (this.cache && Date.now() - this.cache.loadedAt < CACHE_TTL_MS) {
+      return this.cache.map;
+    }
+    let map: Map<string, boolean>;
+    try {
+      map = await this.loadAll();
+    } catch {
+      // Fail open on any DB error — a broken settings table must not
+      // turn every cron into a no-op.
+      map = new Map();
+    }
+    this.cache = { map, loadedAt: Date.now() };
+    return map;
+  }
+
+  private async loadAll(): Promise<Map<string, boolean>> {
+    const rows = await this.repo.find({
+      where: { key: In(CRON_REGISTRY.map((c) => KEY_PREFIX + c.key)) },
+    });
+    return new Map(rows.map((r) => [r.key.slice(KEY_PREFIX.length), Boolean(r.value)]));
   }
 }

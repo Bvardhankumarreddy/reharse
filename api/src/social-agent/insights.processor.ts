@@ -8,6 +8,7 @@ import type { Queue, Job } from 'bull';
 import { SocialInsight, type InsightType } from './social-insight.entity';
 import { AnalyticsService } from './analytics.service';
 import { CronGateService } from '../system/services/cron-gate.service';
+import { CRON_KEYS } from '../system/constants/cron-registry';
 
 export const INSIGHTS_QUEUE = 'social-insights';
 export const INSIGHTS_JOB = 'tick';
@@ -54,8 +55,8 @@ export class InsightsProcessor implements OnModuleInit {
   /** Pull a 30-day summary, ask Claude (via AI engine) for insights, save them */
   @Process(INSIGHTS_JOB)
   async tick(_job: Job): Promise<{ generated: number }> {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('Skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.SOCIAL_INSIGHTS)) {
+      this.logger.log(`Skipped — cron '${CRON_KEYS.SOCIAL_INSIGHTS}' is PAUSED`);
       return { generated: 0 };
     }
     const summary = await this.analytics.buildClaudeSummary();

@@ -3,6 +3,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Queue, Job } from 'bull';
 import { IngestionService } from '../services/ingestion.service';
 import { CronGateService } from '../../system/services/cron-gate.service';
+import { CRON_KEYS } from '../../system/constants/cron-registry';
 
 export const AQB_INGESTION_QUEUE = 'aqb-ingestion';
 const TICK = 'tick';
@@ -34,8 +35,8 @@ export class IngestionWorker implements OnModuleInit {
 
   @Process(TICK)
   async tick() {
-    if (await this.cronGate.isPaused()) {
-      this.logger.log('Skipped — global cron gate is PAUSED');
+    if (await this.cronGate.isPaused(CRON_KEYS.AQB_INGESTION)) {
+      this.logger.log(`Skipped — cron '${CRON_KEYS.AQB_INGESTION}' is PAUSED`);
       return { skipped: true };
     }
     this.logger.log('Scheduled news fetch starting…');
